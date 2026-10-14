@@ -104,7 +104,7 @@ already does them.
 | herdr-gpui parses the token and formats the age | Needs a change |
 | Four-line session row in the sidebar | Needs a change |
 | Age repaints without input | Needs a change |
-| Stock Herdr | Satisfied without extra work: no token means no age. Branch and name still work. |
+| Stock Herdr | Satisfied without extra work: no token means no age. The name works. The branch stays fresh only while the Spaces sidebar rows include `branch`, which the default rows do (`herdr src/config/sidebar.rs:466-472`, `src/app/git_refresh.rs:117-127`). A user who removed it sees a stale branch or `⎇ —`. |
 
 ## Decisions
 

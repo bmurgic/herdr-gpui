@@ -126,10 +126,14 @@ The governing specs are `myherdr/openspec/specs/general-settings-tab/spec.md`,
 5. [A] `session sidebar` is shown for every daemon, and it is not gated.
    - herdr-gpui itself reads `ui.session_sidebar` (piece 2), so the switch does
      something on any daemon.
-   - On stock Herdr, writing it gives one `unknown config key
-     ui.session_sidebar; ignoring key` diagnostic. That is the price of a
-     setting this client owns but stores in Herdr's file. myherdr stores it
-     there too.
+   - On stock Herdr, the key gives an `unknown config key
+     ui.session_sidebar; ignoring key` diagnostic on every config load while
+     it is in the file: TUI start, each reload, and each herdr-gpui
+     save-then-reload.
+   - The existing `set` helper always writes a value
+     (`herdr_settings.rs:677-690`). So `SessionSidebar` instead removes the
+     key when set back to its default `true`, and writes only `false`. A
+     user who never turns session rows off never gets the warning.
    - Open item 2 asks Brandon whether the key belongs in herdr-gpui's own
      config instead.
 6. [S] Which host's config is written: herdr-gpui's settings window edits the
@@ -174,6 +178,8 @@ diagnostic the daemon reports after the reload shows through the existing
 - **Unit tests:**
   - Each edit writes the right key and preserves other lines.
   - Changing the agent also clears the model.
+  - `SessionSidebar(true)` removes the key and `SessionSidebar(false)` writes
+    it.
   - The model is escaped. Include a quote and a backslash.
   - Suggestion ranking covers exact prefix, case-insensitive prefix,
     substring, and an empty input.
@@ -216,7 +222,8 @@ diagnostic the daemon reports after the reload shows through the existing
    - **Options:**
      - **(a, recommended)** Keep it in Herdr's file, as myherdr does. One
        switch then controls both the TUI and herdr-gpui, and the daemon's
-       branch refresh follows it. The cost is a warning on stock Herdr.
+       branch refresh follows it. The cost: on stock Herdr, a user who turns
+       session rows off gets the unknown-key warning on every config load.
      - **(b)** Store it in herdr-gpui's own config. There is no warning, but
        the TUI and herdr-gpui each get their own switch, and the daemon never
        sees herdr-gpui's.
