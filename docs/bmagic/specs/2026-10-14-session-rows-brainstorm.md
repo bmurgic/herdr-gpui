@@ -124,15 +124,25 @@ already does them.
    - Line structure, order, weights, dim colors, fallbacks, and `⎇ —` stay as
      the spec defines them.
    - The single-word overflow rule maps to the text system's character wrap.
-5. [A] Repaint with a timer set for the next change in the age text, as myherdr
-   does (`session_age.rs:39-54`), rather than repainting every frame. The timer
-   is scheduled from prepared state outside render. Render reads the time once
-   per frame, which code_search already does.
+5. [A] Repaint when the age text next changes, as myherdr does
+   (`session_age.rs:39-54`), rather than repainting every frame.
+   - Prepared state, not render, holds one deadline: the soonest
+     `next_change` over the agents, recomputed when a snapshot arrives.
+   - The existing 16 ms window tick (`window.rs:613-624`) compares the clock
+     with that deadline. When the deadline passes, the tick calls
+     `cx.notify()` and recomputes it.
+   - Render reads the time once per frame to format the text, as code_search
+     already does.
 6. [S] The machine label shows only when more than one endpoint is configured.
 7. [S] myherdr's mobile switcher has no herdr-gpui counterpart, so its
    requirements do not apply.
 8. [A] No new CLI command. Rows are already readable through `herdr` agent
    commands.
+   - `ui.session_sidebar` is a key in Herdr's `config.toml`.
+   - The existing `herdr-gpui config set` writes only
+     `config-gpui.local.toml` (`docs/cli.md:124`). Changing Herdr's
+     `config.toml` from the CLI would be a new contract.
+   - Record 4 covers that decision for every key this port adds.
 
 ## Proposed design
 
@@ -148,9 +158,9 @@ already does them.
   `append_agent_rows` uses it in place of `agent_cell`, ignoring custom row
   layouts and the row gap. One element covers the four lines and takes the
   click. The blank line is a separate spacer.
-- **Repaint.** Each frame, compute the soonest `next_change` over the visible
-  rows. Arm one timer, with GPUI's `cx.spawn` and a background timer, that calls
-  `cx.notify()`. A new snapshot or a scroll re-arms it.
+- **Repaint.** Store an `age_deadline` with the prepared sidebar state, and
+  recompute it on each snapshot. `tick` checks it, as Decision 5 describes.
+  No new timer task is needed.
 - **Offline rows.** Keep the existing dimmed host styling.
 
 **What blocks and when.** Nothing blocks.

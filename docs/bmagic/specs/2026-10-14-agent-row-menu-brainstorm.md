@@ -72,6 +72,11 @@ The standing rulings ([B]) are the same as in
 - **The daemon's read flag.** The daemon marks a pane seen when the pane is in
   the daemon's own active tab (`src/app/actions.rs:470-488`), and when a state
   change other than to idle arrives (`:1800-1814`).
+  - A `pane.focus` request also marks it seen: `handle_pane_focus` calls
+    `mark_active_tab_seen` (`src/app/api/panes.rs:487-495`).
+  - Client-shell requests reach the same API handler
+    (`src/server/headless/client_views.rs:958-985`), so a focus sent by
+    herdr-gpui marks the pane seen.
 
 ### Facts from herdr-gpui
 
@@ -89,6 +94,12 @@ The standing rulings ([B]) are the same as in
 - **Unread state.** herdr-gpui shows `Done` straight from the daemon's
   `agent_status` and has no client-side seen state (AGENTS.md rule; scout
   grep).
+- **Opening a row.** A row click navigates and sends `pane.focus`
+  `{"pane_id": ...}` through `handle.focus_pane`
+  (`crates/herdr-client/src/handle.rs:271-272`).
+- **Right-click test.** `sidebar/layout_tests/agent_menu.rs`
+  (`agent_rows_open_their_panes_menu_on_any_host`) asserts that a right-click
+  on another host's row selects that host and opens the pane menu.
 - **Per-host connections.** Each host has its own `ConnectionBridge` and
   handle (`endpoint.rs:134-160`), so herdr-gpui can send to a host that is not
   shown.
@@ -102,9 +113,9 @@ The standing rulings ([B]) are the same as in
 | Rename a session through `pane.rename` | Partly satisfied. Only through the pane menu, and only on the shown server. |
 | `Rename session...` as the first item of the agent-row menu | Needs a change |
 | `Mark as unread` item with its eligibility rules | Needs a change |
-| Requests to another host without switching the shown host | Needs a change |
+| Requests to another host without switching the shown host | Needs a change only under Open item 1 option (a) |
 | Notices for each failure | Needs a change: map to herdr-gpui's notification path |
-| Opening a marked session shows it as read | Depends on the daemon. See Open for Brandon. |
+| Opening a marked session shows it as read | Satisfied by the daemon: herdr-gpui's `pane.focus` marks the pane seen. No client-side hold. |
 
 ## Decisions
 
@@ -116,15 +127,9 @@ The standing rulings ([B]) are the same as in
      and shows `Action unavailable`.
 2. [S] Put `Rename session...` first and `Mark as unread` second at the top of
    the agent-row menu, with myherdr's eligibility rules.
-3. [A] Native screen: keep herdr-gpui's single agent-row menu.
-   - The two session items go at its top.
-   - The existing pane items follow, only for rows of the shown host, because
-     they act on the shown host's layout.
-   - A right-click on another host's row no longer switches hosts. Its menu
-     holds only the two session items. This follows myherdr's "the shown
-     server does not change" rule.
-   - Veto note: this changes current herdr-gpui behavior. Today a right-click
-     on another host's row switches to that host and offers pane actions.
+3. [A] Native screen: keep herdr-gpui's single agent-row menu. The two session
+   items go at its top and the existing pane items follow. Whether a
+   right-click on another host's row still switches hosts is Open item 1.
 4. [A] Rename reuses herdr-gpui's inline rename page, titled `Rename session`,
    prefilled with the pane label.
    - Empty input clears the name (`label: ""`, trimmed). myherdr's TUI sends an
@@ -139,14 +144,22 @@ The standing rulings ([B]) are the same as in
 7. [A] Add a `herdr-gpui` CLI command? No. Rename belongs to Herdr's own `herdr`
    CLI. Mark as unread is a daemon API method that agents can call through the
    daemon. AGENTS.md says not to repeat Herdr's CLI.
+8. [S] No client-side read hold. herdr-gpui's row click sends `pane.focus`,
+   and the daemon marks the pane seen on that request (Facts above). The row
+   shows `idle` from the next snapshot, and the AGENTS.md rule against
+   per-client acknowledgement holds.
+   - myherdr's hold keeps the row `done` while the marked pane stays visible
+     on the marking client. herdr-gpui does not need it: marking from the menu
+     sends no focus, so the row stays `done` until you open it.
 
 ## Proposed design
 
 - **herdr-client.** Add `Method::PaneMarkUnread`. Add a
   `background_pane_commands` capability check alongside the existing ones.
 - **herdr-gpui `pane_menu`.**
-  - `open_agent_menu` stops calling `navigate_endpoint` for rows of hosts that
-    are not shown, and records the row's host index as the menu target.
+  - `open_agent_menu` records the row's host index as the menu target. With
+    Open item 1 option (a), it also stops calling `navigate_endpoint` for rows
+    of hosts that are not shown.
   - The menu's action list gains `RenameSession` and `MarkUnread` at the top.
     Each has a visibility predicate built from the rules above.
   - A submit sends through `self.endpoints[target.host].connection.handle`.
@@ -179,36 +192,40 @@ reply arrives later as a notice or a snapshot change.
   - Mark sends `{pane_id}`.
   - Each reply error maps to its notice.
 - **Headless GPUI test:** a right-click on a row of the shown host lists the
-  session items, then the pane items. A row of another host lists only the
-  session items.
+  session items, then the pane items. For another host's row, the test follows
+  Open item 1: option (a) rewrites `agent_rows_open_their_panes_menu_on_any_host`
+  to assert no host switch and only the session items. Option (b) keeps it.
 - **Live test (opt-in, myherdr binary):** mark an idle agent. The row turns
-  `done` with no sound. Open the row. The row turns `idle`.
+  `done` with no sound. Open the row. The row turns `idle`. This proves
+  Decision 8 end to end.
 
 ## Slices (if OpenSpec)
 
 1. Add `PaneMarkUnread`, the capability check, and routing to a host that is
    not shown, with notices.
 2. Add the menu items, their eligibility, and the rename page reuse.
-3. Settle the read state after opening, depending on the answer to the open
-   question.
 
 ## Open for Brandon
 
-1. **After you open a session you marked unread, should herdr-gpui show it as
-   read even if the daemon still says `done`?**
-   - myherdr's TUI does this with a client-side hold and an acknowledged list.
-   - herdr-gpui's AGENTS.md says activity dots come only from the daemon's
-     snapshot, and "do not reintroduce per-client acknowledgement without
-     asking".
-   - The daemon marks a pane read only when it is in the daemon's own active
-     tab (`myherdr src/app/actions.rs:470-488`). Each client now has its own
-     focus, so a click in herdr-gpui may not reach that path. In that case the
-     row would stay `done` after you open it.
+1. **Should a right-click on another host's agent row still switch to that
+   host?**
+   - Today it does: herdr-gpui switches hosts, then opens the full pane menu,
+     and `sidebar/layout_tests/agent_menu.rs` pins that.
+   - myherdr's spec says the shown server does not change (R3, M3).
    - **Options:**
-     - **(a, recommended)** Trust the daemon. In slice 1, check whether opening
-       a pane from herdr-gpui clears `done` on a myherdr daemon. If it does, the
-       piece needs nothing more. If it does not, fix it in myherdr: a focus
-       from a client shell should mark the pane read. The fix lands in your
-       fork, so every client stays consistent.
-     - **(b)** Port myherdr's client-side hold and acknowledged list into
-       herdr-gpui. This breaks the AGENTS.md rule for this client only.
+     - **(a)** Follow myherdr. The shown host stays put. The menu for another
+       host's row holds only `Rename session...` and `Mark as unread`, sent in
+       the background, and needs `background_pane_commands`. The cost is
+       losing the pane actions (split, zoom, close, and the rest) from those
+       rows, and rewriting the test.
+     - **(b, recommended)** Keep the switch. The right-click selects the host,
+       as today, and the session items go to the now-shown host, so they work
+       even on a myherdr daemon without `background_pane_commands`. The cost:
+       it departs from myherdr's rule. In myherdr the rule spares a terminal
+       client a full server switch. In herdr-gpui every host already has a
+       live connection, so a switch costs nothing.
+   - I recommend (b): it keeps the pane actions and the existing test, and
+     drops the background-routing branch from this piece. Under (b),
+     Decision 1's `background_pane_commands` check and the not-shown notices
+     stay only for paths that send without switching, which this piece then
+     has none of.

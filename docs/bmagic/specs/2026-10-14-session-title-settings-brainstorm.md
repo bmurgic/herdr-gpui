@@ -1,7 +1,7 @@
 # Brainstorm: session-title settings (myherdr port, piece 4 of 6)
 
-Status: **proposed design, not yet approved by Brandon. No route chosen. One
-open question for Brandon.**
+Status: **proposed design, not yet approved by Brandon. No route chosen. Two
+open questions for Brandon.**
 Run ledger: `~/.claude/references/ledgers/myherdr-gpui-port-ledger.md`.
 
 Decision source tags: **[B]** Brandon's ruling, **[S]** taken from the myherdr
@@ -123,11 +123,31 @@ The governing specs are `myherdr/openspec/specs/general-settings-tab/spec.md`,
    - The suggestion ranking is a pure function in its own module.
 4. [S] After a save, use the existing reload and error paths. A failed write
    keeps the old value and shows the error in the footer.
-5. [A] `session sidebar` is shown for every daemon, because herdr-gpui itself
-   uses it (piece 2).
-6. [A] No CLI command, because AGENTS.md says not to add one that only repeats
-   a settings write. Revisit if Brandon wants `herdr-gpui settings set`. The
-   existing settings command surface was not checked in this brainstorm.
+5. [A] `session sidebar` is shown for every daemon, and it is not gated.
+   - herdr-gpui itself reads `ui.session_sidebar` (piece 2), so the switch does
+     something on any daemon.
+   - On stock Herdr, writing it gives one `unknown config key
+     ui.session_sidebar; ignoring key` diagnostic. That is the price of a
+     setting this client owns but stores in Herdr's file. myherdr stores it
+     there too.
+   - Open item 2 asks Brandon whether the key belongs in herdr-gpui's own
+     config instead.
+6. [S] Which host's config is written: herdr-gpui's settings window edits the
+   one local Herdr `config.toml` (`settings_window.rs:224`, `shared:
+   Option<herdr_settings::Settings>`). It does not edit a remote host's.
+   - The title rows' gate (open item 1) is therefore the local host's
+     welcome.
+   - The reload request goes to the local host, as the existing save path
+     already does.
+7. [A] CLI. `herdr-gpui config set` exists, but it writes only
+   `config-gpui.local.toml`, and it refuses unknown keys (`docs/cli.md:124`).
+   AGENTS.md asks for a command when an agent could reasonably change a
+   setting.
+   - Proposed: no CLI change in this piece. Teaching `config set` to write
+     Herdr's `config.toml` is a new contract that covers more than session
+     titles.
+   - Herdr's own `herdr` CLI is the place for Herdr keys.
+   - Veto-able.
 
 ## Proposed design
 
@@ -189,3 +209,14 @@ diagnostic the daemon reports after the reload shows through the existing
        wrong and breaks if those two features ever ship apart.
      - **(c)** Always show the rows. Stock Herdr users can create a config
        warning.
+2. **Should `ui.session_sidebar` live in Herdr's `config.toml` or in
+   herdr-gpui's own `config-gpui.local.toml`?**
+   - myherdr keeps it in Herdr's file, and the daemon reads it there too, to
+     keep branches fresh (`myherdr src/app/git_refresh.rs:117-122`).
+   - **Options:**
+     - **(a, recommended)** Keep it in Herdr's file, as myherdr does. One
+       switch then controls both the TUI and herdr-gpui, and the daemon's
+       branch refresh follows it. The cost is a warning on stock Herdr.
+     - **(b)** Store it in herdr-gpui's own config. There is no warning, but
+       the TUI and herdr-gpui each get their own switch, and the daemon never
+       sees herdr-gpui's.

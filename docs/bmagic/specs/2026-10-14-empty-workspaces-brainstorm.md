@@ -145,12 +145,23 @@ commits: `a1d3e988`, `3aaabf97`, `a2dc470d`, `d1a87bde`, `f7358cf3`,
 3. [A] Decode by the codec the welcome selected, not by trying both decoders.
    When the codec is v2, a snapshot whose `kind` is `shell.snapshot.v1` is a
    protocol error, and the reverse is too.
-4. [S] herdr-gpui needs `Method::WorkspaceFocusV2` (`workspace.focus.v2`) and
-   `Method::WorkspaceRenameV2` (`workspace.rename.v2`).
-   - Each is used when the daemon advertises it, with the v1 method as the
-     fallback.
-   - Otherwise, clicking an empty workspace in the sidebar gets
-     `workspace_requires_v2` back and nothing happens.
+4. [S] Every v1 method that myherdr refuses with `workspace_requires_v2`, and
+   that herdr-gpui sends, needs its `.v2` counterpart. Each `.v2` method is
+   used when the daemon advertises it, with the v1 method as the fallback.
+   A grep of the myherdr handlers found these:
+
+   | v1 method | When myherdr refuses it | herdr-gpui sends it? | Needed `.v2` method |
+   |---|---|---|---|
+   | `workspace.focus` | The target workspace is empty (`src/app/api/workspaces.rs:127`, and the client-shell guard at `src/server/headless/client_views.rs:963-972`) | Yes, 2 sites | `workspace.focus.v2` |
+   | `workspace.rename` | The target workspace is empty (`workspaces.rs:164`) | Yes, 3 sites | `workspace.rename.v2` |
+   | `workspace.move` | Any empty workspace exists (`reject_legacy_reordering`, `workspaces.rs:~609-628`) | Yes. Gated at `state.rs:475` | `workspace.move.v2` (same `WorkspaceMoveParams`, `src/api/schema.rs:103-105`) |
+   | `worktree.open` | The opened or already-open workspace is empty (`src/app/api/worktrees.rs:107`, `:193-196`) | Yes, 11 sites | `worktree.open.v2`. Its reply is `WorktreeOpenedV2`, with an optional tab and root pane (`src/api/schema/response.rs:286-294`). |
+   | `workspace.get` | The target workspace is empty (`workspaces.rs:49`) | No | None |
+
+   Without these, focusing, renaming, or reordering workspaces, and reopening
+   a worktree, fail silently once one workspace is empty. The planner checks
+   whether herdr-gpui reads the `worktree.open` reply body. If it does, the v2
+   reply's optional tab and pane need handling.
 5. [A] The empty-workspace screen extends `render_stand_in` rather than adding
    a second page system.
    - The heading follows the TUI: `No terminal tabs`, or `No workspaces`.
@@ -185,16 +196,20 @@ commits: `a1d3e988`, `3aaabf97`, `a2dc470d`, `d1a87bde`, `f7358cf3`,
 - The snapshot decoder dispatches on the chosen codec. It emits
   `ClientEvent::Snapshot` carrying the v2-shaped snapshot.
 - The boot id and revision checks do not change.
-- Add `Method::WorkspaceFocusV2` and `Method::WorkspaceRenameV2`.
+- Add `Method::WorkspaceFocusV2`, `Method::WorkspaceRenameV2`,
+  `Method::WorkspaceMoveV2`, and `Method::WorktreeOpenV2`.
 
 **UI (`herdr-gpui`).**
 
-- `state.snapshot` becomes the v2 type. The only constructor to update is
-  `sidebar/preview.rs:58`.
+- `state.snapshot` becomes the v2 type. The only production constructor to
+  update is `sidebar/preview.rs:58`. Four files in `crates/` build a
+  `ClientShellWorkspace` literal, tests included
+  (`grep -rln "ClientShellWorkspace {" crates | wc -l`). They all need
+  updating.
 - When the workspace shown in a slot has no tabs, `render_stand_in` draws the
   empty-workspace screen.
-- Sidebar workspace clicks and renames use the `.v2` methods when they are
-  advertised.
+- Workspace focus, rename, move, and worktree open use the `.v2` methods when
+  they are advertised.
 - New-tab requests in `controls::request` keep `tab.create` with the
   workspace id.
 
@@ -233,7 +248,8 @@ simply not listed. A click that loses the fence race is dropped.
   - The empty-workspace screen lists the available commands with their keys,
     for both an empty workspace and no workspaces.
   - The click fence drops a click after a revision change.
-  - Workspace focus uses `.v2` when it is advertised and v1 when it is not.
+  - Each of the four methods uses `.v2` when it is advertised and v1 when
+    it is not.
 - **Native check:** connect to a myherdr daemon, close a workspace's last tab,
   confirm the empty screen appears, click New Tab, and confirm the tab opens.
   Then connect to stock Herdr and confirm nothing changed.
@@ -241,7 +257,8 @@ simply not listed. A click that loses the fence race is dropped.
 ## Slices (if OpenSpec)
 
 1. Vendor the v2 types and add v2 negotiation and decoding in herdr-client.
-2. Add the `.v2` workspace methods and the sidebar focus and rename wiring.
+2. Add the four `.v2` methods (focus, rename, move, and worktree open) and
+   their call-site fallbacks.
 3. Add the empty-workspace screen, its shortcuts, and the click fence.
 
 ## Open for Brandon
