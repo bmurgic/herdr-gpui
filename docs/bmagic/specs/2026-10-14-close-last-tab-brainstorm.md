@@ -1,7 +1,6 @@
 # Brainstorm: close the last tab without confirmation (myherdr port, piece 6 of 6)
 
-Status: **proposed outcome: already satisfied, no code change. Not yet
-approved by Brandon. No route chosen.**
+Status: **approved by Brandon on 2026-10-14. Route: none, close as already satisfied.**
 Run ledger: `~/.claude/references/ledgers/myherdr-gpui-port-ledger.md`.
 
 Decision source tags: **[B]** Brandon's ruling, **[S]** taken from the myherdr

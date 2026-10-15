@@ -1,6 +1,6 @@
 # Brainstorm: empty workspaces (myherdr port, piece 1 of 6)
 
-Status: **proposed design, not yet approved by Brandon. No route chosen.**
+Status: **approved by Brandon on 2026-10-14. Route: OpenSpec GDD.**
 Run ledger: `~/.claude/references/ledgers/myherdr-gpui-port-ledger.md`.
 
 Decision source tags: **[B]** Brandon's ruling, **[S]** taken from the myherdr

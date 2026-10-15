@@ -1,7 +1,6 @@
 # Brainstorm: session-title settings (myherdr port, piece 4 of 6)
 
-Status: **proposed design, not yet approved by Brandon. No route chosen. Open
-items 1 and 2 ruled on 2026-10-14: option (a) for both.**
+Status: **approved by Brandon on 2026-10-14. Route: SDD Plan, after the myherdr prerequisite (slice 0).**
 Run ledger: `~/.claude/references/ledgers/myherdr-gpui-port-ledger.md`.
 
 Decision source tags: **[B]** Brandon's ruling, **[S]** taken from the myherdr

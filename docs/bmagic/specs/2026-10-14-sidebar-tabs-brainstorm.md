@@ -1,6 +1,6 @@
 # Brainstorm: Agents and Spaces sidebar tabs (myherdr port, piece 5 of 6)
 
-Status: **proposed design, not yet approved by Brandon. No route chosen.**
+Status: **approved by Brandon on 2026-10-14. Route: SDD Plan.**
 Run ledger: `~/.claude/references/ledgers/myherdr-gpui-port-ledger.md`.
 
 Decision source tags: **[B]** Brandon's ruling, **[S]** taken from the myherdr
