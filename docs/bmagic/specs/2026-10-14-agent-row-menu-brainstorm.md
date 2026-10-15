@@ -1,7 +1,7 @@
 # Brainstorm: agent-row menu, rename session and mark as unread (myherdr port, piece 3 of 6)
 
-Status: **proposed design, not yet approved by Brandon. No route chosen. One
-open question for Brandon.**
+Status: **proposed design, not yet approved by Brandon. No route chosen. Open
+item 1 ruled on 2026-10-14: option (a).**
 Run ledger: `~/.claude/references/ledgers/myherdr-gpui-port-ledger.md`.
 
 Decision source tags: **[B]** Brandon's ruling, **[S]** taken from the myherdr
@@ -123,7 +123,7 @@ The standing rulings ([B]) are the same as in
 | Rename a session through `pane.rename` | Partly satisfied. Only through the pane menu, and only on the shown server. |
 | `Rename session...` as the first item of the agent-row menu | Needs a change |
 | `Mark as unread` item with its eligibility rules | Needs a change |
-| Requests to another host without switching the shown host | Needs a change only under Open item 1 option (a) |
+| Requests to another host without switching the shown host | Needs a change |
 | Notices for each failure | Needs a change: map to herdr-gpui's notification path |
 | Opening a marked session shows it as read | Satisfied by the daemon: herdr-gpui's `pane.focus` marks the pane seen. No client-side hold. |
 
@@ -132,14 +132,16 @@ The standing rulings ([B]) are the same as in
 1. [B] Gate on what the daemon supports.
    - `Mark as unread` appears only when the host advertises
      `pane.mark_unread`.
-   - Under Open item 1 option (a) only: for a host that is not shown, both
-     items also need the `background_pane_commands` capability. Without it,
-     the menu sends nothing and shows `Action unavailable`.
+   - For a host that is not shown, both items also need the
+     `background_pane_commands` capability. Without it, the menu sends nothing
+     and shows `Action unavailable`.
 2. [S] Put `Rename session...` first and `Mark as unread` second at the top of
    the agent-row menu, with myherdr's eligibility rules.
 3. [A] Native screen: keep herdr-gpui's single agent-row menu. The two session
-   items go at its top and the existing pane items follow. Whether a
-   right-click on another host's row still switches hosts is Open item 1.
+   items go at its top and the existing pane items follow.
+   - [B] A right-click on another host's row does not switch hosts. Its menu
+     holds only the two session items, sent in the background. Brandon ruled
+     this on 2026-10-14 (Ruled 1).
 4. [A] Rename reuses herdr-gpui's inline rename page, titled `Rename session`,
    prefilled with the pane label.
    - Empty input clears the name (`label: ""`, trimmed). myherdr's TUI sends an
@@ -150,8 +152,7 @@ The standing rulings ([B]) are the same as in
 6. [S] Reply handling maps onto herdr-gpui's notifications with myherdr's text:
    `Action rejected` with the server message, `Server timed out`,
    `Action interrupted`, `<host> is not ready`, and `Action unavailable`.
-   - The last two exist only for a host that is not shown, so they apply only
-     under Open item 1 option (a).
+   - The last two exist only for a host that is not shown.
    - The `not ready` notice is deduplicated per host boot.
 7. [A] Add a `herdr-gpui` CLI command? No. Rename belongs to Herdr's own `herdr`
    CLI. Mark as unread is a daemon API method that agents can call through the
@@ -170,8 +171,8 @@ The standing rulings ([B]) are the same as in
      (`headless.rs:797`), and the row turns `idle`. myherdr's own TUI hold
      does not cover that either.
    - Consequence of today's right-click focus: right-clicking a `done` row to
-     rename it marks it read. Under option (a) this stays true for rows of the
-     shown host.
+     rename it marks it read. This holds only for rows of the shown host,
+     because a right-click on another host's row sends no `pane.focus`.
 
 ## Proposed design
 
@@ -179,8 +180,8 @@ The standing rulings ([B]) are the same as in
   `background_pane_commands` capability check alongside the existing ones.
 - **herdr-gpui `pane_menu`.**
   - `open_agent_menu` records the row's host index as the menu target. With
-    Open item 1 option (a), it also stops calling `navigate_endpoint` for rows
-    of hosts that are not shown.
+    It also stops calling `navigate_endpoint` for rows of hosts that are not
+    shown.
   - The menu's action list gains `RenameSession` and `MarkUnread` at the top.
     Each has a visibility predicate built from the rules above.
   - A submit sends through `self.endpoints[target.host].connection.handle`.
@@ -209,14 +210,13 @@ reply arrives later as a notice or a snapshot change.
   - The `idle` + advertised + not-`done` combinations.
   - A host that is not shown, with and without `background_pane_commands`.
 - **Mock-peer tests:**
-  - Rename sends a trimmed label to the right host. Under option (a), it also
-    does not switch hosts.
+  - Rename sends a trimmed label to the right host and does not switch hosts.
   - Mark sends `{pane_id}`.
   - Each reply error maps to its notice.
 - **Headless GPUI test:** a right-click on a row of the shown host lists the
-  session items, then the pane items. For another host's row, the test follows
-  Open item 1: option (a) rewrites `agent_rows_open_their_panes_menu_on_any_host`
-  to assert no host switch and only the session items. Option (b) keeps it.
+  session items, then the pane items. For another host's row, rewrite
+  `agent_rows_open_their_panes_menu_on_any_host` to assert no host switch and
+  only the session items.
 - **Live test (opt-in, myherdr binary):** mark an idle agent. The row turns
   `done` with no sound. Open the row. The row turns `idle`. Then mark the
   pane that is on screen, with no TUI client attached, and confirm it stays
@@ -224,15 +224,18 @@ reply arrives later as a notice or a snapshot change.
 
 ## Slices (if OpenSpec)
 
-1. Add `PaneMarkUnread` and the reply notices. Under Open item 1 option (a),
-   this slice also adds the capability check and routing to a host that is
-   not shown.
+1. Add `PaneMarkUnread`, the reply notices, the capability check, and routing
+   to a host that is not shown.
 2. Add the menu items, their eligibility, and the rename page reuse.
 
 ## Open for Brandon
 
-1. **Should a right-click on another host's agent row still switch to that
-   host?**
+- None.
+
+## Ruled by Brandon
+
+1. **Ruling, 2026-10-14: option (a).** The question was: should a
+   right-click on another host's agent row still switch to that host?
    - Today it does: herdr-gpui switches hosts, then opens the full pane menu,
      and `sidebar/layout_tests/agent_menu.rs` pins that.
    - myherdr's spec says the shown server does not change (R3, M3).

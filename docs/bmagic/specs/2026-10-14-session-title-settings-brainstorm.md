@@ -1,7 +1,7 @@
 # Brainstorm: session-title settings (myherdr port, piece 4 of 6)
 
-Status: **proposed design, not yet approved by Brandon. No route chosen. Two
-open questions for Brandon.**
+Status: **proposed design, not yet approved by Brandon. No route chosen. Open
+items 1 and 2 ruled on 2026-10-14: option (a) for both.**
 Run ledger: `~/.claude/references/ledgers/myherdr-gpui-port-ledger.md`.
 
 Decision source tags: **[B]** Brandon's ruling, **[S]** taken from the myherdr
@@ -98,7 +98,7 @@ The governing specs are `myherdr/openspec/specs/general-settings-tab/spec.md`,
 | Save error display | Satisfied: footer status line, the native counterpart of the hint line |
 | Four session rows in settings | Needs a change |
 | Title model box with suggestions | Needs a change |
-| Show the rows only on daemons that support titles | Needs a change. See Open for Brandon. |
+| Show the rows only on daemons that support titles | Needs a change here, plus a `session_titles` capability in myherdr (Decision 8) |
 
 ## Decisions
 
@@ -134,12 +134,12 @@ The governing specs are `myherdr/openspec/specs/general-settings-tab/spec.md`,
      (`herdr_settings.rs:677-690`). So `SessionSidebar` instead removes the
      key when set back to its default `true`, and writes only `false`. A
      user who never turns session rows off never gets the warning.
-   - Open item 2 asks Brandon whether the key belongs in herdr-gpui's own
-     config instead.
+   - [B] The key lives in Herdr's `config.toml`, not in herdr-gpui's own
+     config. Brandon ruled this on 2026-10-14 (Ruled 2).
 6. [S] Which host's config is written: herdr-gpui's settings window edits the
    one local Herdr `config.toml` (`settings_window.rs:224`, `shared:
    Option<herdr_settings::Settings>`). It does not edit a remote host's.
-   - The title rows' gate (open item 1) is therefore the local host's
+   - The title rows' gate (Decision 8) is therefore the local host's
      welcome.
    - The reload request goes to the local host, as the existing save path
      already does.
@@ -152,6 +152,15 @@ The governing specs are `myherdr/openspec/specs/general-settings-tab/spec.md`,
      titles.
    - Herdr's own `herdr` CLI is the place for Herdr keys.
    - Veto-able.
+8. [B] Gate the three title rows (`session titles`, `title agent`, and
+   `title model`) on a welcome capability `session_titles`. herdr-gpui shows
+   them only when the local host advertises it. Brandon ruled this on
+   2026-10-14 (Ruled 1).
+   - Prerequisite outside this repo: a small myherdr change that advertises
+     `session_titles`. Until it ships, the three rows stay hidden on myherdr
+     too, and only the `session sidebar` switch shows.
+   - The myherdr change is not part of this herdr-gpui work and was not made
+     in this run.
 
 ## Proposed design
 
@@ -163,6 +172,8 @@ The governing specs are `myherdr/openspec/specs/general-settings-tab/spec.md`,
   general page adds one call.
 - Add `settings_window/title_model_suggestions.rs`, with `ranked(input, agent)`
   as a pure function.
+- herdr-client gains a `session_titles` capability check alongside the
+  existing ones. The card reads it from the local host's welcome.
 
 **What blocks and when.** Nothing blocks. A save runs off the UI thread through
 the existing persistence path.
@@ -184,7 +195,9 @@ diagnostic the daemon reports after the reload shows through the existing
   - Suggestion ranking covers exact prefix, case-insensitive prefix,
     substring, and an empty input.
 - **Headless GPUI tests:**
-  - The card shows the four rows with values from config.
+  - The card shows the four rows with values from config when the local host
+    advertises `session_titles`.
+  - Without the capability, the card shows only the `session sidebar` row.
   - A switch saves.
   - Esc in the model field writes nothing.
   - Tab fills in a suggestion without saving.
@@ -195,13 +208,21 @@ diagnostic the daemon reports after the reload shows through the existing
 
 ## Slices (if OpenSpec)
 
-1. Add the config section, the four edits, and the card with three rows (the
-   sidebar switch, the titles switch, and the agent selector).
+0. Prerequisite, in the myherdr repo: advertise the `session_titles`
+   capability.
+1. Add the config section, the four edits, the `session_titles` capability
+   check, and the card with three rows (the sidebar switch, the titles switch,
+   and the agent selector).
 2. Add the title model field, its suggestions, and its default text.
 
 ## Open for Brandon
 
-1. **How should herdr-gpui know a daemon supports session titles?**
+- None.
+
+## Ruled by Brandon
+
+1. **Ruling, 2026-10-14: option (a).** The question was: how should
+   herdr-gpui know a daemon supports session titles?
    - On a stock Herdr daemon, the three title rows would write keys that Herdr
      ignores, and Herdr would then report `unknown config key` warnings.
    - myherdr advertises nothing that says "session titles".
@@ -215,8 +236,9 @@ diagnostic the daemon reports after the reload shows through the existing
        wrong and breaks if those two features ever ship apart.
      - **(c)** Always show the rows. Stock Herdr users can create a config
        warning.
-2. **Should `ui.session_sidebar` live in Herdr's `config.toml` or in
-   herdr-gpui's own `config-gpui.local.toml`?**
+2. **Ruling, 2026-10-14: option (a).** The question was: should
+   `ui.session_sidebar` live in Herdr's `config.toml` or in
+   herdr-gpui's own `config-gpui.local.toml`?
    - myherdr keeps it in Herdr's file, and the daemon reads it there too, to
      keep branches fresh (`myherdr src/app/git_refresh.rs:117-122`).
    - **Options:**
