@@ -76,17 +76,12 @@ fn text_bounds(cx: &mut gpui::VisualTestContext, text: &str) -> Bounds<Pixels> {
     cx.update(|_, cx| cx.global::<TextProbes>().0[text].0)
 }
 
-/// What a four-line row should measure: four lines, the padding around them,
-/// and the spacing the style adds.
-fn four_line_height(view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext) -> f32 {
-    view.read_with(cx, |view, _| {
-        let look = layout::for_config(&view.config, view.fill());
-        4. * line_height(&view.config.sidebar) + 2. * look.row_padding() + look.spacing()
-    })
+fn row_height_of(view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext) -> f32 {
+    view.read_with(cx, |view, _| four_line_height(view))
 }
 
 fn line_height_of(view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext) -> f32 {
-    view.read_with(cx, |view, _| line_height(&view.config.sidebar))
+    view.read_with(cx, |view, _| session_line_height(view))
 }
 
 fn assert_four_lines(
@@ -94,7 +89,7 @@ fn assert_four_lines(
     cx: &mut gpui::VisualTestContext,
     selector: &'static str,
 ) {
-    let expected = four_line_height(view, cx);
+    let expected = row_height_of(view, cx);
     let row = cx.debug_bounds(selector).unwrap();
     let actual = f32::from(row.size.height);
     assert!(

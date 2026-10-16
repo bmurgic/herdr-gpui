@@ -58,6 +58,15 @@ fn native_application_menus() {
     native_fixture(Fixture::ApplicationMenus);
 }
 
+/// Separate from `native_sidebar`, whose earlier old-row checks would stop
+/// it first. `just test-sidebar` runs both, as its filter matches this name.
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires active native desktop; GUI-only fixtures, no daemon"]
+fn native_sidebar_session_rows() {
+    native_fixture(Fixture::SessionRows);
+}
+
 #[test]
 #[ignore = "requires active native desktop; intentionally invalid paint fixture, no daemon"]
 fn native_sidebar_probe_failure_exits_without_aborting() {
@@ -105,6 +114,8 @@ enum Fixture {
     #[cfg(target_os = "linux")]
     ApplicationMenus,
     Notifications,
+    #[cfg(target_os = "macos")]
+    SessionRows,
     InvalidChildWidth,
     #[cfg(target_os = "linux")]
     InputShutdown(&'static str),
@@ -128,6 +139,10 @@ fn native_fixture(fixture: Fixture) {
         }
         Fixture::Notifications => {
             command.env("HERDR_TEST_NOTIFICATIONS_ONLY", "1");
+        }
+        #[cfg(target_os = "macos")]
+        Fixture::SessionRows => {
+            command.env("HERDR_TEST_SESSION_ROWS", "1");
         }
         Fixture::InvalidChildWidth => {
             command.env("HERDR_TEST_SIDEBAR_PROBE_FAILURE", "1");
@@ -174,6 +189,8 @@ fn native_fixture(fixture: Fixture) {
         #[cfg(target_os = "linux")]
         Fixture::ApplicationMenus => "APPLICATION MENUS native PASS",
         Fixture::Notifications => "NOTIFICATIONS native PASS:",
+        #[cfg(target_os = "macos")]
+        Fixture::SessionRows => "SESSION ROWS native PASS:",
         #[cfg(target_os = "linux")]
         Fixture::InputShutdown(_) => "INPUT shutdown ready:",
         _ => "SIDEBAR native PASS:",

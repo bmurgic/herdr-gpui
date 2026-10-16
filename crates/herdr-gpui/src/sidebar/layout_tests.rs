@@ -442,7 +442,7 @@ pub(crate) fn old_agent_rows(view: &mut HerdrWindow) {
 }
 
 /// A pane the snapshot names `label`, in workspace `w0`'s first tab.
-#[cfg(test)]
+#[cfg(any(test, all(feature = "integration-test", target_os = "macos")))]
 pub(crate) fn labeled_pane(pane_id: &str, label: &str) -> ClientShellPane {
     serde_json::from_value(serde_json::json!({
         "pane_id": pane_id, "workspace_id": "w0", "tab_id": "t0", "label": label,
@@ -450,6 +450,21 @@ pub(crate) fn labeled_pane(pane_id: &str, label: &str) -> ClientShellPane {
         "right_click_passthrough": false,
     }))
     .unwrap()
+}
+
+/// One line of the sidebar's font, the unit a session row stacks.
+#[cfg(any(test, all(feature = "integration-test", target_os = "macos")))]
+pub(crate) fn session_line_height(view: &HerdrWindow) -> f32 {
+    super::line_height(&view.config.sidebar)
+}
+
+/// What a four-line session row should measure: four lines, the padding
+/// around them, and the spacing the style adds. The headless and native
+/// session-row checks both hold the drawn row to it.
+#[cfg(any(test, all(feature = "integration-test", target_os = "macos")))]
+pub(crate) fn four_line_height(view: &HerdrWindow) -> f32 {
+    let look = super::layout::for_config(&view.config, view.fill());
+    4. * session_line_height(view) + 2. * look.row_padding() + look.spacing()
 }
 
 /// This machine and a connected remote ("Remote"), each listing the
