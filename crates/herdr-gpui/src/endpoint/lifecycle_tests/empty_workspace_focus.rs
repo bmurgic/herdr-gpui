@@ -87,3 +87,148 @@ fn clicking_a_row_focuses_with_the_v2_method_only_when_advertised(cx: &mut gpui:
         );
     }
 }
+
+/// Focuses the empty `scratch`, settles its surface activation at projection
+/// revision 9 with a zero-pane frame `frame_columns` wide, and presses the New
+/// Tab key. Returns whether the window then accepted input, and the API
+/// requests the daemon received after that key.
+fn press_new_tab_after_settling(
+    frame_columns: u16,
+    cx: &mut gpui::TestAppContext,
+) -> (bool, Vec<serde_json::Value>) {
+    let advertised = [
+        SURFACE,
+        Method::WorkspaceFocus,
+        Method::WorkspaceFocusV2,
+        Method::TabCreate,
+    ];
+    let (endpoint, mut server) =
+        connected_endpoint_v2("empty-workspaces", &advertised, api_and("scratch"));
+    let (view, cx) = window_over(cx, endpoint);
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            view.settings.shared = Some(
+                crate::herdr_settings::Settings::parse_text("[ui]\nprompt_new_tab_name = false\n")
+                    .unwrap(),
+            );
+            assert!(view.navigate_endpoint(
+                "empty-workspaces",
+                NavigationTarget::Workspace("scratch"),
+                cx
+            ));
+        })
+    });
+    // One API request is in flight at a time, so the fence follows the focus
+    // once the daemon has answered it.
+    let focus = next_request(&mut server);
+    assert_eq!(focus["method"], "workspace.focus.v2");
+    server.respond(&focus);
+    let fence = next_request(&mut server);
+    assert_eq!(fence["method"], SURFACE.as_str());
+    server.reply(
+        &fence,
+        serde_json::json!({"result": {
+            "type": "client_shell_surface_set", "active": true, "projection_revision": 9
+        }}),
+    );
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            project_until(view, cx, "the activation acknowledgement", |view| {
+                view.live
+                    .activation
+                    .as_ref()
+                    .is_some_and(|activation| activation.revision == Some(9))
+            });
+        })
+    });
+
+    // The snapshot focuses `scratch`, which has no tab and so no pane.
+    let mut settled = (*view.read_with(cx, |view, _| view.live.snapshot.clone().unwrap())).clone();
+    settled.revision = 9;
+    settled.focused_workspace_id = Some("scratch".into());
+    settled.focused_tab_id = None;
+    settled.focused_pane_id = None;
+    let mut frame = (*surface(&settled)).clone();
+    frame.frame.width = frame_columns;
+    let inbox = view.read_with(cx, |view, _| view.endpoints[0].connection.inbox.clone());
+    for event in [
+        ClientEvent::Snapshot(Arc::new(settled)),
+        ClientEvent::Surface(Arc::new(frame)),
+    ] {
+        inbox.lock().unwrap().apply(event);
+    }
+    let ready = cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            project_until(view, cx, "the revision 9 projection", |view| {
+                view.live.snapshot.as_ref().is_some_and(|s| s.revision == 9)
+                    && view.live.surface.is_some()
+            });
+            let ready = view.input_ready();
+            view.command(Command::Tab, window, cx);
+            ready
+        })
+    });
+
+    // Commands queue in order, so everything the key sent precedes this input.
+    let (handle, boot_id) = view.read_with(cx, |view, _| {
+        (
+            view.endpoints[0].connection.handle.clone().unwrap(),
+            view.live.snapshot.as_ref().unwrap().boot_id.clone(),
+        )
+    });
+    let sentinel = ClientPaneInputEvent::TextCommit("sentinel".into());
+    handle
+        .send_input(&boot_id, "sentinel-pane", [sentinel.clone()])
+        .unwrap();
+    let mut requests = Vec::new();
+    loop {
+        match server.receive() {
+            ClientMessage::ClientShellEndpointRequest { request, .. } => {
+                // Answered, because a request in flight holds back what follows.
+                let request = serde_json::from_str(&request).unwrap();
+                server.respond(&request);
+                requests.push(request);
+            }
+            ClientMessage::ClientShellPaneInput { events, .. } if events == [sentinel.clone()] => {
+                return (ready, requests);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Workspace v2 methods 06: a zero-pane frame at the requested size settles
+/// the focus of an empty workspace, so New Tab creates its first tab.
+#[gpui::test]
+fn new_tab_works_after_focusing_an_empty_workspace(cx: &mut gpui::TestAppContext) {
+    let (ready, requests) = press_new_tab_after_settling(80, cx);
+    assert!(
+        ready,
+        "a zero-pane frame at the requested size left input fenced"
+    );
+    // The key's own fence for the new tab follows the creation.
+    let creations: Vec<_> = requests
+        .iter()
+        .filter(|request| request["method"] == "tab.create")
+        .collect();
+    assert_eq!(creations.len(), 1, "{requests:?}");
+    assert_eq!(
+        creations[0]["params"],
+        serde_json::json!({"workspace_id": "scratch", "focus": true})
+    );
+}
+
+/// Workspace v2 methods 07: the acknowledgement, a matching revision, and a
+/// snapshot focusing `scratch` are all there, so only the frame being a column
+/// narrower than requested keeps input fenced.
+#[gpui::test]
+fn a_frame_one_column_narrower_than_requested_keeps_input_fenced(cx: &mut gpui::TestAppContext) {
+    let (ready, requests) = press_new_tab_after_settling(79, cx);
+    assert!(!ready, "a frame of the wrong width let input through");
+    assert!(
+        requests
+            .iter()
+            .all(|request| request["method"] != "tab.create"),
+        "{requests:?}"
+    );
+}
