@@ -81,11 +81,7 @@ impl HerdrWindow {
             "{BRANCH_MARK}{}",
             session.branch.as_deref().unwrap_or(NO_BRANCH)
         );
-        let name_color = if session.name_dim {
-            theme.muted
-        } else {
-            name_color
-        };
+        let colors = SessionColors::new(name_color, session.name_dim, theme.muted);
         let column = div()
             .flex()
             .flex_col()
@@ -96,16 +92,16 @@ impl HerdrWindow {
                 &title,
                 age_text.as_deref(),
                 &agent.pane_id,
-                (name_color, theme.muted),
+                (colors.title, theme.muted),
                 room,
                 line,
                 weight,
             ))
-            .child(text_line(&name_first, name_color, room, line))
-            .child(text_line(&name_second, name_color, room, line))
+            .child(text_line(&name_first, colors.name, room, line))
+            .child(text_line(&name_second, colors.name, room, line))
             .child(text_line(
                 &truncate_end(&branch, columns),
-                theme.muted,
+                colors.branch,
                 room,
                 line,
             ));
@@ -140,6 +136,28 @@ impl HerdrWindow {
             })
             .when(gap > 0., |row| row.mt(px(gap)));
         self.wire_agent_row(row, index, &agent.pane_id, cx)
+    }
+}
+
+/// The colours of a session row's lines, as myherdr's `name_color`,
+/// `name_text`, and `branch_line` choose them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::sidebar) struct SessionColors {
+    pub(in crate::sidebar) title: u32,
+    pub(in crate::sidebar) name: u32,
+    pub(in crate::sidebar) branch: u32,
+}
+
+impl SessionColors {
+    /// `name_color` is `row_text`'s name colour for the row's focus state,
+    /// brighter on the focused row. A dim name is the agent's handle standing
+    /// in for a pane label.
+    pub(in crate::sidebar) fn new(name_color: u32, name_dim: bool, muted: u32) -> Self {
+        Self {
+            title: name_color,
+            name: if name_dim { muted } else { name_color },
+            branch: muted,
+        }
     }
 }
 
