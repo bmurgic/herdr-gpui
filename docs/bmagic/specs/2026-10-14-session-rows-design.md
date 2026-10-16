@@ -114,24 +114,14 @@ without the key turns the setting on").
   through `lenient::or_default`, as every other `[ui]` key does.
 - The window reads it through one accessor,
   `HerdrWindow::session_sidebar(&self) -> bool`. That accessor returns
-  `self.settings.shared.as_ref().is_some_and(|shared| shared.session_sidebar)`.
-  The setting is on once the shared config has loaded and the key is absent
-  or `true`. Before the first load lands, and when no load has ever
-  succeeded, the setting is off.
-  - myherdr has no "not loaded yet" state. It loads its config synchronously
-    before the first draw and falls back to `Config::default()`, which is on,
-    when the file is missing or unreadable (`myherdr/src/config/io.rs:132-151`;
-    `session_sidebar.rs:93` asserts the default is on). herdr-gpui loads the
-    shared config asynchronously at the end of `HerdrWindow::new`.
-  - Off-until-loaded keeps every existing test fixture unchanged.
-    `fixture_window` leaves `settings.shared` as `None`. Code outside the
-    sidebar reads `None` and `Some` differently, among them `Indicators::new`
-    (via `window.rs:355`), `window/input.rs:178`, and `window/tab_strip.rs:156`.
-    Three settings-window test files also assume `None`
-    (`settings_window/tests.rs:48`, `tests/theme_recovery.rs:18`, and
-    `controls.rs:442`). Pinning `shared` in the fixture would change all of
-    them.
-  - See Open for Brandon.
+  `self.settings.shared.as_ref().is_none_or(|shared| shared.session_sidebar)`.
+  Before the shared settings load, and when no load has succeeded, the
+  setting is on. This follows myherdr, which falls back to `Config::default()`
+  (on) when its config is missing or unreadable
+  (`myherdr/src/config/io.rs:132-151`; `session_sidebar.rs:93` asserts the
+  default is on). `copy_on_select` uses the same `is_none_or` rule
+  (`settings_window/controls.rs:656`). Ruled 2026-10-15, item 10 under
+  "Rulings".
 - A change applies on the existing reload path. The shared config is reread by
   the 250 ms poll in `menu/settings.rs:36-89` and by the daemon's reload
   message (`window.rs:480-487`). Both end in `load_shared_settings`, which
@@ -139,24 +129,34 @@ without the key turns the setting on").
 
 No settings control is added. Piece 4 adds it.
 
-### Existing tests keep the old rows
+### Existing tests and the new default
 
-With `shared` empty, the setting is off, so every existing headless sidebar
-test still draws the old agent row without change. Three tests replace
-`settings.shared` with parsed text that lacks the key, and probe the old
-row. Their `[ui]` text gains `session_sidebar = false`:
+With `is_none_or`, every headless test built on `fixture_window` (where
+`settings.shared` is `None`) now draws session rows. The plan's Task 1 lists
+each affected test and how it changes:
 
-- `layout_tests/configured_rows.rs:170`.
-- `layout_tests/superset_dots.rs:31`, which probes the `icon-agent-p0` and
-  `dot-agent-p0` slots that only the old row draws.
-- `layout_tests/superset_badges.rs:19`, which probes the same slots.
+- **Off.** Tests that assert elements only the old row draws, or the
+  configured layout, call a new `layout_tests::old_agent_rows` helper. Tests
+  that already parse `[ui]` text add `session_sidebar = false` to it. Those
+  tests are in `agent_rows.rs`, `superset_dots.rs`, `superset_badges.rs`,
+  `devices_layout.rs`, `layouts.rs`, `configured_rows.rs`, and
+  `text_width.rs`. They keep protecting "with the setting off, agent rows
+  draw exactly as before" (agent-session-rows spec, line 14).
+- **New row.** Tests that assert only selectors the session row keeps
+  (`row-`, `highlight-`, `wash-`, `mark-`, and `rail-agent-{pane}`, plus the
+  multi-endpoint element id) stay unchanged. They now protect the session
+  row's ordering, right-click menu (`agent_menu.rs`), rail bar and right
+  edge (`status_icons.rs`), and host wash (`host_wash.rs`).
+- **Native fixture.** The `integration-test` sidebar fixture sets the
+  setting off, because `smoke_sidebar.rs` and `smoke_hosts.rs` assert the
+  old row's agent mark and label widths. `Settings::parse_text` widens to
+  `#[cfg(any(test, feature = "integration-test"))]`, and the fixture uses
+  `.ok()` rather than `unwrap`.
 
-These existing tests then keep protecting "with the setting off, agent rows
-draw exactly as before" (agent-session-rows spec, line 14). Examples are
-`layout_tests/agent_rows.rs`, `configured_rows.rs`, `agent_menu.rs`,
-`devices_layout.rs`, `host_agents.rs`, `status_icons.rs`, `superset_dots.rs`,
-and `superset_badges.rs`. No new test repeats them. Each new session-row
-test sets `settings.shared` itself, with the key absent or `true`.
+A test that sets `shared` from parsed text also changes the indicator colors
+it draws. `Indicators::new` takes colors from the parsed settings instead of
+the theme defaults (`sidebar/agents.rs:204-226`). That affects only tests
+switched to "off", and their listed assertions read presence, bounds, and text, not colors.
 
 ## Age rules
 
@@ -353,7 +353,7 @@ rows. `ClientEvent::Disconnected` clears the snapshot (`state.rs:598-613`),
 and `append_agent_rows` skips an endpoint without one (`agent_rows.rs:41-43`).
 The session row keeps that. No sidebar code dims a row for connection state;
 `HostMark.dim` applies only to unselected hosts in `group-dim` mode
-(`wash.rs:55-68`). See Open for Brandon.
+(`wash.rs:55-68`). See Rulings, item 2.
 
 ## Repaint without input
 
@@ -412,7 +412,7 @@ No new timer task is added.
 | No branch | `⎇ —`. |
 | `session_sidebar` wrong type | `true`. |
 | Shared config missing | Defaults, so `true`. |
-| Shared config fails to load | The previous settings stay. When no load has succeeded yet, the setting is off. |
+| Shared config fails to load | The previous settings stay. When no load has succeeded yet, the setting is on. |
 
 Nothing blocks the UI thread. All inputs are already in memory.
 
@@ -456,7 +456,7 @@ failure.
   age in a narrow row, the Devices layout, and the configured layout being
   ignored.
 - **Reused.** The existing headless sidebar tests protect the setting-off
-  path, as described under "Existing tests keep the old rows".
+  path, as described under "Existing tests and the new default".
 - **Native, by hand.** Against a myherdr daemon: the age ticks from `now` to
   `1m` without input, a long name wraps and ends with `…`, and a narrow window
   looks right. A headless test cannot observe real glyph widths.
@@ -466,81 +466,51 @@ There is no `[e2e]` case. The repo's native tests (`just test-sidebar`,
 GPUI tests send clicks through real element hit testing, which is the actual
 wiring failure that a broken click would show.
 
-## Open for Brandon
+## Rulings
 
-1. **Text fitting uses a glyph budget, not GPUI's `line_clamp`.** Brainstorm
-   Decision 4 said "pixel layout with a two-line clamp and ellipsis instead of
-   counting columns". I checked myherdr's `src/ui/text.rs:7-55` and
-   herdr-gpui's `sidebar/row.rs:178-194`. herdr-gpui already cuts sidebar text
-   by dividing pixel width by `glyph_width`, because GPUI only ellipsizes text
-   whose width is fixed. The headless tests also cannot see GPUI's wrapping
-   (`layout_tests.rs:1-3`). Fix I wrote: port myherdr's `wrap_two_lines` and
-   `truncate_end` over that glyph budget, so every rule is unit-tested and
-   matches myherdr. The cost: with a proportional font, a line may stop a
-   little short of the edge. The sidebar's other rows already behave this way.
-2. **Offline endpoints show no rows.** The spec keeps "today's dimmed style"
-   for an offline endpoint's rows (agent-session-rows, line 14). In myherdr
-   those rows stay on screen, dimmed. In herdr-gpui a disconnect clears the
-   snapshot (`state.rs:598-613`), so the rows go away. I checked
-   `endpoint_agents.rs` and `session_rows.rs` `stale_style`. myherdr's code
-   cannot settle this, because it depends on keeping an old snapshot, which
-   herdr-gpui does not do. Proposed behavior: keep
-   herdr-gpui's rows-disappear behavior, with no offline dim, because no
-   sidebar code dims a row for connection state (`wash.rs:55-68`). Keeping an
-   offline endpoint's rows would change connection state, which is outside
-   this piece.
-3. **The session row replaces agent rows in every layout mode.** Spec-reality
-   finding: the design did not say what happens in Superset, Orca, Minimal,
-   and Devices, which draw agent rows their own way (`cell.rs:166-176`).
-   myherdr has one layout, and its spec applies the row to every agent row
-   (agent-session-rows line 8). Fix I wrote: every mode draws the session
-   row, with that mode's padding, highlight, and host mark. With the setting
-   on by default, every Superset, Orca, and Minimal user sees a changed
-   agent list.
-4. **Drawn status icons and the rail bar.** Spec-reality finding: the design
-   named only symbols and dots. herdr-gpui also has drawn icons (Solid,
-   Tiles, Rail), which change the mark's width and centering and add a rail
-   bar (`agents.rs:239-260`, `cell.rs:183-205`). myherdr has no drawn icons.
-   Fix I wrote: draw the mark with `status_indicator`, which already draws
-   the icons, size the status column
-   with `indicators.width(font)`, and attach the rail bar as `Cell::row` does.
-5. **A deadline passing on a busy tick.** Spec-reality finding: with
-   `snapshots_changed` counting terminal-only updates, rule 2 would move a
-   passed deadline forward without a repaint while a terminal prints. Fix I
-   wrote: `poll_endpoints` returns `true` only for `Redraw::Window`, and rule
-   2 returns `true` when the old deadline has passed.
-6. **Two more tests need the setting off.** Spec-reality finding:
-   `superset_dots.rs:31` and `superset_badges.rs:19` replace the shared
-   settings and probe old-row slots. Fix I wrote: both gain
-   `session_sidebar = false`.
-7. **Security candidate: the age is gated on the myherdr codec.**
-   Spec-reality finding: tokens are free-form, and a stock daemon may pass an
-   agent-reported `herdr_activity_at` through unchecked (myherdr's server
-   overrides it, session-activity scenario 10). Fix I wrote: read the token
-   only from endpoints whose `snapshot_v2` flag is true. The age is display
-   text only, so a forged value can only show a wrong age. I could not read
-   a stock Herdr daemon's token handling, because no Herdr checkout is cited
-   in the brainstorm.
-8. **No machine prefix in the Devices layout.** Spec-reality finding: the
-   machine rule would print `box · ws` under a `box` header. myherdr has no
-   Devices layout. Fix I wrote: the Devices layout passes no machine, as it
-   passes no host today (`device_tree.rs:81-82`).
-9. **Smaller corrections.** Spec-reality findings, each fixed in place:
-   `u64::MAX` has 20 digits and gives no age, so the boundary test uses
-   `9999999999999999999`; the deadline scan reads `self.live` for the
-   selected endpoint; five citations were corrected. One finding is
-   unchanged: the branch is taken raw, not trimmed like
-   `WorkspaceRow::branch()`, because myherdr takes it raw
+Brandon's rulings of 2026-10-15, made under his rule that myherdr's spec and
+code decide, and herdr-gpui's design decides only what myherdr cannot. Each
+item was open in an earlier draft of this document.
+
+1. **Text is fitted by a glyph budget, not GPUI's `line_clamp`.** Approved
+   as a refinement of brainstorm Decision 4. herdr-gpui already cuts sidebar
+   text by dividing pixel width by `glyph_width` (`sidebar/row.rs:178-194`),
+   because GPUI only ellipsizes text whose width is fixed, and headless tests
+   cannot see GPUI's wrapping (`layout_tests.rs:1-3`). myherdr's
+   `wrap_two_lines` and `truncate_end` are ported over that budget. With a
+   proportional font, a line may stop a little short of the edge, as the
+   sidebar's other rows already do.
+2. **An offline endpoint's rows disappear.** Approved. A disconnect clears
+   the snapshot (`state.rs:598-613`). Keeping an old snapshot after a
+   disconnect would mix snapshot data across boot IDs, which AGENTS.md
+   forbids ("Never mix snapshot metadata and surface cells across boot IDs").
+   This is a known difference from myherdr, which keeps those rows dimmed
+   (agent-session-rows spec, line 14).
+3. **The session row replaces agent rows in every layout mode.** Approved,
+   per myherdr's "every agent row in the sidebar" (agent-session-rows spec,
+   line 8).
+4. **Drawn status icons and the rail bar stay.** Approved. The mark is
+   `status_indicator`, which draws the icons, in a column
+   `indicators.width(font)` wide, and the rail bar attaches as `Cell::row`
+   does (`cell.rs:183-205`).
+5. **A deadline that passes on a busy tick still repaints.** Approved.
+   `poll_endpoints` returns `true` only for `Redraw::Window`, and rule 2 of
+   `poll_session_ages` returns `true` when the old deadline has passed.
+6. **`superset_dots.rs` and `superset_badges.rs` set the setting off.**
+   Approved. Both probe old-row slots.
+7. **The age is read only from V2-codec endpoints.** Approved as the port's
+   daemon-support gate (Global constraint 2). A stock daemon may pass an
+   agent-reported `herdr_activity_at` through, and myherdr's server
+   overrides it (session-activity scenario 10).
+8. **The Devices layout shows no machine prefix.** Approved. Its host header
+   already names the machine (`device_tree.rs:81-82`).
+9. **Small corrections.** Approved: `u64::MAX` gives no age, the deadline
+   scan reads `self.live` for the selected endpoint, five citations were
+   corrected, and the branch is taken raw as in myherdr
    (`session_rows.rs:74`).
-10. **Session rows are off until the shared config loads.** validator-tests
-    finding: pinning the setting off in `fixture_window` would change every
-    settings-window test built from it (`theme_recovery.rs:18` asserts
-    `shared.is_none()`), and a parsed `shared` changes indicator colors and
-    other readers. Fix I wrote: the accessor is `is_some_and`, so an unloaded
-    config means off, and no fixture changes. I checked myherdr: it loads
-    config synchronously and falls back to defaults, which are on, on a read
-    error (`config/io.rs:132-151`). It has no unloaded state, so it cannot
-    settle this. User-visible cost: with the default config, the old rows may
-    show for the moment before the first async load lands. If the first load
-    fails, for example on invalid TOML, the old rows stay until a load
-    succeeds. myherdr would show session rows in that case.
+10. **Session rows are on before the shared config loads.** Changed from
+    the earlier draft's off-until-loaded. The accessor uses `is_none_or`,
+    so an unloaded or failed config means session rows on, as myherdr's
+    fallback to `Config::default()` does (`config/io.rs:132-151`). Existing
+    tests built on `fixture_window` now draw session rows. "Existing tests
+    and the new default" lists how each affected test changes.

@@ -40,7 +40,7 @@
 
 **Startup:** `just run` (release build of herdr-gpui), with a myherdr daemon from `~/Development/Personal/myherdr` already running on the default local socket. The app window opens on the local endpoint.
 
-**Auth:** No accounts and no credentials. herdr-gpui connects to the local myherdr daemon over its Unix socket as the current macOS user. There is no saved authentication state.
+**Auth:** No app accounts. herdr-gpui connects to the local myherdr daemon over its Unix socket as the current macOS user. Procedure 5 also needs one saved SSH host that runs a myherdr daemon, reached with the tester's own SSH key from `~/.ssh`. No secret appears in this plan, and there is no saved authentication state.
 
 ---
 
@@ -49,7 +49,7 @@
 - [ ] Task 1: Draw the four-line session row
 
 **Files:**
-- Modify: `crates/herdr-gpui/src/herdr_settings.rs` (`Ui`, `Settings`, `Settings::parse`)
+- Modify: `crates/herdr-gpui/src/herdr_settings.rs` (`Ui`, `Settings`, `Settings::parse`, and the `#[cfg(test)]` gate on `Settings::parse_text`)
 - Modify: `crates/herdr-gpui/src/settings_panel.rs` (new `HerdrWindow::session_sidebar` accessor)
 - Create: `crates/herdr-gpui/src/sidebar/session_text.rs`
 - Create: `crates/herdr-gpui/src/sidebar/session_row.rs`
@@ -58,7 +58,9 @@
 - Modify: `crates/herdr-gpui/src/sidebar/render.rs` (module declaration only)
 - Modify: `crates/herdr-gpui/src/sidebar/render/agent_rows.rs` (`append_agent_rows`, `agent_row_gap`)
 - Modify: `crates/herdr-gpui/src/sidebar/render/device_tree.rs` (`append_device_agents`)
-- Modify: `crates/herdr-gpui/src/sidebar/layout_tests.rs` (module list, and the shared fixtures moved here)
+- Modify: `crates/herdr-gpui/src/sidebar/layout_tests.rs` (module list, the new `old_agent_rows` helper, and the shared fixtures moved here)
+- Modify: `crates/herdr-gpui/src/window.rs` (the `integration-test` sidebar fixture in `HerdrWindow::new`, lines 826-834)
+- Modify: the existing tests marked "off" in the Behavior list below (`layout_tests/agent_rows.rs`, `superset_dots.rs`, `superset_badges.rs`, `devices_layout.rs`, `layouts.rs`, `configured_rows.rs`, `text_width.rs`)
 - Modify: `crates/herdr-gpui/src/sidebar/layout_tests/devices_layout.rs` (`devices_window` moves to `layout_tests.rs` as a shared fixture)
 - Modify: `crates/herdr-gpui/src/sidebar/layout_tests/agent_menu.rs` (its inline two-endpoint setup moves to a shared `layout_tests.rs` fixture, `two_endpoint_window`, which `agent_menu.rs` then calls)
 - Modify: `crates/herdr-gpui/src/sidebar/layout_tests/configured_rows.rs` (the `[ui]` text at line 170)
@@ -83,8 +85,24 @@
 **TDD:** yes, selected new unit behavior (setting parse, text fitting, row model) and new integration behavior (row element and wiring) fail first. Unchanged setting-off rows reuse existing protection without artificial RED.
 
 **Behavior:**
-- **Setting.** `ui.session_sidebar` is read as `Option<bool>` with `crate::lenient::or_default`, and `Settings.session_sidebar` is `unwrap_or(true)`. `HerdrWindow::session_sidebar` returns `self.settings.shared.as_ref().is_some_and(|shared| shared.session_sidebar)`, so the setting is off until the shared config has loaded.
-- **Existing tests.** `fixture_window` and the `integration-test` sidebar fixture stay unchanged: `settings.shared` is `None` there, so they draw the old rows. `configured_rows.rs:170`, `superset_dots.rs:31`, and `superset_badges.rs:19` add `session_sidebar = false` to their `[ui]` text. Each new session-row test sets `settings.shared` to `Settings::parse_text("[ui]\n")` or text with the key `true`.
+- **Setting.** `ui.session_sidebar` is read as `Option<bool>` with `crate::lenient::or_default`, and `Settings.session_sidebar` is `unwrap_or(true)`. `HerdrWindow::session_sidebar` returns `self.settings.shared.as_ref().is_none_or(|shared| shared.session_sidebar)`, so an unloaded or failed config means session rows on, as in myherdr (`config/io.rs:132-151`).
+- **Existing tests.** `fixture_window` keeps `settings.shared = None`, so its tests now draw session rows. Add `layout_tests::old_agent_rows(view: &mut HerdrWindow)`, which sets `view.settings.shared = Some(Settings::parse_text("[ui]\nsession_sidebar = false\n").unwrap())`. Widen `Settings::parse_text` to `#[cfg(any(test, feature = "integration-test"))]`. The `integration-test` sidebar fixture in `window.rs` sets `this.settings.shared = Settings::parse_text("[ui]\nsession_sidebar = false\n").ok()`, because `smoke_sidebar.rs:166-208` and `smoke_hosts.rs:215-279` assert the old row's 16 px agent mark and label widths. Each affected `fixture_window` test changes as follows. "Off" means it calls `old_agent_rows` before drawing, or, where it already sets `shared` from parsed text, adds `session_sidebar = false` to that text. "New row" means it stays unchanged and now runs against the session row, which emits the same `row-agent-{pane}`, `agent-{endpoint}-{pane}` (multi-endpoint), `highlight-agent-{pane}`, `wash-agent-{pane}`, `mark-agent-{pane}`, and `rail-agent-{pane}` selectors and paints the `"Claude Code"` fallback name.
+  - Off, because they assert old-row-only elements (`agent-icon-`, `name-`, `detail-`, `column-`, `status-`, `icon-`, `dot-`, `line-agent-…-2`, inline status) or the configured layout:
+    - `agent_rows.rs:4`, `:80`, `:141`, `:184`, and `:286`. The last asserts a `"review"` probe painted from the configured layout.
+    - `superset_dots.rs:7` and `:59`, and `superset_badges.rs:6`.
+    - `devices_layout.rs:104`.
+    - `layouts.rs:17` (`check_layouts`), `:192`, and `:424`.
+    - `configured_rows.rs:4`, `:70`, `:129`, and `:158`.
+    - `text_width.rs:9` (`check_sidebar`).
+  - New row, unchanged:
+    - `agent_rows.rs:221`, `:352`, and `:387`: order by `row-agent-*` bounds, `"Claude Code"` and `"Remote Agent"` probes, and multi-endpoint selectors.
+    - `agent_menu.rs:9`: it now protects the session row's right-click pane menu.
+    - `status_icons.rs:7`: it now protects the session row's `row-agent-p0` right edge and rail bar in every layout.
+    - `host_agents.rs:9`, `host_groups.rs:4`, `devices_layout.rs:45`, and `devices_layout.rs:67`.
+    - `host_wash.rs:78`, `:98`, and `:122`: they now protect the session row's host wash.
+    - `split_pane.rs:73`.
+  - Not affected: `sidebar/tests/row_text.rs:132` builds a `Cell` with no window.
+  - If a "new row" test fails, the implementer reports the failing assertion. The implementer switches it to off only when the assertion reads an element the session row is specified not to draw, and names it in the task report.
 - **Text fitting.** This is a port of `myherdr/src/ui/text.rs:7-70` and the line-one rule in `session_rows.rs:121-171`. Widths are display columns from `unicode-width`, and wide characters count as 2.
   - `truncate_end` returns text that fits unchanged. A budget of 0 returns empty text and a budget of 1 returns `…`. Otherwise it returns the longest prefix that fits in `columns - 1`, then `…`.
   - `wrap_two_lines` returns `(text, "")` when the text fits.
@@ -119,7 +137,7 @@ branch mark:      "⎇ "  (U+2387, U+0020)
 no branch:        "—"   (U+2014)
 machine join:     " · " (U+0020, U+00B7, U+0020)
 ellipsis:         "…"   (U+2026)
-setting key:      [ui] session_sidebar, default true once the shared config loads; off while it is unloaded
+setting key:      [ui] session_sidebar, default true, also while the shared config is unloaded
 ```
 
 **Test cases:**
@@ -146,16 +164,15 @@ setting key:      [ui] session_sidebar, default true once the shared config load
 - `the_branch_comes_from_the_workspace` [unit]: workspace `branch = Some("fix/upload")` → `branch == Some("fix/upload")`. With `None`, the branch is `None`.
 - `session_rows_paint_four_lines` [integration]: setting on, a 240 px sidebar, agent p0 with pane label `"Fix upload"`, and workspace branch `"main"`. `TextProbes` contains `"Fix upload"` and `"⎇ main"`. The height of `row-agent-p0` is 4 × `line_height` plus the row's padding.
 - `a_row_without_a_branch_shows_a_dash` [integration]: workspace `branch = None` → `TextProbes` contains `"⎇ —"`.
-- `session_rows_are_off_until_settings_load` [integration]: `settings.shared = None` → `row-agent-p0` is absent and today's `agent-p0` row is drawn (its height is under 4 × `line_height`).
+- `session_rows_are_on_before_settings_load` [integration]: `settings.shared = None` → `row-agent-p0` is at least 4 × `line_height` tall.
 - `the_blank_line_between_rows_is_not_a_target` [integration]: the gap between `row-agent-p0`'s bottom and `row-agent-p1`'s top equals `line_height`. A click at the gap's middle leaves `pending_navigation` empty, and a click on line 3 of `row-agent-p1` targets pane `p1`.
 - `the_focused_row_background_covers_four_lines` [integration]: p0 focused on the selected endpoint → the height of `highlight-agent-p0` is at least 4 × `line_height`, and its bounds lie inside `row-agent-p0`. The layer is inset by half the look's spacing at the top and bottom (`layout.rs:325-337`).
-- `right_click_opens_the_pane_menu_and_highlights_the_row` [integration]: right-click `row-agent-p0`, as `agent_menu.rs` does for the old row → the agent menu opens for pane `p0`, and `highlight-agent-p0` is drawn.
+- `an_open_menu_highlights_the_row` [integration]: right-click `row-agent-p0` → `highlight-agent-p0` is drawn while the menu is open. The menu opening itself is protected by the reused `agent_menu.rs:9`.
 - `a_long_name_wraps_inside_the_row` [integration]: pane label `"Fix the flaky upload test and re-run the integration suite"` in a narrow sidebar → `TextProbes` holds a line-2 string and a line-3 string that ends with `…`. Their painted bounds lie inside `row-agent-p0`, and their left edges equal the title's left edge.
 - `two_endpoints_prefix_every_row_with_its_machine` [integration]: `two_endpoint_window` → `TextProbes` holds each endpoint's `<label> · <workspace>`, the local endpoint's included.
 - `the_configured_layout_is_ignored` [integration]: a three-line `[sidebar_layout.agents]` layout and an agent whose `workspace_id` is missing from the snapshot. The old path drops that agent, because `tokens::agent_rows` returns `None` (`tokens.rs:92-99`) → `row-agent-p0` and the missing-workspace agent's row both exist and are four lines tall.
 - `devices_rows_are_session_rows` [integration]: `devices_window` with two endpoints, setting on → the device agent row is four lines tall, and no painted text contains ` · `.
 - `every_layout_mode_draws_session_rows` [integration]: for each of `Classic` (default density and style), `Superset`, `Orca`, and `Minimal`, setting on → `row-agent-p0` is at least 4 × `line_height` tall and `TextProbes` contains `"⎇ main"`. Iterate the modes in a slice; assert no count.
-- `the_rail_style_keeps_its_bar` [integration]: `status_icons = Rail`, setting on → for a working agent, `rail-agent-p0`'s left edge equals `row-agent-p0`'s left edge.
 
 **Verify:** `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null cargo test --locked -p herdr-gpui -- herdr_settings::tests::session_sidebar sidebar::tests::session_text sidebar::tests::session_row sidebar::layout_tests && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null just ci`, then the per-task coverage command from Global Constraints with this task's `BASE` and `HEAD_SHA`.
 
@@ -292,3 +309,23 @@ age texts: "now", "<n>m", "<n>h", "<n>d"
 **Opens:** the same running herdr-gpui window, showing at least one session row with an age
 1. Drag the sidebar's right edge to its narrowest width.
    Observe: the status mark stays, the age is either shown whole or gone, the workspace name, pane name, and branch end with `…` where cut, and no text runs past the sidebar edge.
+
+### Procedure 4: Session rows in every sidebar layout
+**Opens:** the same running herdr-gpui window with one agent whose pane name is long enough to wrap, and Settings > Appearance > Sidebar layout
+1. Choose a Classic layout, such as Normal.
+   Observe: the agent row has four lines: status mark, bold workspace name, and age on line one; the wrapped pane name on lines two and three, ending in `…` if cut; and `⎇ <branch>` on line four. One blank line separates rows.
+2. Choose Superset.
+   Observe: the same four-line row, with no text past the sidebar edge. Workspace rows keep Superset's own design.
+3. Choose Orca.
+   Observe: the same four-line row inside Orca's look.
+4. Choose Minimal.
+   Observe: the same four-line row inside Minimal's look.
+5. Choose Devices.
+   Observe: the agent row under the host header is the same four-line row.
+
+### Procedure 5: Devices shows no machine prefix with two hosts
+**Opens:** the same running herdr-gpui window with a second saved SSH host connected, each host running at least one agent, and the Sidebar layout set to Normal
+1. Look at the Agents list.
+   Observe: every agent row's line one starts with its host's label, then ` · `, then the workspace name, the local host's rows included.
+2. In Settings > Appearance > Sidebar layout, choose Devices.
+   Observe: each agent row sits under its host's header, and line one shows only the workspace name, with no host label and no ` · `.
