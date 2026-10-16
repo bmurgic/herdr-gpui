@@ -232,3 +232,142 @@ fn a_frame_one_column_narrower_than_requested_keeps_input_fenced(cx: &mut gpui::
         "{requests:?}"
     );
 }
+
+/// The daemon's refusal of a focus request for a workspace it does not know.
+fn workspace_not_found() -> serde_json::Value {
+    serde_json::json!({"error": {
+        "code": "workspace_not_found", "message": "workspace scratch not found"
+    }})
+}
+
+/// The v1 fixture's session with one more workspace, `scratch`.
+fn v1_with_scratch() -> ClientShellSnapshotV2 {
+    let mut snapshot = snapshot();
+    let mut scratch = snapshot.workspaces[0].clone();
+    scratch.workspace_id = "scratch".into();
+    scratch.label = "scratch".into();
+    scratch.focused = false;
+    snapshot.workspaces.push(scratch);
+    snapshot
+}
+
+/// Focuses `target` on `endpoint`, whose daemon refuses the focus request with
+/// `workspace_not_found` before it acknowledges the surface fence. Returns once
+/// the window has projected the refusal; `server` is kept so the connection
+/// stays up.
+fn refused_focus<'a>(
+    cx: &'a mut gpui::TestAppContext,
+    endpoint: Endpoint,
+    mut server: Server,
+    target: NavigationTarget<&str>,
+    method: &str,
+) -> (Entity<HerdrWindow>, &'a mut VisualTestContext, Server) {
+    let (view, cx) = window_over(cx, endpoint);
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            assert!(view.navigate_endpoint("empty-workspaces", target, cx));
+            assert!(view.activation_deadline.is_some());
+        })
+    });
+    let request = next_request(&mut server);
+    assert_eq!(request["method"], method);
+    server.reply(&request, workspace_not_found());
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            project_until(view, cx, "the refusal", |view| view.live.error.is_some());
+        })
+    });
+    (view, cx, server)
+}
+
+/// Workspace v2 methods 03: a refused workspace focus shows the daemon's
+/// message, leaves the focused workspace alone, ends the wait for the surface
+/// activation, and does not reconnect even once the deadline would have passed.
+#[gpui::test]
+fn a_refused_workspace_focus_ends_the_wait_without_a_reconnect(cx: &mut gpui::TestAppContext) {
+    let v2_methods = [SURFACE, Method::WorkspaceFocus, Method::WorkspaceFocusV2];
+    let (v2, v2_server) =
+        connected_endpoint_v2("empty-workspaces", &v2_methods, api_and("scratch"));
+    let (v1, v1_server) = connect_endpoint(
+        "empty-workspaces",
+        SNAPSHOT_CODEC_V1,
+        v1_with_scratch(),
+        |welcome| {
+            welcome.methods.extend(
+                CONNECTED_ENDPOINT_METHODS
+                    .iter()
+                    .map(|method| method.as_str().to_owned()),
+            );
+        },
+    );
+    for (endpoint, server, method) in [
+        (v2, v2_server, "workspace.focus.v2"),
+        (v1, v1_server, "workspace.focus"),
+    ] {
+        let (view, cx, _server) = refused_focus(
+            cx,
+            endpoint,
+            server,
+            NavigationTarget::Workspace("scratch"),
+            method,
+        );
+        cx.update(|_, cx| {
+            view.update(cx, |view, cx| {
+                let focused = view
+                    .live
+                    .snapshot
+                    .as_ref()
+                    .unwrap()
+                    .focused_workspace_id
+                    .clone();
+                assert_ne!(focused.as_deref(), Some("scratch"), "{method}");
+                assert_eq!(
+                    view.live.error.as_deref(),
+                    Some("workspace scratch not found"),
+                    "{method}"
+                );
+                assert!(view.live.activation.is_none(), "{method} still waits");
+                assert!(
+                    view.activation_deadline.is_none(),
+                    "{method} kept its deadline"
+                );
+
+                // Once the deadline would have passed, nothing reconnects or switches host.
+                view.activation_deadline = Some(Instant::now() - Duration::from_secs(1));
+                view.poll_endpoints(cx);
+                assert!(view.live.status.is_connected(), "{method} reconnected");
+                assert_eq!(view.selected_endpoint, 0, "{method} switched host");
+                assert!(
+                    view.local_error.as_deref().is_none_or(
+                        |error| !error.contains("surface activation failed or timed out")
+                    ),
+                    "{method}: {:?}",
+                    view.local_error
+                );
+            })
+        });
+    }
+}
+
+/// Only a workspace focus ends its wait: a refused tab focus keeps the fence.
+#[gpui::test]
+fn a_refused_tab_focus_keeps_waiting_for_the_activation(cx: &mut gpui::TestAppContext) {
+    let advertised = [SURFACE, Method::TabFocus];
+    let (endpoint, server) =
+        connected_endpoint_v2("empty-workspaces", &advertised, api_and("scratch"));
+    let (view, cx, _server) = refused_focus(
+        cx,
+        endpoint,
+        server,
+        NavigationTarget::Tab("t1"),
+        "tab.focus",
+    );
+    view.read_with(cx, |view, _| {
+        assert_eq!(
+            view.live.error.as_deref(),
+            Some("workspace scratch not found")
+        );
+        assert!(view.live.activation.is_some());
+        assert!(view.activation_deadline.is_some());
+    });
+}

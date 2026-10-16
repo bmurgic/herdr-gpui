@@ -167,6 +167,7 @@ impl HerdrWindow {
                         failed: false,
                         focus: None,
                         active: true,
+                        focus_request: None,
                     });
                     state.dirty = true;
                     endpoint.initial_surface = true;
@@ -184,6 +185,11 @@ impl HerdrWindow {
                 }
             }
             changed = Redraw::Window;
+        }
+        // A refused workspace focus ended its activation, so there is nothing
+        // left for the deadline to expire on.
+        if self.live.focus_refused {
+            self.activation_deadline = None;
         }
         // Held input precedes any deferred navigation.
         self.flush_pending_input(cx);

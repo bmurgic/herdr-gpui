@@ -123,6 +123,11 @@ pub struct LiveState {
     pub(crate) notifications_lost: bool,
     outer_focused: Option<bool>,
     pub activation: Option<SurfaceActivation>,
+    /// The daemon refused the workspace focus that raised the last fence, so
+    /// there is no activation to wait for. The window reads it to drop the
+    /// fence's deadline instead of reconnecting when it passes. The next fence
+    /// and a new session clear it.
+    pub focus_refused: bool,
     pub supports_surface: bool,
     // Bounded rename slots survive coalesced snapshots and do not overwrite a
     // worktree operation whose dialog has already closed.
@@ -177,6 +182,10 @@ pub struct SurfaceActivation {
     pub failed: bool,
     pub focus: Option<crate::OwnedNavigationTarget>,
     pub active: bool,
+    /// The `workspace.focus` request that raised this fence, when it was a
+    /// workspace focus. A refusal of that request ends the activation, because
+    /// no focus change is coming for the surface to settle on.
+    pub focus_request: Option<String>,
 }
 
 impl Default for LiveState {
@@ -223,6 +232,7 @@ impl Default for LiveState {
             keyboard_report_all: false,
             outer_focused: None,
             activation: None,
+            focus_refused: false,
             supports_surface: false,
             tab_rename: None,
             pane_rename: None,
@@ -281,6 +291,7 @@ impl LiveState {
             notifications_lost,
             outer_focused,
             activation,
+            focus_refused,
             supports_surface,
             tab_rename,
             pane_rename,
@@ -358,9 +369,11 @@ impl LiveState {
                         && a.failed == b.failed
                         && a.focus == b.focus
                         && a.active == b.active
+                        && a.focus_request == b.focus_request
                 }
                 (a, b) => a.is_none() && b.is_none(),
             }
+            && *focus_refused == self.focus_refused
             && *supports_surface == self.supports_surface
             && pending_rename(tab_rename, &self.tab_rename)
             && pending_rename(pane_rename, &self.pane_rename)
@@ -505,6 +518,7 @@ impl LiveState {
                 self.version_mismatch = None;
                 // The daemon reports the mode to each new connection.
                 self.keyboard_report_all = false;
+                self.focus_refused = false;
                 self.status = ConnectionStatus::AwaitingSnapshot;
                 self.error = None;
             }
@@ -583,6 +597,7 @@ impl LiveState {
                 self.bells = 0;
                 self.window_title = None;
                 self.status = ConnectionStatus::Disconnected;
+                self.focus_refused = false;
                 self.methods = Arc::from([]);
                 self.supports_workspace_move = false;
                 self.error = Some(reason);
@@ -629,6 +644,9 @@ impl LiveState {
                 {
                     activation.failed = true;
                 }
+                if let Some(id) = &request_id {
+                    self.end_refused_focus(id);
+                }
                 if request_id
                     .as_deref()
                     .is_some_and(|id| self.dismissal_request(id))
@@ -674,9 +692,11 @@ impl LiveState {
                 }
                 if let Some(error) = response.get("error")
                     && !error.is_null()
-                    && !self.has_operation_result(&request_id)
                 {
-                    self.error = Some(crate::Error::DaemonResponse(error.clone()).to_string());
+                    if !self.has_operation_result(&request_id) {
+                        self.error = Some(crate::Error::DaemonResponse(error.clone()).to_string());
+                    }
+                    self.end_refused_focus(&request_id);
                 }
                 if self.dismissal_request(&request_id)
                     && response.get("error").is_some_and(|error| !error.is_null())
@@ -804,6 +824,20 @@ impl LiveState {
             activation.focus = None;
         }
         self.dirty = true;
+    }
+
+    /// Ends the activation `request_id` raised, when it is a workspace focus
+    /// the daemon refused. Tab and pane focus keep their fence: only a
+    /// workspace focus is ruled to stop waiting.
+    fn end_refused_focus(&mut self, request_id: &str) {
+        if self
+            .activation
+            .as_ref()
+            .is_some_and(|activation| activation.focus_request.as_deref() == Some(request_id))
+        {
+            self.activation = None;
+            self.focus_refused = true;
+        }
     }
 
     pub(crate) fn cancel_sounds(&mut self) {

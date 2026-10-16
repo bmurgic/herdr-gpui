@@ -21,6 +21,7 @@ fn text_paste_survives_a_settled_navigation(cx: &mut gpui::TestAppContext) {
         failed: false,
         focus: None,
         active: true,
+        focus_request: None,
     };
     cx.update(|window, cx| {
         view.update(cx, |view, cx| {

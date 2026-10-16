@@ -45,6 +45,7 @@ fn pending_navigation_defers_the_decision(cx: &mut gpui::TestAppContext) {
                 failed: false,
                 focus: Some(crate::NavigationTarget::Workspace("w4".into())),
                 active: true,
+                focus_request: None,
             });
             view.merged_cleanup.probe = Some(checked(&candidate));
             view.finish_merged_probe(window, cx);

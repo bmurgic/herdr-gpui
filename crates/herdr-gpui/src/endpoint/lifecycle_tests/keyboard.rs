@@ -42,6 +42,7 @@ fn keyboard_report_all_releases_sent_keys(cx: &mut gpui::TestAppContext) {
                 failed: false,
                 focus: None,
                 active: true,
+                focus_request: None,
             });
             view.live.keyboard_report_all = true;
             view.key_down(&down("ctrl-c"), window, cx);

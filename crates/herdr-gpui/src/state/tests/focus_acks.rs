@@ -42,6 +42,7 @@ fn activating(snapshot: &ClientShellSnapshotV2) -> SurfaceActivation {
         failed: false,
         focus: None,
         active: true,
+        focus_request: None,
     }
 }
 

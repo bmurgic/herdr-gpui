@@ -109,6 +109,7 @@ impl Release {
                         failed: false,
                         focus: None,
                         active: false,
+                        focus_request: None,
                     });
                     self.phase = ReleasePhase::Sent(request);
                 }

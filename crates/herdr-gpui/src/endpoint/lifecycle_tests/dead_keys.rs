@@ -26,6 +26,7 @@ fn a_dead_key_reaches_the_pane_only_as_the_composed_character(cx: &mut gpui::Tes
                 failed: false,
                 focus: None,
                 active: true,
+                focus_request: None,
             });
             view.replace_and_mark_text_in_range(None, "\u{b4}", Some(1..1), window, cx);
             assert_eq!(view.marked, "\u{b4}");

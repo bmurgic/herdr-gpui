@@ -249,6 +249,7 @@ fn release_waits_for_its_own_successful_inactive_acknowledgement() {
         failed: false,
         focus: None,
         active: false,
+        focus_request: None,
     });
     let mut release = Release {
         inbox: inbox.clone(),

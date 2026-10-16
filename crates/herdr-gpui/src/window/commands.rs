@@ -123,32 +123,61 @@ impl HerdrWindow {
             &str,
         ) -> Result<String, herdr_client::SendError>,
     ) -> bool {
-        if let (Some(handle), Some(snapshot)) = (
+        // The inbox stays locked from the enqueue until the fence exists, so
+        // the daemon's reply to a workspace focus cannot be applied before the
+        // fence that must recognize its id.
+        let inbox = self.endpoints[self.selected_endpoint]
+            .connection
+            .inbox
+            .clone();
+        let mut state = inbox.lock().ok();
+        let (Some(handle), Some(snapshot)) = (
             &self.endpoints[self.selected_endpoint].connection.handle,
             &self.live.snapshot,
-        ) {
-            if let Err(error) = enqueue(handle, &snapshot.boot_id) {
+        ) else {
+            return false;
+        };
+        let id = match enqueue(handle, &snapshot.boot_id) {
+            Ok(id) => id,
+            Err(error) => {
                 self.local_error = Some(format!("{label}: {error}"));
-            } else {
-                self.fence_focus_change(focus);
-                return true;
+                return false;
             }
+        };
+        let focus_request =
+            matches!(focus, Some(OwnedNavigationTarget::Workspace(_))).then_some(id);
+        if let Some(state) = state.as_deref_mut() {
+            self.raise_fence(state, focus, focus_request);
         }
-        false
+        true
     }
 
     pub(crate) fn fence_focus_change(&mut self, focus: Option<OwnedNavigationTarget>) {
+        let inbox = self.endpoints[self.selected_endpoint]
+            .connection
+            .inbox
+            .clone();
+        if let Ok(mut state) = inbox.lock() {
+            self.raise_fence(&mut state, focus, None);
+        }
+    }
+
+    /// Records a barrier in `state`, the selected endpoint's locked inbox, and
+    /// starts its deadline. `focus_request` is the id of the workspace focus the
+    /// barrier waits on, when it is one.
+    fn raise_fence(
+        &mut self,
+        state: &mut state::LiveState,
+        focus: Option<OwnedNavigationTarget>,
+        focus_request: Option<String>,
+    ) {
         if !self.live.supports_surface {
             return;
         }
         if let (Some(handle), Some(snapshot)) = (
             &self.endpoints[self.selected_endpoint].connection.handle,
             &self.live.snapshot,
-        ) && let Ok(mut state) = self.endpoints[self.selected_endpoint]
-            .connection
-            .inbox
-            .lock()
-        {
+        ) {
             // An ordered surface barrier prevents input hitting the previous
             // pane while navigation/creation and its projection are in flight.
             // Register the barrier under the inbox lock before input can resume.
@@ -166,7 +195,9 @@ impl HerdrWindow {
                 failed,
                 focus,
                 active: true,
+                focus_request,
             });
+            state.focus_refused = false;
             state.surface = None;
             state.dirty = true;
             self.live = state.clone();
