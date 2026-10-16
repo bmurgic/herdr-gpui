@@ -66,7 +66,7 @@ impl HerdrWindow {
             // one included, as the agents of all of them share this list.
             let machine = multi.then_some(endpoint.label.as_str());
             let age = AgeClock {
-                shown: live.snapshot_v2,
+                carries_activity: live.snapshot_v2,
                 now_ms,
             };
             let Some(row) =
@@ -122,8 +122,9 @@ impl HerdrWindow {
     /// One agent's row in either list, in the shape the settings ask for: a
     /// session row, or Herdr's own with any configured lines. `count` is the
     /// number of rows already in the list. `machine` is the label a session
-    /// row names its machine with, and `age` what it dates its activity by. None when the configured rows leave this
-    /// agent out, which a session row never does.
+    /// row names its machine with, and `age` what it dates its activity by.
+    /// None when the configured rows leave this agent out, which a session
+    /// row never does.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn agent_row(
         &self,

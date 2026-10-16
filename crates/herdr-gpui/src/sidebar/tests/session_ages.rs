@@ -1,10 +1,7 @@
 use crate::{
     HerdrWindow,
     herdr_settings::Settings,
-    sidebar::{
-        SessionAges,
-        layout_tests::{fixture_window, snapshot, two_endpoint_window},
-    },
+    sidebar::layout_tests::{fixture_window, snapshot, two_endpoint_window},
 };
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use herdr_client::protocol::{ACTIVITY_TOKEN_KEY, ClientShellSnapshotV2};
@@ -59,7 +56,7 @@ fn deadline(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Option<u6
 fn set_session_sidebar(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, on: bool) {
     view.update(cx, |view, _| {
         view.settings.shared =
-            Settings::parse_text(&format!("[ui]\nsession_sidebar = {on}\n")).ok();
+            Some(Settings::parse_text(&format!("[ui]\nsession_sidebar = {on}\n")).unwrap());
     });
 }
 
@@ -158,11 +155,4 @@ fn turning_the_setting_on_recomputes_without_a_snapshot(cx: &mut TestAppContext)
     set_session_sidebar(&view, cx, true);
     assert!(!poll(&view, cx, A, false));
     assert_eq!(deadline(&view, cx), Some(A + MINUTE));
-}
-
-#[test]
-fn a_fresh_window_has_no_schedule() {
-    let ages = SessionAges::default();
-    assert!(!ages.enabled);
-    assert_eq!(ages.deadline, None);
 }

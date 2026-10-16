@@ -91,7 +91,7 @@ impl HerdrWindow {
         let mut count = 0;
         let mut focused = None;
         let age = AgeClock {
-            shown: live.snapshot_v2,
+            carries_activity: live.snapshot_v2,
             now_ms: now_ms(),
         };
         for agent in sorted_agents(snapshot, self.agent_sort) {

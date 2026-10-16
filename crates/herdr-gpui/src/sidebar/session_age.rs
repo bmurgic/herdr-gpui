@@ -15,7 +15,7 @@ const MAX_ACTIVITY_TOKEN_DIGITS: usize = 19;
 #[derive(Clone, Copy)]
 pub(super) struct AgeClock {
     /// The endpoint negotiated a V2 snapshot, the only kind that carries it.
-    pub(super) shown: bool,
+    pub(super) carries_activity: bool,
     pub(super) now_ms: u64,
 }
 
@@ -71,9 +71,10 @@ pub(super) fn age_text(activity_ms: u64, now_ms: u64) -> String {
 /// hour, or day of the current band.
 pub(super) fn next_change(activity_ms: u64, now_ms: u64) -> u64 {
     let elapsed_ms = now_ms.saturating_sub(activity_ms);
-    let unit_ms = if elapsed_ms < MILLIS_PER_MINUTE {
+    if elapsed_ms < MILLIS_PER_MINUTE {
         return activity_ms.saturating_add(MILLIS_PER_MINUTE);
-    } else if elapsed_ms < MILLIS_PER_HOUR {
+    }
+    let unit_ms = if elapsed_ms < MILLIS_PER_HOUR {
         MILLIS_PER_MINUTE
     } else if elapsed_ms < MILLIS_PER_DAY {
         MILLIS_PER_HOUR

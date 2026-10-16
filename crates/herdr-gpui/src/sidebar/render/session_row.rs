@@ -27,7 +27,8 @@ impl HerdrWindow {
     /// The session row for the agent of endpoint `index`, drawn in `row_cx`.
     /// It stands in for Herdr's agent row in every layout, so only the
     /// layout's look is used: its padding, highlight, and host mark. `gap` is
-    /// the blank line above it. `machine` names the host in the title, and `age` dates its activity.
+    /// the blank line above it. `machine` names the host in the title, and
+    /// `age` dates its activity.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn session_cell(
         &self,
@@ -58,7 +59,7 @@ impl HerdrWindow {
             highlighted: menu_open,
             ..Default::default()
         };
-        let session = SessionRow::new(snapshot, agent, machine, age.shown);
+        let session = SessionRow::new(snapshot, agent, machine, age.carries_activity);
 
         // The text column starts past the status mark, as Herdr's own row's
         // does, and every line fits the room it leaves.

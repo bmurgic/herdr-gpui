@@ -97,13 +97,13 @@ fn the_branch_comes_from_the_workspace() {
 
 const ACTIVITY_KEY: &str = "herdr_activity_at";
 
-fn activity_ms(tokens: &[(&str, &str)], activity: bool) -> Option<u64> {
+fn activity_ms(tokens: &[(&str, &str)], carries_activity: bool) -> Option<u64> {
     let mut snapshot = fixture();
     agent(&mut snapshot).tokens = tokens
         .iter()
         .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
         .collect();
-    SessionRow::new(&snapshot, &snapshot.agents[0], None, activity).activity_ms
+    SessionRow::new(&snapshot, &snapshot.agents[0], None, carries_activity).activity_ms
 }
 
 #[test]

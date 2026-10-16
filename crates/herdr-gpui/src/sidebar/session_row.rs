@@ -29,7 +29,7 @@ impl SessionRow {
         snapshot: &ClientShellSnapshotV2,
         agent: &ClientShellAgent,
         machine: Option<&str>,
-        activity: bool,
+        carries_activity: bool,
     ) -> Self {
         let workspace = snapshot
             .workspaces
@@ -54,7 +54,7 @@ impl SessionRow {
         };
         // A stock daemon negotiates V1 and never sets the token, but an agent
         // could still report one, so only a V2 endpoint reads it.
-        let activity_ms = if activity {
+        let activity_ms = if carries_activity {
             agent_activity(agent)
         } else {
             None
