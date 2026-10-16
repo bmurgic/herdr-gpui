@@ -15,6 +15,7 @@ mod pull_requests;
 mod scripts;
 mod targets;
 mod tiles;
+mod v2_rename;
 mod worktree_create;
 mod worktree_delete;
 mod worktree_delete_keys;
@@ -112,7 +113,9 @@ pub(crate) fn submit_focus_change(
             assert_eq!(view.menu.page, Some(super::Page::Dialog(action)));
             view.removal.as_ref().unwrap().pending.clone()
         }
-        WorkspaceAction::NewWorktree | WorkspaceAction::OpenWorktree => view.menu.creation.clone(),
+        WorkspaceAction::NewWorktree | WorkspaceAction::OpenWorktree => {
+            view.menu.creation.clone().map(|(id, _)| id)
+        }
         _ => None,
     };
     if pending.is_some() {

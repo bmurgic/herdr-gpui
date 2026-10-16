@@ -726,14 +726,15 @@ impl HerdrWindow {
                 .snapshot
                 .as_ref()
                 .ok_or(crate::Error::NoSnapshot)?;
-            let (method, params) = pick_request(target, snapshot, pending)?;
+            let (method, params) = pick_request(target, snapshot, pending, &self.live.methods)?;
             self.endpoints[self.selected_endpoint]
                 .connection
                 .request_dialog(&target.boot_id, method, params)
+                .map(|id| (id, method))
         })();
         match result {
-            Ok(id) => {
-                self.menu.creation = Some(id);
+            Ok(creation) => {
+                self.menu.creation = Some(creation);
                 self.menu.error = None;
                 self.local_error = None;
                 if let Some(source) = &mut self.menu.worktree {
@@ -831,13 +832,19 @@ pub(super) fn pick_request(
     target: &super::WorkspaceTarget,
     snapshot: &herdr_client::protocol::ClientShellSnapshotV2,
     pending: &Pending,
+    methods: &[String],
 ) -> crate::Result<(Method, serde_json::Value)> {
     match pending {
-        Pending::Item(item) => item_request(target, snapshot, item),
-        Pending::Branch(branch) => {
-            target.request(snapshot, WorkspaceAction::NewWorktree, &branch.name)
+        Pending::Item(item) => item_request(target, snapshot, item, methods),
+        Pending::Branch(branch) => target.request(
+            snapshot,
+            WorkspaceAction::NewWorktree,
+            &branch.name,
+            methods,
+        ),
+        Pending::Checkout(path) => {
+            target.request(snapshot, WorkspaceAction::OpenWorktree, path, methods)
         }
-        Pending::Checkout(path) => target.request(snapshot, WorkspaceAction::OpenWorktree, path),
     }
 }
 
@@ -853,9 +860,11 @@ pub(super) fn item_request(
     target: &super::WorkspaceTarget,
     snapshot: &herdr_client::protocol::ClientShellSnapshotV2,
     item: &Item,
+    methods: &[String],
 ) -> crate::Result<(Method, serde_json::Value)> {
     let branch = item.branch();
-    let (method, mut params) = target.request(snapshot, WorkspaceAction::NewWorktree, &branch)?;
+    let (method, mut params) =
+        target.request(snapshot, WorkspaceAction::NewWorktree, &branch, methods)?;
     if item.head.is_some() {
         params["base"] = item.base_ref().into();
     }

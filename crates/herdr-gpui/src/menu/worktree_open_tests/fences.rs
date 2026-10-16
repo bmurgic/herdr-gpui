@@ -15,7 +15,7 @@ fn open_worktree_replies_cannot_revive_dismissed_or_stale_pickers(cx: &mut TestA
                 view.live.dialog_response = Some(("list".into(), Some(Ok(listing()))));
                 if opening {
                     view.menu.apply_worktree_list_response("list", Ok(listing()));
-                    view.menu.creation = Some("open".into());
+                    view.menu.creation = Some(("open".into(), herdr_client::Method::WorktreeOpen));
                     view.live.dialog_response = Some(("open".into(), Some(Ok(json!({"result":{
                         "type":"worktree_opened", "workspace":{"workspace_id":"w6"}
                     }})))));
@@ -43,18 +43,18 @@ fn open_worktree_replies_cannot_revive_dismissed_or_stale_pickers(cx: &mut TestA
             for response in [json!({"error":{"code":"open_failed","message":"checkout vanished"}}),
                 json!({"result":{"type":"worktree_created","workspace":{"workspace_id":"wrong"}}}),
                 json!({"result":{"type":"worktree_opened","workspace":{}}})] {
-                view.menu.creation = Some("open".into());
+                view.menu.creation = Some(("open".into(), herdr_client::Method::WorktreeOpen));
                 view.live.dialog_response = Some(("open".into(), Some(Ok(response))));
                 view.update_workspace_dialog(window, cx);
                 assert!(view.menu.error.is_some());
                 assert!(view.menu.creation.is_none());
                 assert!(view.pending_navigation.is_none());
             }
-            view.menu.creation = Some("open".into());
+            view.menu.creation = Some(("open".into(), herdr_client::Method::WorktreeOpen));
             let opened = json!({"result":{"type":"worktree_opened","workspace":{"workspace_id":"w6"},"already_open":true}});
             view.live.dialog_response = Some(("old-open".into(), Some(Ok(opened.clone()))));
             view.update_workspace_dialog(window, cx);
-            assert_eq!(view.menu.creation.as_deref(), Some("open"));
+            assert_eq!(view.menu.creation.as_ref().map(|(id, _)| id.as_str()), Some("open"));
             view.collapsed_repos.insert(crate::sidebar::layout_tests::REPO_KEY.into());
             view.live.dialog_response = Some(("open".into(), Some(Ok(opened))));
             view.update_workspace_dialog(window, cx);
@@ -107,7 +107,7 @@ fn open_worktree_parent_establishment_requires_pending_source_identity_and_fence
                 view.menu.apply_worktree_list_response("list", Ok(response));
                 assert!(view.menu.error.is_none());
                 if change != "not-pending" {
-                    view.menu.creation = Some("open".into());
+                    view.menu.creation = Some(("open".into(), herdr_client::Method::WorktreeOpen));
                 }
                 let snapshot = std::sync::Arc::make_mut(view.live.snapshot.as_mut().unwrap());
                 let mut membership = ClientShellWorktree {
@@ -141,7 +141,10 @@ fn open_worktree_parent_establishment_requires_pending_source_identity_and_fence
                 view.update_workspace_dialog(window, cx);
                 assert!(view.pending_navigation.is_none(), "{change}");
                 if change == "matching" {
-                    assert_eq!(view.menu.creation.as_deref(), Some("open"));
+                    assert_eq!(
+                        view.menu.creation.as_ref().map(|(id, _)| id.as_str()),
+                        Some("open")
+                    );
                     view.live.dialog_response = Some(("open".into(), Some(Ok(opened))));
                     view.update_workspace_dialog(window, cx);
                     assert_eq!(

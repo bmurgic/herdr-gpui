@@ -100,6 +100,7 @@ fn open_worktree_search_filters_automatically_and_preserves_path_selection(
                 view.live.snapshot.as_ref().unwrap(),
                 WorkspaceAction::OpenWorktree,
                 &picker.entry(picker.selected).unwrap().path,
+                &[],
             )
             .unwrap();
         assert_eq!(params["path"], "/remote/checkout with spaces ");

@@ -148,6 +148,7 @@ impl WorkspaceTarget {
         snapshot: &ClientShellSnapshotV2,
         action: WorkspaceAction,
         text: &str,
+        methods: &[String],
     ) -> crate::Result<(Method, serde_json::Value)> {
         let workspace = snapshot
             .workspaces
@@ -162,7 +163,7 @@ impl WorkspaceTarget {
                     return Err(crate::Error::EmptyWorkspaceLabel);
                 }
                 (
-                    Method::WorkspaceRename,
+                    Method::WorkspaceRename.preferred_in(methods),
                     serde_json::json!({"workspace_id": self.id, "label": label}),
                 )
             }
@@ -196,7 +197,7 @@ impl WorkspaceTarget {
                     return Err(crate::Error::WorktreeSelection);
                 }
                 (
-                    Method::WorktreeOpen,
+                    Method::WorktreeOpen.preferred_in(methods),
                     serde_json::json!({"workspace_id": self.id,
                     "path": text, "focus": true, "trust_repository": false}),
                 )

@@ -29,7 +29,7 @@ fn actions_target_clicked_workspace_and_match_daemon_schemas() {
     assert_eq!(target.close_members, ["w3", "w4", "w5"]);
     assert_eq!(
         target
-            .request(&snapshot, WorkspaceAction::Rename, "new label")
+            .request(&snapshot, WorkspaceAction::Rename, "new label", &[])
             .unwrap(),
         (
             Method::WorkspaceRename,
@@ -38,7 +38,7 @@ fn actions_target_clicked_workspace_and_match_daemon_schemas() {
     );
     assert_eq!(
         target
-            .request(&snapshot, WorkspaceAction::Close, "")
+            .request(&snapshot, WorkspaceAction::Close, "", &[])
             .unwrap(),
         (
             Method::WorkspaceClose,
@@ -47,7 +47,7 @@ fn actions_target_clicked_workspace_and_match_daemon_schemas() {
     );
     for branch in ["", "  ", " feature/test "] {
         let (method, params) = target
-            .request(&snapshot, WorkspaceAction::NewWorktree, branch)
+            .request(&snapshot, WorkspaceAction::NewWorktree, branch, &[])
             .unwrap();
         assert_eq!(method, Method::WorktreeCreate);
         let mut expected = serde_json::json!({"workspace_id": "w3", "base": "HEAD", "focus": true, "trust_repository": false});
@@ -57,7 +57,12 @@ fn actions_target_clicked_workspace_and_match_daemon_schemas() {
         assert_eq!(params, expected);
     }
     assert!(matches!(
-        target.request(&snapshot, WorkspaceAction::NewWorktree, "config reload"),
+        target.request(
+            &snapshot,
+            WorkspaceAction::NewWorktree,
+            "config reload",
+            &[]
+        ),
         Err(crate::Error::InvalidBranchName)
     ));
     for index in [0, 4, 5] {
@@ -67,7 +72,7 @@ fn actions_target_clicked_workspace_and_match_daemon_schemas() {
         assert!(!target.can_create());
         assert!(
             target
-                .request(&snapshot, WorkspaceAction::NewWorktree, "")
+                .request(&snapshot, WorkspaceAction::NewWorktree, "", &[])
                 .is_err()
         );
     }

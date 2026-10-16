@@ -147,7 +147,8 @@ fn open_worktree_rows_fill_the_list_and_header_escape_dismisses(cx: &mut TestApp
             cx.update(|window, cx| {
                 view.update(cx, |view, cx| {
                     view.menu.error = (!waiting).then(|| "Endpoint error. ".repeat(100));
-                    view.menu.creation = waiting.then(|| "open".into());
+                    view.menu.creation =
+                        waiting.then(|| ("open".into(), herdr_client::Method::WorktreeOpen));
                     cx.notify();
                 });
                 window.draw(cx).clear(cx);

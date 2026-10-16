@@ -2,7 +2,7 @@ use super::*;
 
 /// The daemon's worktree list, with the checkout Herdr already has open, one
 /// it has not, and a detached one.
-fn checkouts() -> serde_json::Value {
+pub(super) fn checkouts() -> serde_json::Value {
     serde_json::json!({"result": {"type": "worktree_list", "source": {
         "repo_key": "/fixture/agent-launcher/.git", "repo_name": "agent-launcher",
         "source_workspace_id": "w3"
@@ -27,7 +27,7 @@ fn branches() -> Vec<Branch> {
     ]
 }
 
-fn install_local_listings(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
+pub(super) fn install_local_listings(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
     cx.update(|_, cx| {
         view.update(cx, |view, _| {
             let source = view.menu.worktree.as_mut().unwrap();
@@ -77,6 +77,7 @@ fn existing_checkouts_not_open_in_herdr_are_offered_for_opening(cx: &mut gpui::T
             target,
             snapshot,
             &Pending::Checkout("/worktrees/agent-launcher/fix-login".into()),
+            &[],
         )
         .unwrap();
         assert_eq!(method, herdr_client::Method::WorktreeOpen);
@@ -90,8 +91,9 @@ fn existing_checkouts_not_open_in_herdr_are_offered_for_opening(cx: &mut gpui::T
             view.menu.worktree.as_mut().unwrap().pending = Some(Pending::Checkout(
                 "/worktrees/agent-launcher/fix-login".into(),
             ));
-            view.menu.creation = Some("open".into());
+            view.menu.creation = Some(("open".into(), herdr_client::Method::WorktreeOpen));
             view.apply_creation_response(
+                herdr_client::Method::WorktreeOpen,
                 Ok(serde_json::json!({"result": {"type": "worktree_opened",
                     "workspace": {"workspace_id": "w9"}}})),
                 window,
@@ -131,8 +133,13 @@ fn local_branches_without_a_checkout_are_one_line_rows(cx: &mut gpui::TestAppCon
         let view = view.read(cx);
         let target = view.menu.target.as_ref().unwrap();
         let snapshot = view.live.snapshot.as_ref().unwrap();
-        let (method, params) =
-            pick_request(target, snapshot, &Pending::Branch(branches()[0].clone())).unwrap();
+        let (method, params) = pick_request(
+            target,
+            snapshot,
+            &Pending::Branch(branches()[0].clone()),
+            &[],
+        )
+        .unwrap();
         assert_eq!(method, herdr_client::Method::WorktreeCreate);
         assert_eq!(params["branch"], "feature/login");
         assert_eq!(params["base"], "HEAD");

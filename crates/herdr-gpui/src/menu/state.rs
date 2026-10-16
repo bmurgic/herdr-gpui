@@ -85,9 +85,10 @@ pub(crate) struct MenuState {
     pub(crate) error: Option<String>,
     pub(super) deletion: Option<Deletion>,
     pub(super) close_check: Option<super::workspace_close::CloseCheck>,
-    /// The correlated `worktree.create` or `worktree.open` request, so the dialog
-    /// can report the daemon's answer and follow the returned workspace.
-    pub(super) creation: Option<String>,
+    /// The correlated `worktree.create` or `worktree.open` request and the
+    /// method it went out as, so the dialog can report the daemon's answer,
+    /// check it is the reply that method gets, and follow the returned workspace.
+    pub(super) creation: Option<(String, herdr_client::Method)>,
     /// The name a new tab or workspace dialog proposed. Submitting it
     /// unchanged, or nothing, leaves naming to the daemon, as Herdr does.
     pub(super) suggested_name: Option<String>,

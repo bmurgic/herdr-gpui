@@ -79,7 +79,7 @@ fn open_worktree_targets_parent_and_keeps_exact_daemon_path() {
     let path = "/remote/checkout with spaces ";
     assert_eq!(
         target
-            .request(&snapshot, WorkspaceAction::OpenWorktree, path)
+            .request(&snapshot, WorkspaceAction::OpenWorktree, path, &[])
             .unwrap(),
         (
             herdr_client::Method::WorktreeOpen,
@@ -88,18 +88,18 @@ fn open_worktree_targets_parent_and_keeps_exact_daemon_path() {
     );
     assert!(
         target
-            .request(&snapshot, WorkspaceAction::OpenWorktree, "")
+            .request(&snapshot, WorkspaceAction::OpenWorktree, "", &[])
             .is_err()
     );
     assert!(
         WorkspaceTarget::new(&snapshot, &snapshot.workspaces[4])
-            .request(&snapshot, WorkspaceAction::OpenWorktree, path)
+            .request(&snapshot, WorkspaceAction::OpenWorktree, path, &[])
             .is_err()
     );
     snapshot.workspaces[3].branch = None;
     assert!(
         target
-            .request(&snapshot, WorkspaceAction::OpenWorktree, path)
+            .request(&snapshot, WorkspaceAction::OpenWorktree, path, &[])
             .is_err()
     );
 }

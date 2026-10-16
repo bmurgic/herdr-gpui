@@ -156,7 +156,7 @@ fn a_created_worktree_offers_its_setup_script(cx: &mut gpui::TestAppContext) {
             crate::worktree_scripts::tests::connect(view, &peer, cx);
             view.open_workspace_menu("w1", Default::default(), window, cx);
             view.menu.page = Some(crate::menu::Page::Dialog(WorkspaceAction::NewWorktree));
-            view.apply_creation_response(Ok(created), window, cx);
+            view.apply_creation_response(Method::WorktreeCreate, Ok(created), window, cx);
             assert!(view.menu.page.is_none());
         })
     });

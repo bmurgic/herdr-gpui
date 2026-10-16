@@ -14,6 +14,7 @@ mod fences;
 mod listing;
 mod picker;
 mod search;
+mod v2_reply;
 
 fn listing() -> Value {
     json!({"result": {"type": "worktree_list", "source": {
