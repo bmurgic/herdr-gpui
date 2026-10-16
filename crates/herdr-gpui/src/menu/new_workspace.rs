@@ -104,6 +104,11 @@ impl NewWorkspaceForm {
         }
     }
 
+    /// Whether the page is asking for the name, not the directory.
+    pub(crate) fn is_naming(&self) -> bool {
+        matches!(self.step, Step::Name { .. })
+    }
+
     /// The suggestion rows shown, at most `rows`, scrolled so the selected one
     /// is among them, each with its index in `matches`.
     fn visible(&self, rows: usize) -> impl Iterator<Item = (usize, &str)> {

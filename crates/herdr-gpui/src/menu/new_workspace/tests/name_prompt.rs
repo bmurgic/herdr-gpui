@@ -303,6 +303,32 @@ mod host_picker {
         }
     }
 
+    /// On the name step the page is the job's dialog: a failure shows there.
+    #[gpui::test]
+    fn a_failed_job_shows_on_the_name_step(cx: &mut TestAppContext) {
+        let (_peer, view, cx, _home) = name_step_with_two_hosts(cx, "w3");
+        update(&view, cx, |view, _, _| {
+            view.dispatch_job = Some(crate::dispatch::Job::scripted(
+                "box",
+                "api",
+                Some(Err(crate::teleport::Error::WorkerStopped)),
+            ));
+        });
+
+        for _ in 0..500 {
+            update(&view, cx, |view, window, cx| view.poll_dispatch(window, cx));
+            if view.read_with(cx, |view, _| view.dispatch_job.is_none()) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        view.read_with(cx, |view, _| {
+            assert_eq!(view.menu.page, Some(Page::NewWorkspace));
+            assert!(view.menu.error.is_some());
+        });
+    }
+
     /// The Create button is disabled while a job runs, so Enter must not
     /// send a request either, even with this host chosen.
     #[gpui::test]

@@ -146,10 +146,21 @@ impl HerdrWindow {
     /// Keep open pickers current, and follow a finished job.
     pub(crate) fn poll_dispatch(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let now = Instant::now();
-        let dialog = matches!(
-            self.menu.page,
-            Some(Page::Dialog(crate::menu::WorkspaceAction::NewWorktree) | Page::NewWorkspace)
-        );
+        // The New Workspace page is a job's dialog only on its name step with
+        // the host picker. On its directory step a job's result is not about
+        // the page.
+        let naming_with_picker = self.menu.page == Some(Page::NewWorkspace)
+            && self.menu.dispatch.is_some()
+            && self
+                .menu
+                .new_workspace
+                .as_ref()
+                .is_some_and(|form| form.is_naming());
+        let dialog = naming_with_picker
+            || matches!(
+                self.menu.page,
+                Some(Page::Dialog(crate::menu::WorkspaceAction::NewWorktree))
+            );
         if !dialog {
             self.menu.dispatch = None;
         }

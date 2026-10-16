@@ -346,3 +346,62 @@ fn rows_drawn(cx: &mut VisualTestContext) -> usize {
         .filter(|selector| cx.debug_bounds(selector).is_some())
         .count()
 }
+
+/// Polls dispatch until the window's job reports, which its thread does on
+/// its own time.
+fn poll_until_job_ends(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
+    for _ in 0..500 {
+        update(view, cx, |view, window, cx| view.poll_dispatch(window, cx));
+        if view.read_with(cx, |view, _| view.dispatch_job.is_none()) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the job never reported");
+}
+
+/// Types on the directory step, lets a job that started elsewhere end with
+/// `outcome`, and checks that the page is as it was: open, with its text, and
+/// without the job's message.
+fn job_ends_on_the_directory_step(
+    cx: &mut TestAppContext,
+    outcome: Result<crate::teleport::Created, crate::teleport::Error>,
+) {
+    let (_peer, view, cx) = window(cx, &[CREATE], false);
+    assert!(open(&view, cx));
+    type_text(&view, cx, "src");
+    update(&view, cx, |view, _, _| {
+        view.dispatch_job = Some(crate::dispatch::Job::scripted("box", "api", Some(outcome)));
+    });
+
+    poll_until_job_ends(&view, cx);
+
+    view.read_with(cx, |view, _| {
+        assert_eq!(view.menu.page, Some(Page::NewWorkspace));
+        assert_eq!(view.menu.error, None);
+    });
+    assert_eq!(text(&view, cx), "~/src");
+    assert_eq!(error(&view, cx), None);
+    // An edit leaves the page free of the job's message too.
+    type_text(&view, cx, "x");
+    view.read_with(cx, |view, _| assert_eq!(view.menu.error, None));
+}
+
+/// A job that started from another dialog and ends while the directory step
+/// is open is not about the page.
+#[gpui::test]
+fn a_failed_job_shows_nothing_under_the_directory_field(cx: &mut TestAppContext) {
+    job_ends_on_the_directory_step(cx, Err(crate::teleport::Error::WorkerStopped));
+}
+
+#[gpui::test]
+fn a_finished_job_does_not_close_the_directory_step(cx: &mut TestAppContext) {
+    job_ends_on_the_directory_step(
+        cx,
+        Ok(crate::teleport::Created {
+            endpoint_id: "local".into(),
+            workspace_id: "w9".into(),
+            checkout: None,
+        }),
+    );
+}
