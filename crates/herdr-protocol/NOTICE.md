@@ -36,3 +36,10 @@ The client discovery rules also adapt `src/server/socket_paths.rs`,
 `src/session.rs`, and `src/config/io.rs` from the same source/license.
 The native client's build mode does not implicitly select Herdr's dev session.
 
+
+`src/snapshot_v2.rs` adapts `src/protocol/snapshot_v2.rs` and the
+`WorkspaceRepositoryInfo` declaration in `src/api/schema/workspaces.rs` from
+myherdr, https://github.com/bmurgic/myherdr, commit `ce3c3900`. myherdr is
+itself derived from Herdr and keeps its Apache-2.0 license. Only the client
+snapshot types and the v1-to-v2 conversion are retained, in myherdr's field
+order. `tests/fixtures/endpoint-snapshot-v2.json` is written for this client.

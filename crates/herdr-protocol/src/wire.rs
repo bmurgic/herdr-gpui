@@ -294,7 +294,7 @@ pub enum AgentStatus {
     Done,
     Unknown,
 }
-fn deserialize_client_shell_agent_status<'de, D: serde::Deserializer<'de>>(
+pub(crate) fn deserialize_client_shell_agent_status<'de, D: serde::Deserializer<'de>>(
     d: D,
 ) -> Result<AgentStatus, D::Error> {
     if !d.is_human_readable() {

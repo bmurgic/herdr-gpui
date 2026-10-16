@@ -9,6 +9,7 @@ mod clipboard;
 mod codec;
 mod error;
 mod frame;
+mod snapshot_v2;
 mod wire;
 
 pub use clipboard::{
@@ -20,4 +21,5 @@ pub use codec::{
     write_message,
 };
 pub use error::{Error, Result};
+pub use snapshot_v2::*;
 pub use wire::*;

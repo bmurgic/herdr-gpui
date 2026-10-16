@@ -1,0 +1,45 @@
+{
+  "boot_id": "boot-v2",
+  "revision": 7,
+  "config_diagnostic": null,
+  "product_announcement": null,
+  "update_available": null,
+  "update_install_command": "herdr update",
+  "server_keybindings_toml": null,
+  "latest_release_notes_available": false,
+  "integration_updates_available": false,
+  "worktree_directory": "/worktrees",
+  "release_notes": null,
+  "focused_workspace_id": "w1",
+  "focused_tab_id": "t1",
+  "focused_pane_id": "p1",
+  "tab_bar_right": [],
+  "tab_bar_right_separator": " | ",
+  "agent_view_label": null,
+  "agent_order": [],
+  "workspaces": [
+    {
+      "workspace_id": "w1", "active_tab_id": "t1",
+      "repository": { "repo_root": "/src/api", "is_linked_worktree": false },
+      "new_workspace_cwd": "/src/api", "number": 1, "label": "api", "custom_label": false,
+      "branch": "main", "git_ahead_behind": null, "tokens": [], "worktree": null,
+      "focused": true, "agent_status": "idle"
+    },
+    {
+      "workspace_id": "w2",
+      "new_workspace_cwd": "/src/scratch", "number": 2, "label": "scratch", "custom_label": false,
+      "branch": null, "git_ahead_behind": null, "tokens": [], "worktree": null,
+      "focused": false, "agent_status": "idle"
+    }
+  ],
+  "tabs": [{
+    "tab_id": "t1", "workspace_id": "w1", "number": 1, "label": "main",
+    "custom_label": false, "zoomed": false, "focused": true, "agent_status": "idle"
+  }],
+  "panes": [{
+    "pane_id": "p1", "workspace_id": "w1", "tab_id": "t1", "label": "shell",
+    "cwd": "/src/api", "foreground_cwd": "/src/api", "focused": true, "right_click_passthrough": false
+  }],
+  "agents": [],
+  "commands": []
+}
