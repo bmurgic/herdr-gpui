@@ -63,7 +63,7 @@ pub(crate) struct NewWorkspaceForm {
     matches: Vec<String>,
     selected: usize,
     /// Why the folder could not be read.
-    error: Option<String>,
+    listing_error: Option<String>,
     step: Step,
     /// The daemon boot the page opened on, which a creation is addressed to.
     boot_id: String,
@@ -94,7 +94,7 @@ impl NewWorkspaceForm {
             children: Vec::new(),
             matches: Vec::new(),
             selected: 0,
-            error: None,
+            listing_error: None,
             step: Step::Directory,
             boot_id,
             source_workspace_id,
@@ -111,7 +111,7 @@ impl NewWorkspaceForm {
         self.children.clear();
         self.matches.clear();
         self.selected = 0;
-        self.error = None;
+        self.listing_error = None;
     }
 
     /// The message under the field: why Enter was refused, why the creation
@@ -120,7 +120,7 @@ impl NewWorkspaceForm {
         self.refusal
             .map(DirectoryRefusal::message)
             .or(self.send_error.as_deref())
-            .or(self.error.as_deref())
+            .or(self.listing_error.as_deref())
     }
 
     /// Follows an edit of the text. A change of only the part after the last
@@ -138,7 +138,7 @@ impl NewWorkspaceForm {
         let changed = self.folder != folder;
         if changed {
             self.children.clear();
-            self.error = None;
+            self.listing_error = None;
             self.folder = folder.clone();
         }
         self.parent = Some(parent);
@@ -160,7 +160,7 @@ impl NewWorkspaceForm {
         }
         match listed {
             Ok(children) => self.children = children,
-            Err(error) => self.error = Some(format!("Cannot read folders: {error}")),
+            Err(error) => self.listing_error = Some(format!("Cannot read folders: {error}")),
         }
         self.matches = ranked_matches(&self.children, query(text));
         self.selected = 0;
@@ -324,9 +324,9 @@ impl HerdrWindow {
         .detach();
     }
 
-    /// Up and Down move the selection, and Tab completes it. Returns whether
-    /// the key was used. While an input method composes text, every key is
-    /// the method's.
+    /// Up and Down move the selection and Tab completes it, on the directory
+    /// step only, and Enter submits either step. Returns whether the key was
+    /// used. While an input method composes text, every key is the method's.
     pub(super) fn new_workspace_key(
         &mut self,
         event: &KeyDownEvent,

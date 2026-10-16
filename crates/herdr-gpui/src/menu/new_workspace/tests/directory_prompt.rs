@@ -1,4 +1,6 @@
-use super::{super::VISIBLE_ROWS, super::render::ROW_SELECTORS, *};
+use super::*;
+#[cfg(unix)]
+use super::{super::VISIBLE_ROWS, super::render::ROW_SELECTORS};
 use gpui::TestAppContext;
 
 // New workspace directory 01.
@@ -321,6 +323,7 @@ fn fewer_matches_than_rows_draw_only_the_matches(cx: &mut TestAppContext) {
 }
 
 /// How many suggestion rows the page draws now.
+#[cfg(unix)]
 fn rows_drawn(cx: &mut VisualTestContext) -> usize {
     cx.update(|window, cx| window.draw(cx).clear(cx));
     ROW_SELECTORS

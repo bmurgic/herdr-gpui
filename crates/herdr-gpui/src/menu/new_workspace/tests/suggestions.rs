@@ -1,23 +1,13 @@
-#![allow(clippy::unwrap_used)]
-
 use super::super::suggestions::{
-    DirectoryRefusal, MAX_FOLDER_ENTRIES, check_form, expand_tilde, list_folders, proposed_label,
-    ranked_matches, request_cwd,
+    DirectoryRefusal, MAX_FOLDER_ENTRIES, check_form, list_folders, proposed_label, ranked_matches,
 };
+#[cfg(unix)]
+use super::super::suggestions::{expand_tilde, request_cwd};
+use super::{make_folders, names};
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-
-fn names(names: &[&str]) -> Vec<String> {
-    names.iter().map(|name| (*name).to_owned()).collect()
-}
-
-fn make_folders(root: &Path, folders: &[&str]) {
-    for folder in folders {
-        fs::create_dir_all(root.join(folder)).unwrap();
-    }
-}
 
 fn sorted(mut listed: Vec<String>) -> Vec<String> {
     listed.sort();

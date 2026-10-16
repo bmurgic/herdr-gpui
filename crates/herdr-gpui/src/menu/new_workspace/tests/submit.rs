@@ -2,13 +2,6 @@ use super::*;
 use gpui::TestAppContext;
 use serde_json::json;
 
-/// The `workspace.create` the peer received, with its parameters.
-fn creation(peer: &mut MockPeer) -> serde_json::Value {
-    let request = peer.request();
-    assert_eq!(request["method"], CREATE);
-    request["params"].clone()
-}
-
 fn page_closed(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool {
     view.read_with(cx, |view, _| {
         view.menu.page.is_none() && view.menu.new_workspace.is_none()

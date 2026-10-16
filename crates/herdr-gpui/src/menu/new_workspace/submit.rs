@@ -135,12 +135,12 @@ impl HerdrWindow {
             .is_some_and(|shared| shared.name_prompts.workspace)
     }
 
-    /// Applies the answer for `checked`, unless the page closed or its text
-    /// changed while the folder was being checked.
+    /// Applies the check of `text`, unless the page closed or its text changed
+    /// while the folder was being checked.
     fn finish_new_workspace_check(
         &mut self,
-        checked: String,
-        found: Checked,
+        text: String,
+        checked: Checked,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -149,18 +149,15 @@ impl HerdrWindow {
         else {
             return;
         };
-        if form.checking.take().as_deref() != Some(checked.as_str()) || input.text.trim() != checked
-        {
+        if form.checking.take().as_deref() != Some(text.as_str()) || input.text.trim() != text {
             return;
         }
-        match found {
+        match checked {
             Checked::Missing => {
                 form.refusal = Some(DirectoryRefusal::Missing);
                 cx.notify();
             }
-            Checked::Directory { proposal } => {
-                self.directory_accepted(checked, proposal, window, cx)
-            }
+            Checked::Directory { proposal } => self.directory_accepted(text, proposal, window, cx),
         }
     }
 

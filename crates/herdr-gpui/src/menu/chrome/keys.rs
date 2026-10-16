@@ -91,8 +91,7 @@ impl HerdrWindow {
         {
             return;
         }
-        // Up, Down, and Tab are the directory suggestions' before the field
-        // sees them.
+        // The page takes Up, Down, Tab, and Enter before the field sees them.
         if self.menu.page == Some(Page::NewWorkspace) && self.new_workspace_key(event, window, cx) {
             return;
         }

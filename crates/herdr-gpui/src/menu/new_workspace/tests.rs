@@ -157,6 +157,13 @@ fn names(listed: &[&str]) -> Vec<String> {
     listed.iter().map(|name| (*name).to_owned()).collect()
 }
 
+/// The `workspace.create` the peer received, with its parameters.
+fn creation(peer: &mut MockPeer) -> serde_json::Value {
+    let request = peer.request();
+    assert_eq!(request["method"], CREATE);
+    request["params"].clone()
+}
+
 /// Fails if the peer was sent an API request before a marker queued now,
 /// which orders after anything the window sent earlier.
 fn assert_no_request(peer: &mut MockPeer, view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {

@@ -11,7 +11,7 @@ pub(in crate::menu) fn two_hosts(view: &mut HerdrWindow) {
 }
 
 /// A connected SSH host showing the window's own snapshot.
-pub(in crate::menu) fn add_host(view: &mut HerdrWindow, name: &str, label: &str) {
+fn add_host(view: &mut HerdrWindow, name: &str, label: &str) {
     let mut remote = crate::endpoint::Endpoint::new(
         format!("ssh:{name}"),
         label.into(),

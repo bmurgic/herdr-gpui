@@ -43,13 +43,6 @@ fn name_field(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> (String
     })
 }
 
-#[cfg(unix)]
-fn request_params(peer: &mut MockPeer) -> serde_json::Value {
-    let request = peer.request();
-    assert_eq!(request["method"], CREATE);
-    request["params"].clone()
-}
-
 // New workspace directory 11.
 #[cfg(unix)]
 #[gpui::test]
@@ -107,7 +100,7 @@ fn the_name_sent_follows_the_proposal(cx: &mut TestAppContext) {
         if let Some(label) = label {
             params["label"] = label.into();
         }
-        assert_eq!(request_params(&mut peer), params, "{typed:?}");
+        assert_eq!(creation(&mut peer), params, "{typed:?}");
         view.read_with(cx, |view, _| assert!(view.menu.page.is_none()));
     }
 }

@@ -27,27 +27,7 @@ impl HerdrWindow {
         let theme = &self.theme;
         let font = &self.config.ui;
         let host = self.endpoints[self.selected_endpoint].label.clone();
-        let form: Option<&NewWorkspaceForm> = self.menu.new_workspace.as_ref();
-        let start = form.map_or(0, |form| form.visible_start(VISIBLE_ROWS));
-        let rows = form.map(|form| {
-            form.matches
-                .iter()
-                .enumerate()
-                .skip(start)
-                .take(VISIBLE_ROWS)
-                .zip(ROW_SELECTORS)
-                .map(|((index, name), selector)| {
-                    div()
-                        .debug_selector(move || selector.into())
-                        .px(px(8.))
-                        .py(px(3.))
-                        .rounded(px(crate::config::corners::CONTROL))
-                        .truncate()
-                        .when(index == form.selected, |row| row.bg(rgb(theme.active)))
-                        .child(name.clone())
-                })
-                .collect::<Vec<_>>()
-        });
+        let form = self.menu.new_workspace.as_ref();
         let error = form
             .and_then(|form| form.error().map(str::to_owned))
             .or_else(|| self.menu.error.clone());
@@ -81,24 +61,56 @@ impl HerdrWindow {
         let body = if naming {
             self.render_new_workspace_name(error, cx)
         } else {
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(8.))
-                .px(px(16.))
-                .py(px(12.))
-                .child(div().text_color(rgb(theme.subtext())).child("Directory"))
-                .child(self.render_dialog_input(cx))
-                .child(
-                    div()
-                        .debug_selector(|| "new-workspace-rows".into())
-                        .flex()
-                        .flex_col()
-                        .children(rows.into_iter().flatten()),
-                )
-                .children(error)
+            self.render_new_workspace_directory(form, error, cx)
         };
         div().flex().flex_col().child(header).child(body)
+    }
+
+    /// The directory step: the field and the suggestions visible around the
+    /// selection.
+    fn render_new_workspace_directory(
+        &self,
+        form: Option<&NewWorkspaceForm>,
+        error: Option<Div>,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let theme = &self.theme;
+        let start = form.map_or(0, |form| form.visible_start(VISIBLE_ROWS));
+        let rows = form.map(|form| {
+            form.matches
+                .iter()
+                .enumerate()
+                .skip(start)
+                .take(VISIBLE_ROWS)
+                .zip(ROW_SELECTORS)
+                .map(|((index, name), selector)| {
+                    div()
+                        .debug_selector(move || selector.into())
+                        .px(px(8.))
+                        .py(px(3.))
+                        .rounded(px(crate::config::corners::CONTROL))
+                        .truncate()
+                        .when(index == form.selected, |row| row.bg(rgb(theme.active)))
+                        .child(name.clone())
+                })
+                .collect::<Vec<_>>()
+        });
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .px(px(16.))
+            .py(px(12.))
+            .child(div().text_color(rgb(theme.subtext())).child("Directory"))
+            .child(self.render_dialog_input(cx))
+            .child(
+                div()
+                    .debug_selector(|| "new-workspace-rows".into())
+                    .flex()
+                    .flex_col()
+                    .children(rows.into_iter().flatten()),
+            )
+            .children(error)
     }
 
     /// The name step: the field holding the proposal, the host picker when

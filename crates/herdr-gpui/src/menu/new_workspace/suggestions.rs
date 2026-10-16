@@ -213,7 +213,10 @@ fn config_says_bare(config: &str) -> bool {
             continue;
         };
         if in_core && key.trim().eq_ignore_ascii_case("bare") {
-            let value = value.split(['#', ';']).next().unwrap_or_default();
+            // A `#` or `;` starts a comment that runs to the end of the line.
+            let value = value
+                .split_once(['#', ';'])
+                .map_or(value, |(value, _)| value);
             return value.trim().eq_ignore_ascii_case("true");
         }
     }
