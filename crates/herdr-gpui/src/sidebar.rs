@@ -16,6 +16,8 @@ mod render;
 mod reorder;
 mod row;
 mod search;
+mod session_row;
+mod session_text;
 mod sticky;
 mod tokens;
 mod view;

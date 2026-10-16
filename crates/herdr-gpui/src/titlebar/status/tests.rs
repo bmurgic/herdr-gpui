@@ -57,6 +57,8 @@ fn remote_text_is_bounded_without_controls() {
 fn usage_display_switches_apply_independently_on_reload(cx: &mut TestAppContext) {
     let (view, cx) = cx.add_window_view(crate::titlebar::tests::header_window);
     view.update(cx, |view, cx| {
+        // The configured lines this test counts belong to the old agent row.
+        crate::sidebar::layout_tests::old_agent_rows(view);
         view.live.status = ConnectionStatus::Connected;
         let snapshot = std::sync::Arc::make_mut(view.live.snapshot.as_mut().unwrap());
         snapshot.tab_bar_right = vec![ClientShellTabStatusSegment {

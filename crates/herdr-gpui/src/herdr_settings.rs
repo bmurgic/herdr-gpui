@@ -289,6 +289,9 @@ pub(crate) struct Settings {
     /// to `session-history.json` and replays it after a full restart. The
     /// GUI never stores terminal output itself.
     pub pane_history: bool,
+    /// Herdr's `ui.session_sidebar`: agent rows draw as four-line session rows.
+    /// On unless the file turns it off.
+    pub session_sidebar: bool,
     palettes: [palette::Palette; 2],
     original: persistence::Snapshot,
 }
@@ -319,6 +322,7 @@ impl std::fmt::Debug for Settings {
             .field("mouse_scroll_lines", &self.mouse_scroll_lines)
             .field("right_click_passthrough", &self.right_click_passthrough)
             .field("pane_history", &self.pane_history)
+            .field("session_sidebar", &self.session_sidebar)
             .finish_non_exhaustive()
     }
 }
@@ -374,6 +378,9 @@ struct Ui {
     mouse_scroll_lines: Option<NonZeroU16>,
     #[serde(deserialize_with = "crate::lenient::or_default")]
     right_click_passthrough_modifier: RightClickPassthrough,
+    // Herdr defaults this one on, unlike the derived `false`.
+    #[serde(deserialize_with = "crate::lenient::or_default")]
+    session_sidebar: Option<bool>,
 }
 
 #[derive(Default, Deserialize)]
@@ -429,7 +436,7 @@ impl Default for ClipboardToast {
 }
 
 impl Settings {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "integration-test"))]
     pub(crate) fn parse_text(text: &str) -> Result<Self, Error> {
         #[cfg(unix)]
         let snapshot = persistence::Snapshot {
@@ -519,6 +526,7 @@ impl Settings {
                 .unwrap_or(DEFAULT_MOUSE_SCROLL_LINES),
             right_click_passthrough: parsed.ui.right_click_passthrough_modifier,
             pane_history: parsed.experimental.pane_history,
+            session_sidebar: parsed.ui.session_sidebar.unwrap_or(true),
             palettes,
             original,
         })

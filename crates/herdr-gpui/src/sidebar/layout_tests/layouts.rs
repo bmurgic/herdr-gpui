@@ -18,6 +18,7 @@ fn check_layouts(modes: &[crate::config::LayoutMode], cx: &mut gpui::TestAppCont
     use crate::config::LayoutMode;
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot_with_upstream()));
         let input = crate::pull_request::Input {
             checkout: None,
@@ -193,6 +194,7 @@ fn sidebar_densities_keep_details_and_badges_within_their_rows(cx: &mut gpui::Te
     use crate::config::{Density, LayoutMode, Style};
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot(6)));
         let input = crate::pull_request::Input {
             checkout: None,
@@ -431,6 +433,7 @@ fn every_layout_looks_different(cx: &mut gpui::TestAppContext) {
         // A fresh window per layout: debug bounds outlive their elements.
         let (_, cx) = cx.add_window_view(|window, cx| {
             let mut view = fixture_window(window, cx);
+            old_agent_rows(&mut view);
             view.config.layout.mode = mode;
             view
         });

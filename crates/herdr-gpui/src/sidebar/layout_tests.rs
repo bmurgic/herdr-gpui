@@ -53,7 +53,6 @@ mod palette_header;
 #[cfg(test)]
 mod picker_scroll;
 #[cfg(test)]
-#[cfg(test)]
 mod probes;
 #[cfg(test)]
 mod repository_icons;
@@ -63,6 +62,8 @@ mod row_drag;
 mod search;
 #[cfg(test)]
 mod selection_scroll;
+#[cfg(test)]
+mod session_rows;
 #[cfg(test)]
 mod sidebar_cache;
 #[cfg(test)]
@@ -428,6 +429,105 @@ pub(crate) fn snapshot(workspace_count: usize) -> ClientShellSnapshotV2 {
             "tokens": [], "focused": false
         })).collect::<Vec<_>>())
     })).unwrap()
+}
+
+/// Draws agent rows as they were before session rows, for the tests that
+/// read the old row's own elements or a configured layout. The shared config
+/// is what turns the session row off, so a test calls this before it draws.
+#[cfg(test)]
+pub(crate) fn old_agent_rows(view: &mut HerdrWindow) {
+    view.settings.shared = Some(
+        crate::herdr_settings::Settings::parse_text("[ui]\nsession_sidebar = false\n").unwrap(),
+    );
+}
+
+/// A pane the snapshot names `label`, in workspace `w0`'s first tab.
+#[cfg(test)]
+pub(crate) fn labeled_pane(pane_id: &str, label: &str) -> ClientShellPane {
+    serde_json::from_value(serde_json::json!({
+        "pane_id": pane_id, "workspace_id": "w0", "tab_id": "t0", "label": label,
+        "cwd": "/repo", "foreground_cwd": "/repo", "focused": false,
+        "right_click_passthrough": false,
+    }))
+    .unwrap()
+}
+
+/// This machine and a connected remote ("Remote"), each listing the
+/// fixture's first agent, `p0`, as a pane labelled "review".
+#[cfg(test)]
+pub(crate) fn two_endpoint_window(
+    cx: &mut gpui::TestAppContext,
+) -> (Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
+    let (fixture, cx) = cx.add_window_view(|window, cx| {
+        let view = cx.new(|cx| {
+            let mut view = fixture_window(window, cx);
+            let mut listing = snapshot(1);
+            listing.agents.truncate(1);
+            listing.panes = vec![labeled_pane("p0", "review")];
+            view.live.snapshot = Some(Arc::new(listing.clone()));
+            view.live.status = crate::state::ConnectionStatus::Connected;
+            let mut remote = crate::endpoint::Endpoint::new(
+                "ssh:test".into(),
+                "Remote".into(),
+                ConnectTarget::Ssh {
+                    target: "unused".into(),
+                    session: "default".into(),
+                },
+                true,
+            );
+            remote.live.snapshot = Some(Arc::new(listing));
+            remote.live.status = crate::state::ConnectionStatus::Connected;
+            view.endpoints.push(remote);
+            view
+        });
+        cx.observe(&view, |_, _, cx| cx.notify()).detach();
+        SidebarFixture(view)
+    });
+    let view = cx.update(|_, cx| fixture.read(cx).0.clone());
+    cx.simulate_resize(size(px(800.), px(600.)));
+    cx.run_until_parked();
+    (view, cx)
+}
+
+/// This machine with the fixture's two working agents, and a remote host
+/// with one blocked agent, both connected, in the Devices layout.
+#[cfg(test)]
+pub(crate) fn devices_window(
+    cx: &mut gpui::TestAppContext,
+) -> (Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
+    let (fixture, cx) = cx.add_window_view(|window, cx| {
+        let view = cx.new(|cx| {
+            let mut view = fixture_window(window, cx);
+            view.config.layout.mode = crate::config::LayoutMode::Devices;
+            view.live.status = crate::state::ConnectionStatus::Connected;
+            let mut remote = crate::endpoint::Endpoint::new(
+                "ssh:test".into(),
+                "Build box".into(),
+                ConnectTarget::Ssh {
+                    target: "unused".into(),
+                    session: "default".into(),
+                },
+                true,
+            );
+            let mut listing = snapshot(1);
+            listing.agents.truncate(1);
+            listing.agents[0].pane_id = "remote-pane".into();
+            listing.agents[0].agent_status = AgentStatus::Blocked;
+            remote.live.snapshot = Some(Arc::new(listing));
+            remote.live.status = crate::state::ConnectionStatus::Connected;
+            view.endpoints.push(remote);
+            view
+        });
+        cx.observe(&view, |_, _, cx| cx.notify()).detach();
+        SidebarFixture(view)
+    });
+    let view = cx.update(|_, cx| fixture.read(cx).0.clone());
+    cx.simulate_resize(size(px(800.), px(700.)));
+    // The tick gives the layout its search field.
+    cx.update(|_, cx| view.update(cx, |view, cx| view.poll_devices_overview(cx)));
+    cx.run_until_parked();
+    cx.update(|window, cx| full_draw(window, cx).clear(cx));
+    (view, cx)
 }
 
 #[cfg(test)]

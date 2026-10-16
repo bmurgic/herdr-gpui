@@ -840,6 +840,9 @@ impl HerdrWindow {
             if let Ok(mut inbox) = this.endpoints[0].connection.inbox.lock() {
                 *inbox = this.live.clone();
             }
+            // The smoke tests measure the old agent row, not the session row.
+            this.settings.shared =
+                crate::herdr_settings::Settings::parse_text("[ui]\nsession_sidebar = false\n").ok();
             return this;
         }
         Self::poll_on_frame(cx.entity().downgrade(), window);

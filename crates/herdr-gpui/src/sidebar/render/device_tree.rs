@@ -85,15 +85,15 @@ impl HerdrWindow {
         let mut focused = None;
         for agent in sorted_agents(snapshot, self.agent_sort) {
             // Configured `[sidebar_layout.agents]` rows apply here as in the
-            // agents panel, gap included.
-            let Some(lines) = self.configured_agent_lines(agent, snapshot, row_cx.host) else {
+            // agents panel, gap included. A session row leaves the machine
+            // unnamed, as the header above names it.
+            let Some(row) = self.agent_row(index, agent, snapshot, &row_cx, None, count, cx) else {
                 continue;
             };
             if selected && agent.focused {
                 focused = Some(count);
             }
-            let gap = self.agent_row_gap(count);
-            list = list.child(self.agent_cell(index, agent, snapshot, &row_cx, lines, gap, cx));
+            list = list.child(row);
             count += 1;
         }
         if count == 0 {

@@ -6,6 +6,7 @@ fn agent_icons_follow_names_and_reserve_narrow_label_width(cx: &mut gpui::TestAp
     let label = "Custom agent name with a deliberately long label";
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         let mut snapshot = snapshot(6);
         for agent in &mut snapshot.agents {
             agent.display_agent = Some(label.into());
@@ -81,6 +82,7 @@ fn agent_status_words_follow_the_daemon_sidebar_config(cx: &mut gpui::TestAppCon
     use crate::config::{Density, LayoutMode};
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot(2)));
         view
     });
@@ -142,6 +144,7 @@ fn agent_status_words_use_the_agents_state_labels(cx: &mut gpui::TestAppContext)
     use crate::config::{Density, LayoutMode};
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         let mut snapshot = snapshot(2);
         snapshot.agents[0].state_labels = vec![
             ("blocked".into(), "stuck".into()),
@@ -185,6 +188,7 @@ fn agent_status_words_stay_inside_narrow_rows(cx: &mut gpui::TestAppContext) {
     use crate::config::{Density, LayoutMode};
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot(2)));
         view
     });
@@ -350,7 +354,11 @@ fn a_plugin_agent_view_orders_and_filters_the_agents(cx: &mut gpui::TestAppConte
 #[cfg(test)]
 #[gpui::test]
 fn hiding_agents_reclaims_sidebar_height(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     for width in [800., 360.] {
         cx.simulate_resize(size(px(width), px(600.)));
         let mut visible_height = px(0.);
@@ -387,6 +395,7 @@ fn hiding_agents_reclaims_sidebar_height(cx: &mut gpui::TestAppContext) {
 fn hiding_agents_preserves_scrolled_multi_endpoint_lists(cx: &mut gpui::TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         let snapshot = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
         snapshot.agents = (0..8)
             .map(|i| {

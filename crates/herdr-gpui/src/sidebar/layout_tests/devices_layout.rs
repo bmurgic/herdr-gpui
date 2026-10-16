@@ -1,45 +1,5 @@
 use super::*;
-use crate::{config::LayoutMode, state::ConnectionStatus};
-
-/// This machine with the fixture's two working agents, and a remote host
-/// with one blocked agent, both connected, in the Devices layout.
-fn devices_window(
-    cx: &mut gpui::TestAppContext,
-) -> (Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
-    let (fixture, cx) = cx.add_window_view(|window, cx| {
-        let view = cx.new(|cx| {
-            let mut view = fixture_window(window, cx);
-            view.config.layout.mode = LayoutMode::Devices;
-            view.live.status = ConnectionStatus::Connected;
-            let mut remote = crate::endpoint::Endpoint::new(
-                "ssh:test".into(),
-                "Build box".into(),
-                ConnectTarget::Ssh {
-                    target: "unused".into(),
-                    session: "default".into(),
-                },
-                true,
-            );
-            let mut listing = snapshot(1);
-            listing.agents.truncate(1);
-            listing.agents[0].pane_id = "remote-pane".into();
-            listing.agents[0].agent_status = AgentStatus::Blocked;
-            remote.live.snapshot = Some(Arc::new(listing));
-            remote.live.status = ConnectionStatus::Connected;
-            view.endpoints.push(remote);
-            view
-        });
-        cx.observe(&view, |_, _, cx| cx.notify()).detach();
-        SidebarFixture(view)
-    });
-    let view = cx.update(|_, cx| fixture.read(cx).0.clone());
-    cx.simulate_resize(size(px(800.), px(700.)));
-    // The tick gives the layout its search field.
-    cx.update(|_, cx| view.update(cx, |view, cx| view.poll_devices_overview(cx)));
-    cx.run_until_parked();
-    cx.update(|window, cx| full_draw(window, cx).clear(cx));
-    (view, cx)
-}
+use crate::config::LayoutMode;
 
 #[gpui::test]
 fn devices_list_their_agents_under_their_headers(cx: &mut gpui::TestAppContext) {
@@ -105,6 +65,7 @@ fn configured_agent_rows_apply_under_each_device(cx: &mut gpui::TestAppContext) 
     let (view, cx) = devices_window(cx);
     cx.update(|_, cx| {
         view.update(cx, |view, cx| {
+            old_agent_rows(view);
             view.config.sidebar_layout = toml::from_str(
                 r#"
                 [agents]

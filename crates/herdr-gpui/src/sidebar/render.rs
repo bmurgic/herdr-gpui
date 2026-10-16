@@ -26,6 +26,7 @@ use gpui::{prelude::*, *};
 
 mod agent_rows;
 mod device_tree;
+mod session_row;
 
 impl HerdrWindow {
     pub(crate) fn render_sidebar(

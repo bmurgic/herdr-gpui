@@ -5,6 +5,7 @@ fn configured_sidebar_rows_render_all_lines_within_the_row(cx: &mut gpui::TestAp
     use crate::config::LayoutMode;
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot(2)));
         view.config.sidebar_layout = toml::from_str(
             r#"
@@ -71,6 +72,7 @@ fn configured_rows_keep_each_layouts_frame(cx: &mut gpui::TestAppContext) {
     use crate::config::LayoutMode;
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot(2)));
         view.sidebar_width = Some(320.);
         view
@@ -127,7 +129,11 @@ fn configured_rows_keep_each_layouts_frame(cx: &mut gpui::TestAppContext) {
 
 #[gpui::test]
 fn empty_configured_rows_keep_only_the_upstream_fallback(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     for rows in [
         "[]",
         "[[\"$missing\"]]",
@@ -156,7 +162,11 @@ fn empty_configured_rows_keep_only_the_upstream_fallback(cx: &mut gpui::TestAppC
 
 #[gpui::test]
 fn configured_inline_status_is_centered_in_its_glyph_budget(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     let tolerance = cx.update(|window, _| px(1. / window.scale_factor()));
     for (size, style) in [12., 20., 36.]
         .into_iter()
@@ -167,7 +177,7 @@ fn configured_inline_status_is_centered_in_its_glyph_budget(cx: &mut gpui::TestA
             view.sidebar_width = Some(160.);
             view.settings.shared = Some(
                 crate::herdr_settings::Settings::parse_text(&format!(
-                    "[ui]\nstatus_indicators = '{style}'\n"
+                    "[ui]\nsession_sidebar = false\nstatus_indicators = '{style}'\n"
                 ))
                 .unwrap(),
             );

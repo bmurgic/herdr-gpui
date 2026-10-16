@@ -59,15 +59,18 @@ impl HerdrWindow {
                 host: (multi && endpoint.id != crate::endpoint::LOCAL)
                     .then_some(endpoint.label.as_str()),
             };
-            let Some(lines) = self.configured_agent_lines(agent, snapshot, row_cx.host) else {
+            // Every row names its machine while several are listed, the local
+            // one included, as the agents of all of them share this list.
+            let machine = multi.then_some(endpoint.label.as_str());
+            let Some(row) = self.agent_row(index, agent, snapshot, &row_cx, machine, count, cx)
+            else {
                 continue;
             };
             if selected && agent.focused {
                 focused = Some(count);
             }
-            let gap = self.agent_row_gap(count);
             count += 1;
-            list = list.child(self.agent_cell(index, agent, snapshot, &row_cx, lines, gap, cx));
+            list = list.child(row);
         }
         (list, count, focused)
     }
@@ -92,14 +95,44 @@ impl HerdrWindow {
         tokens::agent_rows(&self.config.sidebar_layout.agents, agent, snapshot, host)
     }
 
-    /// Space above the agent row painted `count`-th in its list: a
-    /// configured `row_gap` between configured rows, none otherwise.
+    /// Space above the agent row painted `count`-th in its list: a blank line
+    /// between session rows, whatever `row_gap` says; otherwise a configured
+    /// `row_gap` between configured rows, none for Herdr's own.
     pub(super) fn agent_row_gap(&self, count: usize) -> f32 {
-        if self.custom_agent_rows() && count > 0 {
-            f32::from(self.config.sidebar_layout.agents.row_gap) * line_height(&self.config.sidebar)
+        let line = line_height(&self.config.sidebar);
+        if count == 0 {
+            0.
+        } else if self.session_sidebar() {
+            line
+        } else if self.custom_agent_rows() {
+            f32::from(self.config.sidebar_layout.agents.row_gap) * line
         } else {
             0.
         }
+    }
+
+    /// One agent's row in either list, in the shape the settings ask for: a
+    /// session row, or Herdr's own with any configured lines. `count` is the
+    /// number of rows already in the list. `machine` is the label a session
+    /// row names its machine with. None when the configured rows leave this
+    /// agent out, which a session row never does.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn agent_row(
+        &self,
+        index: usize,
+        agent: &ClientShellAgent,
+        snapshot: &ClientShellSnapshotV2,
+        row_cx: &RowContext,
+        machine: Option<&str>,
+        count: usize,
+        cx: &mut Context<Self>,
+    ) -> Option<Stateful<Div>> {
+        let gap = self.agent_row_gap(count);
+        if self.session_sidebar() {
+            return Some(self.session_cell(index, agent, snapshot, row_cx, machine, gap, cx));
+        }
+        let lines = self.configured_agent_lines(agent, snapshot, row_cx.host)?;
+        Some(self.agent_cell(index, agent, snapshot, row_cx, lines, gap, cx))
     }
 
     /// One agent's row, for the agents list or under its device's header:
@@ -117,19 +150,10 @@ impl HerdrWindow {
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
         let rows = layout_for(self.config.layout.mode);
-        let multi = self.endpoints.len() > 1;
         let selected = index == self.selected_endpoint;
-        let endpoint_id = self
-            .endpoints
-            .get(index)
-            .map(|endpoint| endpoint.id.clone())
-            .unwrap_or_default();
-        let id = agent.pane_id.clone();
-        let navigate_endpoint = endpoint_id.clone();
-        let menu_endpoint = endpoint_id.clone();
-        let menu_pane = id.clone();
+        let id = &agent.pane_id;
         let menu_open = selected && self.pane_menu_target() == Some(id.as_str());
-        Cell::new(
+        let row = Cell::new(
             rows,
             RowData::Agent(AgentRow {
                 key: format!("agent-{id}"),
@@ -150,21 +174,43 @@ impl HerdrWindow {
         .selected(selected && agent.focused)
         .highlighted(menu_open)
         .row()
-        .when(gap > 0., |row| row.mt(px(gap)))
-        .id(SharedString::from(format!("agent-{endpoint_id}-{id}")))
-        .when(multi, |row| {
-            row.debug_selector(|| format!("agent-{endpoint_id}-{id}"))
-        })
-        .on_mouse_down(
-            MouseButton::Right,
-            cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                cx.stop_propagation();
-                this.open_agent_menu(&menu_endpoint, &menu_pane, event.position, window, cx);
-            }),
-        )
-        .on_click(cx.listener(move |this, _, window, cx| {
-            this.navigate_endpoint(&navigate_endpoint, NavigationTarget::Pane(&id), cx);
-            window.focus(&this.focus, cx);
-        }))
+        .when(gap > 0., |row| row.mt(px(gap)));
+        self.wire_agent_row(row, index, id, cx)
+    }
+
+    /// What clicking an agent's row does, however the row is drawn: a left
+    /// click shows its pane on its host, a right click opens the pane's menu.
+    pub(super) fn wire_agent_row(
+        &self,
+        row: Div,
+        index: usize,
+        pane_id: &str,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
+        let multi = self.endpoints.len() > 1;
+        let endpoint_id = self
+            .endpoints
+            .get(index)
+            .map(|endpoint| endpoint.id.clone())
+            .unwrap_or_default();
+        let id = pane_id.to_owned();
+        let navigate_endpoint = endpoint_id.clone();
+        let menu_endpoint = endpoint_id.clone();
+        let menu_pane = id.clone();
+        row.id(SharedString::from(format!("agent-{endpoint_id}-{id}")))
+            .when(multi, |row| {
+                row.debug_selector(|| format!("agent-{endpoint_id}-{id}"))
+            })
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                    cx.stop_propagation();
+                    this.open_agent_menu(&menu_endpoint, &menu_pane, event.position, window, cx);
+                }),
+            )
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.navigate_endpoint(&navigate_endpoint, NavigationTarget::Pane(&id), cx);
+                window.focus(&this.focus, cx);
+            }))
     }
 }

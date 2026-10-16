@@ -48,6 +48,16 @@ impl HerdrWindow {
         cx.notify();
     }
 
+    /// Whether agent rows draw as four-line session rows. On until the shared
+    /// config says otherwise, so a config that is still loading, or failed to,
+    /// shows the same rows as one that left the key out.
+    pub(crate) fn session_sidebar(&self) -> bool {
+        self.settings
+            .shared
+            .as_ref()
+            .is_none_or(|shared| shared.session_sidebar)
+    }
+
     /// Follows the daemon's `ui.agent_panel_sort` on every load, so a config
     /// reload changes the order too, unless the user toggled the panel.
     pub(crate) fn apply_shared_agent_sort(&mut self) {
