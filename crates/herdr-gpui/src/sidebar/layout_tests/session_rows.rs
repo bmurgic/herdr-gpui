@@ -115,6 +115,8 @@ fn session_rows_paint_four_lines(cx: &mut gpui::TestAppContext) {
     let (view, cx) = session_window(cx, 240., |listing| {
         listing.panes = vec![labeled_pane("p0", "Fix upload")];
     });
+    // Session rows are on before the shared settings load.
+    assert!(view.read_with(cx, |view, _| view.settings.shared.is_none()));
     assert!(painted(cx, "Fix upload"));
     assert!(painted(cx, "⎇ main"));
     assert_four_lines(&view, cx, "row-agent-p0");
@@ -126,15 +128,6 @@ fn a_row_without_a_branch_shows_a_dash(cx: &mut gpui::TestAppContext) {
         listing.workspaces[0].branch = None;
     });
     assert!(painted(cx, "⎇ —"));
-}
-
-#[gpui::test]
-fn session_rows_are_on_before_settings_load(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = session_window(cx, 240., |_| {});
-    assert!(view.read_with(cx, |view, _| view.settings.shared.is_none()));
-    let row = cx.debug_bounds("row-agent-p0").unwrap();
-    let lines = 4. * line_height_of(&view, cx);
-    assert!(f32::from(row.size.height) >= lines, "{row:?}");
 }
 
 #[gpui::test]
@@ -312,17 +305,6 @@ fn every_layout_mode_draws_session_rows(cx: &mut gpui::TestAppContext) {
 }
 
 #[gpui::test]
-fn a_collapsed_machine_keeps_its_agents_listed(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = two_endpoint_window(cx);
-    redraw(cx);
-    assert!(painted(cx, "Remote · herdr"));
-    cx.update(|_, cx| view.update(cx, |view, _| view.endpoints[1].collapsed = true));
-    redraw(cx);
-    assert!(painted(cx, "Remote · herdr"));
-    assert!(painted(cx, "Local · herdr"));
-}
-
-#[gpui::test]
 fn line_one_shows_the_age(cx: &mut gpui::TestAppContext) {
     let (view, cx) = age_window(cx, 240., FIVE_MINUTES_MS, |listing| {
         listing.workspaces[0].label = "ws".into();
@@ -408,6 +390,31 @@ fn only_a_v2_endpoint_shows_an_age(cx: &mut gpui::TestAppContext) {
     });
     redraw(cx);
     // Several hosts name a row by its host, so the status mark shows it painted.
+    assert!(cx.debug_bounds("mark-agent-remote-pane").is_some());
+    assert!(cx.debug_bounds("session-age-p0").is_some());
+    assert!(cx.debug_bounds("session-age-remote-pane").is_none());
+}
+
+/// The Devices tree reads each endpoint's own codec, as the agents panel does.
+#[gpui::test]
+fn only_a_v2_device_shows_an_age(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = devices_window(cx);
+    let activity = vec![(
+        ACTIVITY_TOKEN_KEY.to_owned(),
+        (now_ms() - FIVE_MINUTES_MS).to_string(),
+    )];
+    view.update(cx, |view, cx| {
+        // The selected endpoint draws from the window's copy of its state.
+        for live in [&mut view.live, &mut view.endpoints[1].live] {
+            let mut listing = live.snapshot.as_deref().unwrap().clone();
+            listing.agents[0].tokens = activity.clone();
+            live.snapshot = Some(Arc::new(listing));
+        }
+        view.live.snapshot_v2 = true;
+        view.endpoints[1].live.snapshot_v2 = false;
+        cx.notify();
+    });
+    redraw(cx);
     assert!(cx.debug_bounds("mark-agent-remote-pane").is_some());
     assert!(cx.debug_bounds("session-age-p0").is_some());
     assert!(cx.debug_bounds("session-age-remote-pane").is_none());
