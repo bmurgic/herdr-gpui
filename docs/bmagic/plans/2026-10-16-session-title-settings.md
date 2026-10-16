@@ -36,6 +36,11 @@
 - TDD order for a new item: add it with a wrong-valued stub body and its caller first, so the tests compile and fail on values. A missing-symbol compile error does not count as the failing step.
 - Test seam: settings-window tests that save use the `SharedIo` seam from Task 1, never the real `loader`, which reads the user's own config files.
 
+**Before Task 1 (controller):**
+1. Merge piece 3's final head (`feat/agent-row-menu`) into this branch, re-run the plan scan against the merged code, and set the coverage base to the post-merge SHA.
+2. Once a `target/` directory exists, run `TEST_ENV cargo test --locked -p herdr-gpui -- --list` and `TEST_ENV cargo test --locked -p herdr-protocol -- --list`, and confirm every test filter in each task's **Verify** line (`session_titles`, `settings_window`, `title_model`, `line_breaks`) matches at least one test once that task's tests exist.
+3. Check `SharedIo` and `HerdrWindow::local_endpoint` against piece 3's capability-check code (the `BACKGROUND_PANE_COMMANDS_CAPABILITY` handling planned in `docs/bmagic/plans/2026-10-16-agent-row-menu.md`), so the merged branch has one capability-check pattern, not two. If piece 3 landed a local-endpoint lookup or a capability helper, Task 1 reuses it instead of adding its own.
+
 **E2E command:** none. The repo has no runnable e2e setup: its native GUI tests (`just test-gui`, `just test-sidebar`) are `#[ignore]`d and need a desktop, and no task selects `[e2e]`. The `## QA` section is the only trigger for this line.
 
 **Startup:** Build first in a normal shell: `cargo build --release --locked -p herdr-gpui`. Then, in a new shell, make a fresh short temporary directory `$Q`, create `$Q/xdg`, and export `HERDR_SOCKET_PATH=$Q/api.sock`, `HERDR_CLIENT_SOCKET_PATH=$Q/client.sock`, `HERDR_CONFIG_PATH=$Q/config.toml`, and `XDG_CONFIG_HOME=$Q/xdg`. Run `/Users/bmurgic/Development/Personal/myherdr/target/release/herdr server` there. In a second shell with the same four variables, run `target/release/herdr-gpui --socket $Q/client.sock`. Do not run `cargo` in a shell with the sandbox variables. Every `herdr` command in the QA steps means the same myherdr binary, run with the same variables.
@@ -83,7 +88,7 @@
 - `local_endpoint` returns the first endpoint whose `connection.target.is_remote()` is false. `save_with_completion`'s daemon reload uses it in place of its inline `find`, with no change in behavior.
 - `[session_titles]` parsing follows the design's "Valid, absent, and invalid sections": absent reads as `enabled = true`, `agent = Claude`, valid. A `session_titles` key that is not a table is invalid. Present with `enabled` not a bool, `agent` not `claude` or `codex`, or `claude_path` or `codex_path` not a string reads as the defaults and sets the invalid flag. `claude_path` and `codex_path` are type-checked without a struct field. Unknown extra keys are allowed. `model` joins the check in Task 2.
 - `keep_session_titles` copies `previous.session_titles` into `self` only when `self`'s section is invalid. `apply_loaded` calls it with the current `shared` before it replaces `shared`, when both exist.
-- The edit bodies follow the design's "Writing each key" table through the existing `set` helper. `SessionSidebar(true)` writes `true`. It does not remove the key (design Open item 1). `TitleAgent(a)` writes `agent` and then `model = ""` in the same document, so one write holds both.
+- The edit bodies follow the design's "Writing each key" table through the existing `set` helper. `SessionSidebar(true)` writes `true`. It does not remove the key (design "Ruled" item 1). `TitleAgent(a)` writes `agent` and then `model = ""` in the same document, so one write holds both.
 - `render_session_titles_controls` draws a `control_card` titled `Sessions`. It always draws the `Session sidebar` switch, and it draws `Session titles` and `Title agent` only when the gate holds: `local_endpoint()` exists and its `live.supports_session_titles` is true. Each row has its description as a `control_note`. Each agent choice carries its selector (`settings-title-agent-claude`, `settings-title-agent-codex`), on a wrapping element if `control_choice` sets none. Every control is enabled only while `controls_shared_ready()` holds. Values come from `self.shared`. With `shared` absent, the switches show on and the agent shows `claude`, all disabled.
 - The sessions switch saves `Edit::SessionSidebar(!current)` through `save_shared`. The main window's existing `watch_gui_config` reloads the file and switches the sidebar, so this task adds no hand-off.
 - The titles switch saves `Edit::SessionTitlesEnabled(!current)`. A click on the agent choice that is not selected saves `Edit::TitleAgent(that agent)`. A click on the selected choice saves nothing.
@@ -142,6 +147,8 @@ The three notes and the row labels are passive text: protection `none`, checked 
 - Modify: `crates/herdr-gpui/src/settings_window/persistence.rs` (`save_with_completion`'s `on_saved` takes the window, new `save_shared_then`, `save_shared` calls it, `apply_loaded` calls `sync_title_model_field` in both arms)
 - Modify: `crates/herdr-gpui/src/settings_window/controls.rs` (the agent-skill choice's `on_saved` closure takes the new argument and ignores it)
 - Modify: `crates/herdr-gpui/src/settings_window.rs` (`source_changed` also ends editing when the gate turns false)
+- Modify: `crates/herdr-gpui/src/search_input.rs` (an opt-in that turns line breaks and tabs into spaces; `mod line_breaks;` in its test module)
+- Create test: `crates/herdr-gpui/src/search_input/tests/line_breaks.rs`
 - Create test: `crates/herdr-gpui/src/settings_window/title_model_suggestions/tests.rs`
 - Test: `crates/herdr-gpui/src/herdr_settings/tests/session_titles.rs`
 - Create test: `crates/herdr-gpui/src/settings_window/controls/tests/title_model.rs`, declared in `crates/herdr-gpui/src/settings_window/controls/tests.rs`
@@ -153,6 +160,7 @@ The three notes and the row labels are passive text: protection `none`, checked 
   - `save_with_completion`'s `on_saved: impl FnOnce(&mut SettingsWindow, &mut Context<SettingsWindow>) + 'static`, still run on a successful write before the quit check and before `apply_loaded`.
   - `SettingsWindow::save_shared_then(&mut self, edit: Edit, on_saved: <same type>, cx)`.
   - `title_model_suggestions::ranked(input: &str, agent: TitleAgent) -> Vec<&'static str>`.
+  - `SearchInput::set_breaks_as_spaces(&mut self, on: bool)`: while on, inserted and pasted text has each CRLF, CR, LF, and tab turned into one space instead of line breaks being dropped. Off by default.
   - Nothing later uses them.
 
 **TDD:** yes, selected new unit and integration behavior.
@@ -165,10 +173,10 @@ The three notes and the row labels are passive text: protection `none`, checked 
 - The field and `Apply` show only on Unix with `shared` loaded. Otherwise the row shows the model as plain text.
 - The field's `SearchInput` and its focus and blur subscriptions are created the first time the row renders, where the `Window` is available, as the font size editor creates its input when it opens. Production and tests take that same path.
 - `#[cfg(test)]` accessors on the settings window report the field state (not editing, editing with its agent, submitted) and the highlighted suggestion name.
-- Editing starts on focus, or on a text change while focused and not editing. Each tab in the text becomes a space as it arrives.
+- Editing starts on focus, or on a text change while focused and not editing. The field turns on `set_breaks_as_spaces`, so pasted line breaks and tabs become spaces (title-model-setting spec line 66). Every other `SearchInput` keeps today's behavior.
 - Enter while editing and not composing, or `Apply`, does nothing while `busy()` holds. That guard repeats `save_with_completion`'s own `busy()` drop, so its protection is `none`: inspect it at review. Otherwise it records `text.trim()`, enters submitted, and calls `save_shared_then(Edit::TitleModel(trimmed), ..)`. It does not require a clear footer error.
-- The `on_saved` hook ends editing. `apply_loaded`'s `Ok` arm resyncs the text when not editing. When `apply_loaded` runs, in either arm, while the field is still submitted, the field returns to editing and keeps its text.
-- Esc, and focus loss while editing, restore the configured model and end editing without a write. Focus loss while submitted changes nothing. When the gate turns false, the field ends editing and resyncs.
+- The `on_saved` hook ends editing. `apply_loaded`'s `Ok` arm resyncs the text when not editing. When `apply_loaded` runs, in either arm, while the field is still submitted, the save failed: if the field still has focus it returns to editing and keeps its text; if not, it ends editing and resyncs, so no field stays editing without focus.
+- Esc, and focus loss while editing, restore the configured model and end editing without a write. Focus loss while submitted does not cancel the save; the outcome rule above decides. When the gate turns false, the field ends editing and resyncs.
 - The `Apply` button and each suggestion row prevent the default on mouse-down, so GPUI does not move focus to the settings root before their click handlers run.
 - `ranked` follows the design's "Suggestions" rules. It trims the input.
 - While editing with at least one match, the suggestion rows replace the description. The first row is highlighted whenever the list changes. Up and Down move the highlight and stop at the ends. Tab, or a click on a row, replaces the field text with that name and writes nothing. With no match, no rows show and Tab changes nothing. The field's owner handles Up, Down, Enter, Esc, and Tab in an `on_key_down` listener, because `SearchInput::key_down` passes those keys through.
@@ -187,6 +195,8 @@ Selectors:            settings-title-model, settings-title-model-apply, settings
 ```
 
 **Test cases:**
+- `pasted_text_keeps_or_spaces_its_characters` [unit], in `search_input/tests/line_breaks.rs`, a `SearchInput` with `set_breaks_as_spaces(true)`, each pasted into an empty input: title-model-setting scenario 14's rows `claude-sonnet-4-5` → `claude-sonnet-4-5` and `my\tmodel` → `my model`; plus `my\r\nmodel` → `my model`, `my\rmodel` → `my model`, `my\nmodel` → `my model`.
+- `line_breaks_still_drop_by_default` [unit], same file: a default `SearchInput`, paste `my\nmodel` → `mymodel`, as today.
 - `ranked_matches_myherdr_examples` [unit]: from title-model-setting scenario 15: `("", Claude)` → `["haiku", "opus", "sonnet"]`; `("o", Claude)` → `["opus", "sonnet"]`; `("NET", Claude)` → `["sonnet"]`; `("", Codex)` → `["gpt-6-luna"]`; `("LUNA", Codex)` → `["gpt-6-luna"]`; `("gpt", Claude)` → `[]`.
 - `ranked_puts_prefixes_before_substrings_and_trims` [unit]: `("s", Claude)` → `["sonnet", "opus"]`; `("S", Claude)` → `["sonnet", "opus"]`; `(" so ", Claude)` → `["sonnet"]`.
 - `title_model_reads_and_defaults` [unit]: absent `model` → `""`; `model = "sonnet"` → `"sonnet"`; `model = 5` → the defaults and invalid; `TitleAgent::Claude.default_model()` → `"haiku"`, `Codex` → `"gpt-6-luna"`.
@@ -197,8 +207,9 @@ Every case below uses Task 1's `sessions_fixture` with the local endpoint advert
 - `model_shows_as_text_without_shared_settings` [integration]: `shared` absent → `settings-title-model` and `settings-title-model-apply` are not painted, and `settings-title-agent-claude` is.
 - `model_shows_as_text_on_windows` [integration], `#[cfg(not(unix))]`: `shared` with `model = "sonnet"` → `settings-title-model` and `settings-title-model-apply` are not painted.
 - `enter_and_apply_save_the_trimmed_model` [integration], `#[cfg(unix)]`: `recording_shared` loading `[session_titles]\nmodel = "sonnet"\n`; focus the field, replace the text with `  sonnet `, press Enter → records `TitleModel("sonnet")`, and after `run_until_parked` the state accessor reports not editing and text `sonnet`; then type `opus` and click `settings-title-model-apply` → records `TitleModel("opus")` and the field's focus handle is still focused; then clear the field and press Enter while the list shows `haiku` → records `TitleModel("")`.
-- `failed_model_save_keeps_the_typed_text_and_retries` [integration], `#[cfg(unix)]`: `recording_shared` failing its first write, loading `model = "sonnet"`; type `opus`, press Enter, then focus the settings window's own focus handle before `run_until_parked` → the state is editing, the text is `opus`, and `error` starts with `Save settings:` (title-model-setting scenario 12; a blur while submitted changes nothing); focus the field and press Enter again → records `TitleModel("opus")`.
-- `pasted_tabs_become_spaces` [integration], `#[cfg(unix)]`: paste `my\tmodel` into the focused field → text `my model`.
+- `failed_model_save_keeps_the_typed_text_and_retries` [integration], `#[cfg(unix)]`: `recording_shared` failing its first write, loading `model = "sonnet"`; type `opus`, press Enter, `run_until_parked` with the field still focused → the state is editing, the text is `opus`, and `error` starts with `Save settings:` (title-model-setting scenario 12); press Enter again → records `TitleModel("opus")`.
+- `failed_save_after_focus_left_ends_editing` [integration], `#[cfg(unix)]`: `recording_shared` failing its first write, loading `model = "sonnet"`; type `opus`, press Enter, then focus the settings window's own focus handle before `run_until_parked` → after parking, the state is not editing, the text is `sonnet`, and `error` starts with `Save settings:`.
+- `title_model_field_turns_pasted_breaks_into_spaces` [integration], `#[cfg(unix)]`: paste `my\tmodel` into the focused title model field → text `my model`.
 - `hiding_the_rows_ends_editing` [integration], `#[cfg(unix)]`: `model = "sonnet"`, type `opus`, then apply `Disconnected` to the local endpoint and notify the source, then a welcome with `session_titles` and notify → text `sonnet` and the state is not editing.
 - `enter_while_composing_saves_nothing` [integration], `#[cfg(unix)]`: an active composition in the field, then Enter → no edit recorded and the state is editing.
 - `esc_and_blur_write_nothing_and_restore_the_model` [integration], `#[cfg(unix)]`: `model = "sonnet"`, type `opus`, press Esc → no edit, text `sonnet`, not editing; type `opus` again and focus the settings window's own focus handle → no edit, text `sonnet`.
@@ -208,7 +219,7 @@ Every case below uses Task 1's `sessions_fixture` with the local endpoint advert
 
 The suggestion list replacing the description is passive layout: protection `none`, checked at review.
 
-**Verify:** `TEST_ENV cargo test --locked -p herdr-gpui session_titles && TEST_ENV cargo test --locked -p herdr-gpui title_model && just lint-linux && just lint-windows && TEST_ENV just format && TEST_ENV just ci`. The `title_model` filter must report tests from `title_model_suggestions/tests.rs` and `controls/tests/title_model.rs`.
+**Verify:** `TEST_ENV cargo test --locked -p herdr-gpui session_titles && TEST_ENV cargo test --locked -p herdr-gpui title_model && TEST_ENV cargo test --locked -p herdr-gpui line_breaks && just lint-linux && just lint-windows && TEST_ENV just format && TEST_ENV just ci`. The `title_model` filter must report tests from `title_model_suggestions/tests.rs` and `controls/tests/title_model.rs`.
 
 ## QA
 
