@@ -13,6 +13,7 @@ use herdr_client::protocol::ClientMessage;
 use std::path::Path;
 
 mod directory_prompt;
+mod name_prompt;
 mod submit;
 mod suggestions;
 

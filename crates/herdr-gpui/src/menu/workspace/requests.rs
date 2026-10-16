@@ -342,10 +342,8 @@ impl HerdrWindow {
             {
                 params["label"] = name.into();
             }
-            if matches!(
-                action,
-                WorkspaceAction::NewTab | WorkspaceAction::NewWorkspace
-            ) && let Some(label) = chosen_label(text, self.menu.suggested_name.as_deref())
+            if action == WorkspaceAction::NewTab
+                && let Some(label) = chosen_label(text, self.menu.suggested_name.as_deref())
             {
                 params["label"] = label.into();
             }

@@ -7,9 +7,10 @@
 //! the background executor, only for a host on this computer, and its result
 //! is applied only if the text still points at the folder it listed.
 //!
-//! Enter submits the text as typed. The page belongs to the host, and the
-//! daemon boot, that were selected when it opened, and closes when either
-//! changes (`submit.rs`).
+//! Enter submits the text as typed. When `ui.prompt_new_workspace_name` asks,
+//! the page then turns to a second step that holds a proposed name in the same
+//! field. The page belongs to the host, and the daemon boot, that were
+//! selected when it opened, and closes when either changes (`submit.rs`).
 
 use super::Page;
 use crate::{HerdrWindow, dialog_input::DialogInput};
@@ -25,12 +26,6 @@ use suggestions::{
 
 mod render;
 mod submit;
-// The directory step uses the listing and ranking. The form check, the send,
-// and the name step's proposal are wired in by the tasks that follow.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the submit and name steps use the rest")
-)]
 mod suggestions;
 
 #[cfg(test)]
@@ -40,7 +35,17 @@ mod tests;
 /// as the selection moves down to them.
 const VISIBLE_ROWS: usize = 6;
 
-/// The directory step's state: where the typed text points, the folders
+/// Which question the page is asking.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Step {
+    /// Which directory the workspace opens in.
+    Directory,
+    /// What to call the workspace opening in `cwd`, the accepted text. The
+    /// text field holds the name, which starts as `proposal`.
+    Name { cwd: String, proposal: String },
+}
+
+/// The page's state: where the typed text points, the folders
 /// found there, and which of them is selected.
 pub(crate) struct NewWorkspaceForm {
     /// Whether the page's host is this computer, the only host whose disk
@@ -59,6 +64,7 @@ pub(crate) struct NewWorkspaceForm {
     selected: usize,
     /// Why the folder could not be read.
     error: Option<String>,
+    step: Step,
     /// The daemon boot the page opened on, which a creation is addressed to.
     boot_id: String,
     /// The workspace that was focused when the page opened. A creation names
@@ -89,6 +95,7 @@ impl NewWorkspaceForm {
             matches: Vec::new(),
             selected: 0,
             error: None,
+            step: Step::Directory,
             boot_id,
             source_workspace_id,
             refusal: None,
@@ -282,6 +289,11 @@ impl HerdrWindow {
         }
         form.refusal = None;
         form.send_error = None;
+        // A name is not a path, so it lists and completes nothing.
+        if form.step != Step::Directory {
+            cx.notify();
+            return;
+        }
         let folder = form.retarget(&input.text);
         if let Some(folder) = folder {
             self.list_new_workspace_folder(folder, cx);
@@ -329,16 +341,17 @@ impl HerdrWindow {
         let Some(form) = self.menu.new_workspace.as_mut().filter(|_| !composing) else {
             return false;
         };
+        let suggesting = form.step == Step::Directory;
         let completion = match event.keystroke.key.as_str() {
-            "up" => {
+            "up" if suggesting => {
                 form.move_selection(-1);
                 None
             }
-            "down" => {
+            "down" if suggesting => {
                 form.move_selection(1);
                 None
             }
-            "tab" => form.completion(),
+            "tab" if suggesting => form.completion(),
             "enter" => {
                 cx.stop_propagation();
                 window.prevent_default();

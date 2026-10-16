@@ -616,8 +616,10 @@ pub enum Error {
     InvalidAnnotation,
     #[error("Invalid saved browser tabs")]
     InvalidBrowserTabs,
-    #[error("Worktree notes stay in this app and are never sent to the daemon")]
-    LocalWorktreeNote,
+    #[error(
+        "This dialog sends no workspace request. Notes stay in this app, and a new workspace is asked for on the New Workspace page."
+    )]
+    NoWorkspaceRequest,
     #[error("Invalid saved worktree notes")]
     InvalidWorktreeNotes,
     #[error("Invalid saved palette history")]

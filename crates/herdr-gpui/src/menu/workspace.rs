@@ -4,7 +4,7 @@
 
 mod dispatch;
 pub(super) mod popover;
-mod render;
+pub(super) mod render;
 mod requests;
 mod scripts;
 
@@ -208,11 +208,11 @@ impl WorkspaceTarget {
                 Method::TabCreate,
                 serde_json::json!({"workspace_id": self.id, "focus": true}),
             ),
-            WorkspaceAction::NewWorkspace => (
-                Method::WorkspaceCreate,
-                serde_json::json!({"focus": true, "source_workspace_id": self.id}),
-            ),
-            WorkspaceAction::Note => return Err(crate::Error::LocalWorktreeNote),
+            // A note stays in this app, and the New Workspace page sends its own
+            // request, so neither has one to build from a workspace target.
+            WorkspaceAction::Note | WorkspaceAction::NewWorkspace => {
+                return Err(crate::Error::NoWorkspaceRequest);
+            }
             WorkspaceAction::DeleteWorktree => {
                 if !self.can_delete() || self.worktree != workspace.worktree {
                     return Err(crate::Error::WorkspaceCheckoutChanged);
@@ -285,9 +285,10 @@ pub(super) fn suggested_tab_name(snapshot: &ClientShellSnapshotV2, workspace: &s
     (count + 1).to_string()
 }
 
-/// The name a new workspace dialog proposes: the folder it opens in. Herdr
-/// also consults Git there, which only the daemon's host can do, so leaving
-/// this proposal unchanged still lets the daemon choose the real name.
+/// The name the New Workspace page proposes for a host that is not this
+/// computer: the folder it opens in. Herdr also consults Git there, which
+/// only the daemon's host can do, so leaving this proposal unchanged still
+/// lets the daemon choose the real name.
 pub(super) fn suggested_workspace_name(cwd: &str) -> String {
     let trimmed = cwd.trim_end_matches('/');
     match trimmed.rsplit('/').next() {
@@ -631,14 +632,11 @@ impl HerdrWindow {
             (WorkspaceAction::NewTab, Some((snapshot, _))) => {
                 Some(suggested_tab_name(snapshot, &target.id))
             }
-            (WorkspaceAction::NewWorkspace, Some((_, workspace))) => {
-                Some(suggested_workspace_name(&workspace.new_workspace_cwd))
-            }
             _ => None,
         };
         self.menu.input = match action {
             WorkspaceAction::Rename => Some(DialogInput::new(target.label.clone())),
-            WorkspaceAction::NewTab | WorkspaceAction::NewWorkspace => Some(DialogInput::new(
+            WorkspaceAction::NewTab => Some(DialogInput::new(
                 self.menu.suggested_name.clone().unwrap_or_default(),
             )),
             // Propose the daemon's own branch shape, selected so typing replaces it.
@@ -646,23 +644,23 @@ impl HerdrWindow {
                 Some(DialogInput::new(crate::worktree::proposed_branch()))
             }
             WorkspaceAction::Note => note.map(DialogInput::new),
+            // The New Workspace page asks for a name, so this dialog never opens
+            // for it.
             WorkspaceAction::Close
             | WorkspaceAction::DeleteWorktree
-            | WorkspaceAction::OpenWorktree => None,
+            | WorkspaceAction::OpenWorktree
+            | WorkspaceAction::NewWorkspace => None,
         };
         self.menu.page = Some(Page::Dialog(action));
-        self.menu.dispatch = matches!(
-            action,
-            WorkspaceAction::NewWorktree | WorkspaceAction::NewWorkspace
-        )
-        .then(|| self.menu.dispatch_repo())
-        .flatten()
-        .and_then(|repo| {
-            crate::dispatch::Picker::opened(
-                &self.endpoints[self.selected_endpoint].id,
-                self.dispatch_candidates(&repo, cx),
-            )
-        });
+        self.menu.dispatch = (action == WorkspaceAction::NewWorktree)
+            .then(|| self.menu.dispatch_repo())
+            .flatten()
+            .and_then(|repo| {
+                crate::dispatch::Picker::opened(
+                    &self.endpoints[self.selected_endpoint].id,
+                    self.dispatch_candidates(&repo, cx),
+                )
+            });
         self.menu.pr.clear();
         self.menu.pr_connection = None;
         self.menu.error = None;

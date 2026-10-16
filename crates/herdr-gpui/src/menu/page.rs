@@ -96,12 +96,8 @@ pub(crate) enum WorkspaceAction {
     DeleteWorktree,
     /// Names a tab before `tab.create`, when `ui.prompt_new_tab_name` asks.
     NewTab,
-    /// Names a workspace before `workspace.create`, when
-    /// `ui.prompt_new_workspace_name` asks. Targets the source workspace.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the New Workspace name step constructs it")
-    )]
+    /// The kind of dispatch job the New Workspace page's host picker starts.
+    /// Never opened as a dialog (`Page::NewWorkspace` asks instead).
     NewWorkspace,
     /// Writes the note this app keeps on the checkout; never a daemon request.
     Note,

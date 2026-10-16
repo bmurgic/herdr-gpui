@@ -148,10 +148,7 @@ impl HerdrWindow {
         let now = Instant::now();
         let dialog = matches!(
             self.menu.page,
-            Some(Page::Dialog(
-                crate::menu::WorkspaceAction::NewWorktree
-                    | crate::menu::WorkspaceAction::NewWorkspace
-            ))
+            Some(Page::Dialog(crate::menu::WorkspaceAction::NewWorktree) | Page::NewWorkspace)
         );
         if !dialog {
             self.menu.dispatch = None;

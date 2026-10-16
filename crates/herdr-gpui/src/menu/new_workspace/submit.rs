@@ -1,20 +1,42 @@
-//! Submitting the directory step, and closing the page once its host or
-//! daemon boot is no longer the one it opened on.
+//! Submitting the page's two steps, and closing it once its host or daemon
+//! boot is no longer the one it opened on.
 //!
-//! Enter submits the text as typed. A refusal keeps the page open, shows its
-//! message, and is cleared by the next edit. On this computer the folder is
-//! checked with `Path::is_dir`, which blocks, so the check runs on the
-//! background executor and its answer is applied only if the page still
+//! Enter on the directory step submits the text as typed. A refusal keeps the
+//! page open, shows its message, and is cleared by the next edit. On this
+//! computer the folder is checked with `Path::is_dir`, and the name proposed
+//! for it is read from its Git directory. Both block, so they run on the
+//! background executor, and the answer is applied only if the page still
 //! holds the text that was checked. Another host's folder is left to its
-//! daemon.
+//! daemon. When `ui.prompt_new_workspace_name` asks, the name step follows.
+//!
+//! Enter on the name step creates the workspace, on the page's host or, when
+//! the host picker chose another one, as a dispatch job.
 
 use super::{
-    NewWorkspaceForm, Page,
-    suggestions::{DirectoryRefusal, check_form, expand_tilde, request_cwd},
+    NewWorkspaceForm, Page, Step,
+    suggestions::{DirectoryRefusal, check_form, expand_tilde, proposed_label, request_cwd},
 };
-use crate::{Error, HerdrWindow};
+use crate::{
+    Error, HerdrWindow,
+    dialog_input::DialogInput,
+    dispatch::Picker,
+    menu::{
+        WorkspaceAction, WorkspaceTarget,
+        workspace::{chosen_label, suggested_workspace_name},
+    },
+};
 use gpui::{Context, Window};
 use herdr_client::Method;
+
+/// What the background check of a directory on this computer found.
+enum Checked {
+    Missing,
+    /// The directory exists. `proposal` is its workspace name, read only when
+    /// the name step will ask for it.
+    Directory {
+        proposal: Option<String>,
+    },
+}
 
 impl NewWorkspaceForm {
     /// Why `text`, already trimmed, cannot be sent. A folder on this computer
@@ -62,6 +84,10 @@ impl HerdrWindow {
         else {
             return;
         };
+        if form.step != Step::Directory {
+            self.submit_new_workspace_name(window, cx);
+            return;
+        }
         if form.checking.is_some() {
             return;
         }
@@ -72,7 +98,7 @@ impl HerdrWindow {
             return;
         }
         if !form.local {
-            self.send_new_workspace(&text, window, cx);
+            self.directory_accepted(text, None, window, cx);
             return;
         }
         let Some(path) = expand_tilde(&text, form.home.as_deref()) else {
@@ -81,14 +107,32 @@ impl HerdrWindow {
             return;
         };
         form.checking = Some(text.clone());
-        let check = cx.background_executor().spawn(async move { path.is_dir() });
+        let home = form.home.clone();
+        let propose = self.prompts_for_name();
+        let check = cx.background_executor().spawn(async move {
+            if !path.is_dir() {
+                return Checked::Missing;
+            }
+            Checked::Directory {
+                proposal: propose.then(|| proposed_label(&path, home.as_deref())),
+            }
+        });
         cx.spawn_in(window, async move |this, cx| {
-            let exists = check.await;
+            let checked = check.await;
             let _ = this.update_in(cx, |this, window, cx| {
-                this.finish_new_workspace_check(text, exists, window, cx);
+                this.finish_new_workspace_check(text, checked, window, cx);
             });
         })
         .detach();
+    }
+
+    /// Whether the local Herdr config asks for a name before it creates a
+    /// workspace. It applies to every host.
+    fn prompts_for_name(&self) -> bool {
+        self.settings
+            .shared
+            .as_ref()
+            .is_some_and(|shared| shared.name_prompts.workspace)
     }
 
     /// Applies the answer for `checked`, unless the page closed or its text
@@ -96,7 +140,7 @@ impl HerdrWindow {
     fn finish_new_workspace_check(
         &mut self,
         checked: String,
-        exists: bool,
+        found: Checked,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -109,18 +153,123 @@ impl HerdrWindow {
         {
             return;
         }
-        if !exists {
-            form.refusal = Some(DirectoryRefusal::Missing);
+        match found {
+            Checked::Missing => {
+                form.refusal = Some(DirectoryRefusal::Missing);
+                cx.notify();
+            }
+            Checked::Directory { proposal } => {
+                self.directory_accepted(checked, proposal, window, cx)
+            }
+        }
+    }
+
+    /// Takes the directory the check accepted: creates the workspace, or asks
+    /// for its name when the config says to. `proposal` is the name read from
+    /// this computer's disk. A host that is not local has none, so its name is
+    /// proposed from the text alone.
+    fn directory_accepted(
+        &mut self,
+        text: String,
+        proposal: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.prompts_for_name() {
+            self.send_new_workspace(&text, None, window, cx);
+            return;
+        }
+        let proposal = proposal.unwrap_or_else(|| suggested_workspace_name(&text));
+        self.open_new_workspace_name(text, proposal, window, cx);
+    }
+
+    /// Moves the page to its name step: the field holds `proposal`, selected,
+    /// and a workspace that belongs to a repository brings the host picker.
+    fn open_new_workspace_name(
+        &mut self,
+        cwd: String,
+        proposal: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(form) = self.menu.new_workspace.as_mut() else {
+            return;
+        };
+        form.clear_listing();
+        form.refusal = None;
+        form.send_error = None;
+        form.step = Step::Name {
+            cwd,
+            proposal: proposal.clone(),
+        };
+        self.menu.input = Some(DialogInput::new(proposal.clone()));
+        self.menu.suggested_name = Some(proposal);
+        self.menu.error = None;
+        self.menu.target = self.new_workspace_repository_target();
+        self.menu.dispatch = self.menu.dispatch_repo().and_then(|repo| {
+            Picker::opened(
+                &self.endpoints[self.selected_endpoint].id,
+                self.dispatch_candidates(&repo, cx),
+            )
+        });
+        self.discard_composition(cx);
+        window.focus(&self.menu.focus, cx);
+        cx.notify();
+    }
+
+    /// The workspace focused when the page opened, if it still exists and
+    /// belongs to a repository. Another host can open that repository.
+    fn new_workspace_repository_target(&self) -> Option<WorkspaceTarget> {
+        let snapshot = self.live.snapshot.as_ref()?;
+        let source = self
+            .menu
+            .new_workspace
+            .as_ref()?
+            .source_workspace_id
+            .as_ref()?;
+        let workspace = snapshot
+            .workspaces
+            .iter()
+            .find(|workspace| &workspace.workspace_id == source)
+            .filter(|workspace| workspace.worktree.is_some())?;
+        Some(WorkspaceTarget::new(snapshot, workspace))
+    }
+
+    /// Enter on the name step: creates the workspace on the host the picker
+    /// chose, else on the page's host.
+    fn submit_new_workspace_name(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(endpoint) = self.dispatch_choice(WorkspaceAction::NewWorkspace) {
+            match self.submit_dispatch(WorkspaceAction::NewWorkspace, &endpoint, None) {
+                Ok(()) => self.local_error = None,
+                Err(error) => self.menu.error = Some(error.to_string()),
+            }
             cx.notify();
             return;
         }
-        self.send_new_workspace(&checked, window, cx);
+        let (Some(form), Some(input)) =
+            (self.menu.new_workspace.as_ref(), self.menu.input.as_ref())
+        else {
+            return;
+        };
+        let Step::Name { cwd, proposal } = &form.step else {
+            return;
+        };
+        let label = chosen_label(&input.text, Some(proposal)).map(str::to_owned);
+        let cwd = cwd.clone();
+        self.send_new_workspace(&cwd, label, window, cx);
     }
 
-    /// Sends `workspace.create` for the accepted `text` to the page's host,
-    /// raises the focus fence the new workspace's focus needs, and closes the
-    /// page. A request that cannot be queued keeps the page and says why.
-    fn send_new_workspace(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+    /// Sends `workspace.create` for the accepted `text`, with `label` when the
+    /// name differs from the proposal, to the page's host. Raises the focus
+    /// fence the new workspace's focus needs and closes the page. A request
+    /// that cannot be queued keeps the page and says why.
+    fn send_new_workspace(
+        &mut self,
+        text: &str,
+        label: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if !self.new_workspace_current() {
             self.dismiss_menu(window, cx);
             return;
@@ -147,6 +296,9 @@ impl HerdrWindow {
         });
         if let Some(source) = source {
             params["source_workspace_id"] = source.as_str().into();
+        }
+        if let Some(label) = label {
+            params["label"] = label.into();
         }
         let queued = self.endpoints[self.selected_endpoint]
             .connection

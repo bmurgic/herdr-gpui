@@ -40,15 +40,13 @@ fn new_tab_and_workspace_names_follow_herdr() {
             serde_json::json!({"workspace_id": "w3", "focus": true})
         )
     );
-    assert_eq!(
-        target
-            .request(&snapshot, WorkspaceAction::NewWorkspace, "ignored", &[])
-            .unwrap(),
-        (
-            Method::WorkspaceCreate,
-            serde_json::json!({"focus": true, "source_workspace_id": "w3"})
-        )
-    );
+    // The New Workspace page sends its own request, and a note is never sent.
+    for action in [WorkspaceAction::NewWorkspace, WorkspaceAction::Note] {
+        assert!(matches!(
+            target.request(&snapshot, action, "ignored", &[]),
+            Err(crate::Error::NoWorkspaceRequest)
+        ));
+    }
     // A proposal left alone, or cleared, lets the daemon choose the name.
     assert_eq!(chosen_label("  Build  ", Some("2")), Some("Build"));
     assert_eq!(chosen_label(" 2 ", Some("2")), None);

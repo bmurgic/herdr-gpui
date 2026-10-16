@@ -52,11 +52,7 @@ impl HerdrWindow {
             && self.removal.as_ref().is_some_and(|removal| {
                 removal.pending_for(self.menu.endpoint_target, &target.boot_id, &target.id)
             });
-        let dispatching = self.dispatch_job.is_some()
-            && matches!(
-                action,
-                WorkspaceAction::NewWorktree | WorkspaceAction::NewWorkspace
-            );
+        let dispatching = self.dispatch_job.is_some() && action == WorkspaceAction::NewWorktree;
         let creating = self.menu.creation.is_some() || dispatching;
         // Another host chosen in the picker, where the new checkout goes.
         let dispatched = self
@@ -95,8 +91,9 @@ impl HerdrWindow {
             WorkspaceAction::Close => (target.close_label(), target.close_label().into()),
             WorkspaceAction::NewWorktree => ("New worktree", create_label(dispatched)),
             WorkspaceAction::OpenWorktree => ("Open worktree", "Open".into()),
-            WorkspaceAction::NewTab => ("New tab", "Create".into()),
-            WorkspaceAction::NewWorkspace => ("New workspace", create_label(dispatched)),
+            // The New Workspace page draws its own title and button, so the
+            // dialog never opens for it.
+            WorkspaceAction::NewTab | WorkspaceAction::NewWorkspace => ("New tab", "Create".into()),
             WorkspaceAction::Note => ("Note", "Save".into()),
             WorkspaceAction::DeleteWorktree if force => {
                 ("Force delete checkout?", "Force remove".into())
@@ -105,7 +102,7 @@ impl HerdrWindow {
         };
         let mut body = div().flex().flex_col().gap(px(10.)).px(px(16.)).py(px(12.));
         body = match action {
-            WorkspaceAction::OpenWorktree => body,
+            WorkspaceAction::OpenWorktree | WorkspaceAction::NewWorkspace => body,
             WorkspaceAction::Rename => {
                 body.child(div().text_color(rgb(theme.subtext())).child("Edit the workspace label."))
             }
@@ -117,30 +114,6 @@ impl HerdrWindow {
                     .text_color(rgb(theme.subtext()))
                     .child("Name the tab, or leave the suggestion for Herdr to number it."),
             ),
-            WorkspaceAction::NewWorkspace => body
-                .child(
-                    div()
-                        .text_color(rgb(theme.subtext()))
-                        .child("Name the workspace, or leave the suggestion for Herdr to name it."),
-                )
-                .children(self.menu.dispatch.as_ref().map(|picker| {
-                    let caption = |caption: &'static str, field: AnyElement| {
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(10.))
-                            .child(div().flex_none().text_color(rgb(theme.muted)).child(caption))
-                            .child(div().flex_1().min_w_0().child(field))
-                    };
-                    self.render_host_picker(picker, caption, cx)
-                }))
-                .children(dispatched.map(|host| {
-                    div().text_color(rgb(theme.subtext())).child(format!(
-                        "Opens the repository's main checkout on {}{}.",
-                        host.label,
-                        clone_note(host)
-                    ))
-                })),
             WorkspaceAction::Close => body.child(div().text_color(rgb(theme.subtext())).child(format!(
                 "Closes {} workspace(s) and terminates their running terminals. Checkout files and branches are not deleted.",
                 target.close_members.len()
@@ -468,7 +441,9 @@ impl HerdrWindow {
 }
 
 /// The submit button of a dialog that may create on another host.
-fn create_label(dispatched: Option<&crate::dispatch::Candidate>) -> SharedString {
+pub(in crate::menu) fn create_label(
+    dispatched: Option<&crate::dispatch::Candidate>,
+) -> SharedString {
     match dispatched {
         Some(host) => format!("Create on {}", host.label).into(),
         None => "Create".into(),
@@ -476,7 +451,7 @@ fn create_label(dispatched: Option<&crate::dispatch::Candidate>) -> SharedString
 }
 
 /// What choosing a host without the repository adds to the dialog's text.
-fn clone_note(host: &crate::dispatch::Candidate) -> &'static str {
+pub(in crate::menu) fn clone_note(host: &crate::dispatch::Candidate) -> &'static str {
     if host.repository == crate::dispatch::Repository::Missing {
         ", cloning the repository there first"
     } else {

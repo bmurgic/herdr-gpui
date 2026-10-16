@@ -7,7 +7,7 @@ use herdr_client::Method;
 mod close;
 mod close_unconfirmed;
 mod dialog_layout;
-mod dispatch;
+pub(in crate::menu) mod dispatch;
 mod issues;
 mod merged_removal;
 mod naming;
