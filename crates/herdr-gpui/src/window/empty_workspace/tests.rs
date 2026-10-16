@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 mod click_fence;
 mod create_rows;
+mod manage_rows;
 
 /// Two workspaces, `api` with one tab and `scratch` with none, the shape
 /// `endpoint-snapshot-v2.json` carries.

@@ -57,8 +57,13 @@ fn an_unbound_command_gets_no_row_and_the_other_keeps_its() {
     ] {
         let keymap = keymap_with(&[(unbound_name, &[])]);
         let rows = rows(&context(&snapshot, &keymap, &methods));
-        assert_eq!(commands(&rows), [other], "{unbound:?} unbound");
-        assert_eq!(rows[0].label, label_of(other));
+        let shown = commands(&rows);
+        assert!(!shown.contains(&unbound), "{unbound:?} unbound");
+        assert_eq!(
+            row_for(&rows, other).map(|row| row.label.as_str()),
+            Some(label_of(other)),
+            "{unbound:?} unbound"
+        );
     }
 }
 
@@ -80,7 +85,9 @@ fn a_tab_only_command_never_gets_a_row() {
         let keymap = keymap_with(&[(name, &["cmd-alt-j"]), ("new_tab", &["cmd-t"])]);
         assert!(keymap.shortcuts(tab_command).next().is_some(), "{name}");
         let rows = rows(&context(&snapshot, &keymap, &methods));
-        assert_eq!(commands(&rows), [Command::Tab], "{name}");
+        let shown = commands(&rows);
+        assert!(!shown.contains(&tab_command), "{name}");
+        assert!(shown.contains(&Command::Tab), "{name}");
     }
 }
 
@@ -98,16 +105,18 @@ fn new_tab_needs_the_focused_workspace_and_new_workspace_does_not() {
         (none_focused, "none focused"),
     ] {
         let rows = rows(&context(&snapshot, &keymap, &methods));
-        assert_eq!(commands(&rows), [Command::Workspace], "{why}");
+        let shown = commands(&rows);
+        assert!(shown.contains(&Command::Workspace), "{why}");
+        assert!(!shown.contains(&Command::Tab), "{why}");
     }
 }
 
 /// A command the daemon does not advertise gets no row, so the screen offers
-/// only what its click can send.
+/// only what its click can send. Go To needs no daemon method.
 #[test]
 fn a_command_the_daemon_does_not_advertise_gets_no_row() {
     let keymap = Keymap::default();
     let snapshot = scratch_focused();
     let rows = rows(&context(&snapshot, &keymap, &[]));
-    assert!(rows.is_empty());
+    assert_eq!(commands(&rows), [Command::WorkspacePicker]);
 }

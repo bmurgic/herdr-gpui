@@ -18,7 +18,16 @@ use herdr_client::protocol::{ClientShellSnapshotV2, ClientShellWorkspaceV2};
 /// The commands the screen can list, in the order it lists them. A command
 /// that is not here never gets a row, whatever its key: the tab commands have
 /// no tab to act on.
-const ROW_COMMANDS: &[Command] = &[Command::Workspace, Command::Tab];
+const ROW_COMMANDS: &[Command] = &[
+    Command::WorkspacePicker,
+    Command::Workspace,
+    Command::NewWorktree,
+    Command::OpenWorktree,
+    Command::RemoveWorktree,
+    Command::RenameWorkspace,
+    Command::CloseWorkspace,
+    Command::Tab,
+];
 
 /// Width the key column keeps, so the labels line up whatever the keys.
 const KEY_COLUMN_WIDTH: f32 = 180.;

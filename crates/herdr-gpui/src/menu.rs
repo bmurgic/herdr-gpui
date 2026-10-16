@@ -59,7 +59,7 @@ pub(crate) use {
 pub(crate) use devices::enter as enter_key;
 use page::WorkspaceMenuAction;
 use state::Submission;
-use workspace::WorkspaceTarget;
+pub(crate) use workspace::WorkspaceTarget;
 
 /// Shared trailing action geometry for pickers and workspace context menus.
 fn action_icon(
