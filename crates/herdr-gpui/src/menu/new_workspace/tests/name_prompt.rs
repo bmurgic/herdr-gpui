@@ -317,13 +317,7 @@ mod host_picker {
             ));
         });
 
-        for _ in 0..500 {
-            update(&view, cx, |view, window, cx| view.poll_dispatch(window, cx));
-            if view.read_with(cx, |view, _| view.dispatch_job.is_none()) {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
+        poll_until_job_ends(&view, cx);
 
         view.read_with(cx, |view, _| {
             assert_eq!(view.menu.page, Some(Page::NewWorkspace));

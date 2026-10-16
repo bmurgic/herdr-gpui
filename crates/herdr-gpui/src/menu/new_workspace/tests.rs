@@ -21,6 +21,19 @@ mod suggestions;
 /// fixture window's `LiveState.methods` starts empty.
 const CREATE: &str = "workspace.create";
 
+/// Polls dispatch until the window's job reports, which its thread does on
+/// its own time.
+pub(super) fn poll_until_job_ends(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
+    for _ in 0..500 {
+        update(view, cx, |view, window, cx| view.poll_dispatch(window, cx));
+        if view.read_with(cx, |view, _| view.dispatch_job.is_none()) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the job never reported");
+}
+
 /// A window connected to a peer that advertises `methods`. `local` says
 /// whether the window treats its host as this computer.
 fn window<'a>(
