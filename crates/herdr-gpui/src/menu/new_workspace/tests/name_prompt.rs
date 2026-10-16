@@ -218,6 +218,25 @@ mod host_picker {
         assert_no_request(&mut peer, &view, cx);
     }
 
+    /// The Create button is disabled while a job runs, so Enter must not
+    /// send a request either, even with this host chosen.
+    #[gpui::test]
+    fn enter_while_a_job_runs_sends_nothing(cx: &mut TestAppContext) {
+        let (mut peer, view, cx, _home) = name_step_with_two_hosts(cx, "w3");
+        update(&view, cx, |view, _, _| {
+            view.dispatch_job = Some(crate::dispatch::Job::scripted("box", "api", None));
+        });
+
+        press(cx, "enter");
+
+        view.read_with(cx, |view, _| {
+            assert_eq!(view.menu.page, Some(Page::NewWorkspace));
+            assert!(view.menu.error.is_none());
+            assert!(view.dispatch_job.is_some());
+        });
+        assert_no_request(&mut peer, &view, cx);
+    }
+
     #[gpui::test]
     fn no_picker_opens_without_a_worktree_record(cx: &mut TestAppContext) {
         let (_peer, view, cx, _home) = name_step_with_two_hosts(cx, "w1");

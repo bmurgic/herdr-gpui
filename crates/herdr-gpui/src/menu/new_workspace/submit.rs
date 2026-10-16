@@ -235,6 +235,10 @@ impl HerdrWindow {
     /// Enter on the name step: creates the workspace on the host the picker
     /// chose, else on the page's host.
     fn submit_new_workspace_name(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // The Create button is disabled while a job runs, so Enter is too.
+        if self.dispatch_job.is_some() {
+            return;
+        }
         if let Some(endpoint) = self.dispatch_choice(WorkspaceAction::NewWorkspace) {
             match self.submit_dispatch(WorkspaceAction::NewWorkspace, &endpoint, None) {
                 Ok(()) => self.local_error = None,
