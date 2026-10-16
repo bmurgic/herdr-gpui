@@ -12,12 +12,12 @@ For five actions, herdr-gpui SHALL send the action's v2 method when the connecte
 | Move a block of workspaces | `workspace.move_block.v2` | `workspace.move_block` | `workspace_ids` (list of strings, required), `before_workspace_id` (string, optional) |
 | Open an existing worktree checkout | `worktree.open.v2` | `worktree.open` | `workspace_id` (string, required), `path` (string, required), `focus` (`true`), `trust_repository` (`false`) |
 
-A drag of a lone workspace SHALL use the Move one workspace pair when the daemon advertises either method of that pair, and the Move a block of workspaces pair otherwise. A drag of a repository group SHALL use the Move a block of workspaces pair.
+A drag of a single workspace that has no worktree record SHALL use the Move one workspace pair when the daemon advertises either method of that pair, and the Move a block of workspaces pair otherwise. A drag of a single workspace that has a worktree record SHALL use the Move a block of workspaces pair, with that workspace's id as the only entry of `workspace_ids`. A drag of a repository group SHALL use the Move a block of workspaces pair.
 
-An API error in the reply to a focus, rename, or move request SHALL be shown on the window's status line as the daemon's error message, and SHALL NOT change the snapshot's focused workspace.
+An API error in the reply to a focus, rename, or move request SHALL be shown on the window's status line as the daemon's error message, and SHALL NOT change the snapshot's focused workspace. When the refused request is a workspace focus request, sent as `workspace.focus` or `workspace.focus.v2`, the window SHALL stop waiting for that focus change's surface activation as soon as the refusal arrives, and SHALL NOT reconnect to the daemon or switch to another host because of the refusal, including after the 5-second activation deadline would have passed.
 
 #### Scenario: Workspace v2 methods 01 - the v2 method is sent when advertised
-- **GIVEN** a session whose daemon advertises <v1_method> and <v2_method>, with the workspaces `api`, `scratch`, `docs`, and `docs-fix` in that order, where `scratch` has no tabs and no worktree record, and `docs-fix` is a linked checkout in the same repository group as `docs`
+- **GIVEN** a session whose daemon advertises <v1_method> and <v2_method>, with the workspaces `api`, `scratch`, `docs`, `docs-fix`, and `web` in that order, where `scratch` has no tabs and no worktree record, `docs-fix` is a linked checkout in the same repository group as `docs`, and `web` has a worktree record that is not a linked worktree and no linked checkout open
 - **WHEN** the user performs <action>
 - **THEN** the request sent to the daemon with the method <v2_method> has the parameters <params>
 
@@ -28,10 +28,11 @@ An API error in the reply to a focus, rename, or move request SHALL be shown on 
 | renaming `scratch` to `notes` from its workspace menu | workspace.rename | workspace.rename.v2 | {"workspace_id": "scratch", "label": "notes"} |
 | dragging `scratch` above `api` | workspace.move | workspace.move.v2 | {"workspace_id": "scratch", "insert_index": 0} |
 | dragging the repository group of `docs` and its linked checkout `docs-fix` above `api` | workspace.move_block | workspace.move_block.v2 | {"workspace_ids": ["docs", "docs-fix"], "before_workspace_id": "api"} |
+| dragging `web` above `api` | workspace.move_block | workspace.move_block.v2 | {"workspace_ids": ["web"], "before_workspace_id": "api"} |
 | opening the checkout `/src/api-fix` from `api`'s Open Worktree dialog | worktree.open | worktree.open.v2 | {"workspace_id": "api", "path": "/src/api-fix", "focus": true, "trust_repository": false} |
 
 #### Scenario: Workspace v2 methods 02 - the v1 method is sent when the v2 method is not advertised
-- **GIVEN** a session whose daemon advertises <v1_method> and not <v2_method>, with the workspaces `api`, `notes`, `docs`, and `docs-fix` in that order, all with tabs, where `notes` has no worktree record and `docs-fix` is a linked checkout in the same repository group as `docs`
+- **GIVEN** a session whose daemon advertises <v1_method> and not <v2_method>, with the workspaces `api`, `notes`, `docs`, `docs-fix`, and `web` in that order, all with tabs, where `notes` has no worktree record, `docs-fix` is a linked checkout in the same repository group as `docs`, and `web` has a worktree record that is not a linked worktree and no linked checkout open
 - **WHEN** the user performs <action>
 - **THEN** the request sent to the daemon with the method <v1_method> has the parameters <params>
 - **AND** no request uses the method <v2_method>
@@ -43,13 +44,22 @@ An API error in the reply to a focus, rename, or move request SHALL be shown on 
 | renaming `notes` to `ideas` from its workspace menu | workspace.rename | workspace.rename.v2 | {"workspace_id": "notes", "label": "ideas"} |
 | dragging `notes` above `api` | workspace.move | workspace.move.v2 | {"workspace_id": "notes", "insert_index": 0} |
 | dragging the repository group of `docs` and its linked checkout `docs-fix` above `api` | workspace.move_block | workspace.move_block.v2 | {"workspace_ids": ["docs", "docs-fix"], "before_workspace_id": "api"} |
+| dragging `web` above `api` | workspace.move_block | workspace.move_block.v2 | {"workspace_ids": ["web"], "before_workspace_id": "api"} |
 | opening the checkout `/src/api-fix` from `api`'s Open Worktree dialog | worktree.open | worktree.open.v2 | {"workspace_id": "api", "path": "/src/api-fix", "focus": true, "trust_repository": false} |
 
 #### Scenario: Workspace v2 methods 03 - an API error reply is shown and leaves the focused workspace
-- **GIVEN** a v2 session focused on the workspace `api`, whose daemon advertises `workspace.focus.v2`
-- **WHEN** the user clicks the `scratch` sidebar row and the daemon answers the `workspace.focus.v2` request with the error code `workspace_not_found` and the message `workspace scratch not found`
+- **GIVEN** a <codec> session focused on the workspace `api`, with the workspace `scratch`, whose daemon advertises <focus_method>
+- **WHEN** the user clicks the `scratch` sidebar row and the daemon answers the <focus_method> request with the error code `workspace_not_found` and the message `workspace scratch not found`
 - **THEN** the window's status line shows `workspace scratch not found`
 - **AND** the snapshot's focused workspace stays `api`
+- **AND** the window no longer waits for the focus change's surface activation
+- **AND** the client does not reconnect to the daemon, including after the 5-second activation deadline would have passed
+
+##### Examples
+| codec | focus_method |
+| --- | --- |
+| v2 | workspace.focus.v2 |
+| v1 | workspace.focus |
 
 ### Requirement: The worktree open reply must match the method sent
 

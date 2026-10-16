@@ -3,7 +3,7 @@ Feature: workspace-v2-methods
 
   # Covers: workspace-v2-methods / Workspace actions use the v2 method when the daemon advertises it / Workspace v2 methods 01 - the v2 method is sent when advertised
   Scenario Outline: Workspace v2 methods 01 - the v2 method is sent when advertised
-    Given a session whose daemon advertises <v1_method> and <v2_method>, with the workspaces `api`, `scratch`, `docs`, and `docs-fix` in that order, where `scratch` has no tabs and no worktree record, and `docs-fix` is a linked checkout in the same repository group as `docs`
+    Given a session whose daemon advertises <v1_method> and <v2_method>, with the workspaces `api`, `scratch`, `docs`, `docs-fix`, and `web` in that order, where `scratch` has no tabs and no worktree record, `docs-fix` is a linked checkout in the same repository group as `docs`, and `web` has a worktree record that is not a linked worktree and no linked checkout open
     When the user performs <action>
     Then the request sent to the daemon with the method <v2_method> has the parameters <params>
 
@@ -13,11 +13,12 @@ Feature: workspace-v2-methods
       | renaming `scratch` to `notes` from its workspace menu | workspace.rename | workspace.rename.v2 | {"workspace_id": "scratch", "label": "notes"} |
       | dragging `scratch` above `api` | workspace.move | workspace.move.v2 | {"workspace_id": "scratch", "insert_index": 0} |
       | dragging the repository group of `docs` and its linked checkout `docs-fix` above `api` | workspace.move_block | workspace.move_block.v2 | {"workspace_ids": ["docs", "docs-fix"], "before_workspace_id": "api"} |
+      | dragging `web` above `api` | workspace.move_block | workspace.move_block.v2 | {"workspace_ids": ["web"], "before_workspace_id": "api"} |
       | opening the checkout `/src/api-fix` from `api`'s Open Worktree dialog | worktree.open | worktree.open.v2 | {"workspace_id": "api", "path": "/src/api-fix", "focus": true, "trust_repository": false} |
 
   # Covers: workspace-v2-methods / Workspace actions use the v2 method when the daemon advertises it / Workspace v2 methods 02 - the v1 method is sent when the v2 method is not advertised
   Scenario Outline: Workspace v2 methods 02 - the v1 method is sent when the v2 method is not advertised
-    Given a session whose daemon advertises <v1_method> and not <v2_method>, with the workspaces `api`, `notes`, `docs`, and `docs-fix` in that order, all with tabs, where `notes` has no worktree record and `docs-fix` is a linked checkout in the same repository group as `docs`
+    Given a session whose daemon advertises <v1_method> and not <v2_method>, with the workspaces `api`, `notes`, `docs`, `docs-fix`, and `web` in that order, all with tabs, where `notes` has no worktree record, `docs-fix` is a linked checkout in the same repository group as `docs`, and `web` has a worktree record that is not a linked worktree and no linked checkout open
     When the user performs <action>
     Then the request sent to the daemon with the method <v1_method> has the parameters <params>
     And no request uses the method <v2_method>
@@ -28,14 +29,22 @@ Feature: workspace-v2-methods
       | renaming `notes` to `ideas` from its workspace menu | workspace.rename | workspace.rename.v2 | {"workspace_id": "notes", "label": "ideas"} |
       | dragging `notes` above `api` | workspace.move | workspace.move.v2 | {"workspace_id": "notes", "insert_index": 0} |
       | dragging the repository group of `docs` and its linked checkout `docs-fix` above `api` | workspace.move_block | workspace.move_block.v2 | {"workspace_ids": ["docs", "docs-fix"], "before_workspace_id": "api"} |
+      | dragging `web` above `api` | workspace.move_block | workspace.move_block.v2 | {"workspace_ids": ["web"], "before_workspace_id": "api"} |
       | opening the checkout `/src/api-fix` from `api`'s Open Worktree dialog | worktree.open | worktree.open.v2 | {"workspace_id": "api", "path": "/src/api-fix", "focus": true, "trust_repository": false} |
 
   # Covers: workspace-v2-methods / Workspace actions use the v2 method when the daemon advertises it / Workspace v2 methods 03 - an API error reply is shown and leaves the focused workspace
-  Scenario: Workspace v2 methods 03 - an API error reply is shown and leaves the focused workspace
-    Given a v2 session focused on the workspace `api`, whose daemon advertises `workspace.focus.v2`
-    When the user clicks the `scratch` sidebar row and the daemon answers the `workspace.focus.v2` request with the error code `workspace_not_found` and the message `workspace scratch not found`
+  Scenario Outline: Workspace v2 methods 03 - an API error reply is shown and leaves the focused workspace
+    Given a <codec> session focused on the workspace `api`, with the workspace `scratch`, whose daemon advertises <focus_method>
+    When the user clicks the `scratch` sidebar row and the daemon answers the <focus_method> request with the error code `workspace_not_found` and the message `workspace scratch not found`
     Then the window's status line shows `workspace scratch not found`
     And the snapshot's focused workspace stays `api`
+    And the window no longer waits for the focus change's surface activation
+    And the client does not reconnect to the daemon, including after the 5-second activation deadline would have passed
+
+    Examples:
+      | codec | focus_method |
+      | v2 | workspace.focus.v2 |
+      | v1 | workspace.focus |
 
   # Covers: workspace-v2-methods / The worktree open reply must match the method sent / Workspace v2 methods 04 - a reply of the matching type opens the workspace
   Scenario Outline: Workspace v2 methods 04 - a reply of the matching type opens the workspace

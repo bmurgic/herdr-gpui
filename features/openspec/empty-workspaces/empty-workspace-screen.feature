@@ -78,10 +78,10 @@ Feature: empty-workspace-screen
 
   # Covers: empty-workspace-screen / The screen lists one row per available workspace command / Empty workspace screen 08 - numbered rows name their target
   Scenario: Empty workspace screen 08 - numbered rows name their target
-    Given a connected v2 session focused on the empty workspace `scratch`, listed first, with the second workspace `api`, an agent in `api` whose name is absent and whose display name is `Claude`, a daemon that advertises `workspace.focus.v2` and `pane.focus`, and a keymap that binds the numbered workspace commands 1 and 2 and the numbered agent command 1 each to one key
+    Given a connected v2 session focused on the empty workspace `scratch`, listed first, with the second workspace `api`, an agent in `api` whose name is `reviewer`, whose display name is `Claude`, and whose agent kind is `claude-code`, a daemon that advertises `workspace.focus.v2` and `pane.focus`, and a keymap that binds the numbered workspace commands 1 and 2 and the numbered agent command 1 each to one key
     When the window draws
     Then the screen lists a row labelled `Switch to api` for the numbered workspace command 2
-    And a row labelled `Focus Claude` for the numbered agent command 1
+    And a row labelled `Focus reviewer` for the numbered agent command 1
     And no numbered workspace row for workspace 1, which is the focused one
 
   # Covers: empty-workspace-screen / Each row is shown only while its command can run / Empty workspace screen 09 - an unadvertised method hides its row
@@ -108,10 +108,11 @@ Feature: empty-workspace-screen
     Examples:
       | repository_state | shown_rows |
       | a repository parent, with a worktree record that is not a linked worktree | New Worktree, Open Worktree |
-      | a repository parent, with a branch and no worktree record | New Worktree, Open Worktree |
+      | a repository parent, with a repository record that is not a linked worktree and no worktree record | New Worktree, Open Worktree |
       | a linked checkout, with a worktree record that is a linked worktree | Delete Worktree Checkout |
-      | neither, with no worktree record and no branch | none |
-      | neither, with no worktree record and no branch, and a repository record that says it is a linked worktree | none |
+      | a linked checkout, with a repository record that is a linked worktree and no worktree record | none |
+      | a checkout with a branch and no repository or worktree record | none |
+      | neither, with no record and no branch | none |
 
   # Covers: empty-workspace-screen / Each row is shown only while its command can run / Empty workspace screen 11 - workspace navigation rows need a different reachable target
   Scenario Outline: Empty workspace screen 11 - workspace navigation rows need a different reachable target
@@ -145,16 +146,11 @@ Feature: empty-workspace-screen
     Then the client sends no request
     And the screen still shows the heading `No terminal tabs`
 
-  # Covers: empty-workspace-screen / Clicking a row or pressing its key runs the command / Empty workspace screen 14 - clicking a create row sends its request
-  Scenario Outline: Empty workspace screen 14 - clicking a create row sends its request
-    Given a connected v2 session focused on the empty workspace `scratch`, a daemon that advertises `workspace.create` and `tab.create`, and name prompts off for new tabs and new workspaces
-    When the user clicks the <row> row
-    Then the client sends <method> with <params>
-
-    Examples:
-      | row | method | params |
-      | New Tab | tab.create | {"workspace_id": "scratch", "focus": true} |
-      | New Workspace | workspace.create | {"focus": true, "source_workspace_id": "scratch"} |
+  # Covers: empty-workspace-screen / Clicking a row or pressing its key runs the command / Empty workspace screen 14 - clicking the New Tab row sends its request
+  Scenario: Empty workspace screen 14 - clicking the New Tab row sends its request
+    Given a connected v2 session focused on the empty workspace `scratch`, a daemon that advertises `tab.create`, and name prompts off for new tabs
+    When the user clicks the New Tab row
+    Then the client sends `tab.create` with `{"workspace_id": "scratch", "focus": true}`
 
   # Covers: empty-workspace-screen / Clicking a row or pressing its key runs the command / Empty workspace screen 15 - pressing a key on the screen runs the command
   Scenario: Empty workspace screen 15 - pressing a key on the screen runs the command
@@ -162,17 +158,18 @@ Feature: empty-workspace-screen
     When the user presses `cmd-t`
     Then the client sends `tab.create` with `{"workspace_id": "scratch", "focus": true}`
 
-  # Covers: empty-workspace-screen / Clicking a row or pressing its key runs the command / Empty workspace screen 16 - a create row opens its name prompt when prompting is on
-  Scenario Outline: Empty workspace screen 16 - a create row opens its name prompt when prompting is on
-    Given a connected v2 session focused on the empty workspace `scratch`, a daemon that advertises `workspace.create` and `tab.create`, and name prompts on for <prompted_for>
+  # Covers: empty-workspace-screen / Clicking a row or pressing its key runs the command / Empty workspace screen 16 - a create row opens its prompt before sending
+  Scenario Outline: Empty workspace screen 16 - a create row opens its prompt before sending
+    Given a connected v2 session with <workspace_state>, a daemon that advertises `workspace.create` and `tab.create`, and <prompt_setting>
     When the user clicks the <row> row
     Then the <prompt> opens
     And the client sends no <method> request until the prompt is submitted
 
     Examples:
-      | prompted_for | row | prompt | method |
-      | new tabs | New Tab | tab-name prompt | tab.create |
-      | new workspaces | New Workspace | workspace-name prompt | workspace.create |
+      | workspace_state | prompt_setting | row | prompt | method |
+      | the empty workspace `scratch` focused | name prompts on for new tabs | New Tab | tab-name prompt | tab.create |
+      | the empty workspace `scratch` focused | name prompts off for new workspaces | New Workspace | New Workspace directory prompt | workspace.create |
+      | no workspaces | name prompts off for new workspaces | New Workspace | New Workspace directory prompt | workspace.create |
 
   # Covers: empty-workspace-screen / A click on a row that is no longer current does nothing / Empty workspace screen 17 - a click after the state changed is dropped
   Scenario Outline: Empty workspace screen 17 - a click after the state changed is dropped
@@ -200,3 +197,9 @@ Feature: empty-workspace-screen
       | new-tab |
       | new-workspace |
       | focus-workspace |
+
+  # Covers: empty-workspace-screen / The sidebar names an agent the way the screen does / Empty workspace screen 19 - the sidebar row shows the agent's name first
+  Scenario: Empty workspace screen 19 - the sidebar row shows the agent's name first
+    Given a connected session with the workspace `api`, which holds an agent whose name is `reviewer`, whose display name is `Claude`, and whose agent kind is `claude-code`
+    When the sidebar draws its agent rows
+    Then that agent's row is labelled `reviewer`

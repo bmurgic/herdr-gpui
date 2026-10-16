@@ -35,7 +35,7 @@ The content area SHALL show the empty-workspace screen in place of the terminal 
 
 ### Requirement: The screen lists one row per available workspace command
 
-The screen SHALL list one row per workspace command that is bound to at least one key and available under the availability rule, in this order: Go To, New Workspace, New Worktree, Open Worktree, Delete Worktree Checkout, Rename Workspace, Close Workspace, Previous Workspace, Next Workspace, the numbered workspace commands 1 to 9, Previous Agent, Next Agent, the numbered agent commands 1 to 9, and New Tab. Each row SHALL have two required fields: the key text, which is every key bound to the command, in the keymap's order, joined by ` / `, and the label. The label SHALL be the command's name as listed above, except that a numbered workspace row SHALL read `Switch to <workspace label>` and a numbered agent row SHALL read `Focus <agent name>`, where the agent name is the name the sidebar shows for that agent. A command with no bound key SHALL get no row. The tab-only commands Next Tab, Previous Tab, Move Tab Left, Move Tab Right, Rename Tab, Close Tab, and the numbered tab commands SHALL never get a row.
+The screen SHALL list one row per workspace command that is bound to at least one key and available under the availability rule, in this order: Go To, New Workspace, New Worktree, Open Worktree, Delete Worktree Checkout, Rename Workspace, Close Workspace, Previous Workspace, Next Workspace, the numbered workspace commands 1 to 9, Previous Agent, Next Agent, the numbered agent commands 1 to 9, and New Tab. Each row SHALL have two required fields: the key text, which is every key bound to the command, in the keymap's order, joined by ` / `, and the label. The label SHALL be the command's name as listed above, except that a numbered workspace row SHALL read `Switch to <workspace label>` and a numbered agent row SHALL read `Focus <agent name>`, where the agent name is the agent's first non-blank field in the order `name`, `display_agent`, `agent`, `title`, which is also the name the sidebar shows for that agent. A command with no bound key SHALL get no row. The tab-only commands Next Tab, Previous Tab, Move Tab Left, Move Tab Right, Rename Tab, Close Tab, and the numbered tab commands SHALL never get a row.
 
 #### Scenario: Empty workspace screen 04 - rows appear in the fixed order
 - **GIVEN** a connected v2 session focused on the only workspace, `scratch`, which has no tabs, no repository record, and no worktree, with no agents, a daemon that advertises `workspace.create`, `tab.create`, `workspace.rename.v2`, `workspace.close`, and `workspace.focus.v2`, and a keymap that binds Go To, New Workspace, Rename Workspace, Close Workspace, Previous Workspace, Next Workspace, and New Tab each to one key
@@ -82,10 +82,10 @@ The screen SHALL list one row per workspace command that is bound to at least on
 | Focus Tab 1 |
 
 #### Scenario: Empty workspace screen 08 - numbered rows name their target
-- **GIVEN** a connected v2 session focused on the empty workspace `scratch`, listed first, with the second workspace `api`, an agent in `api` whose name is absent and whose display name is `Claude`, a daemon that advertises `workspace.focus.v2` and `pane.focus`, and a keymap that binds the numbered workspace commands 1 and 2 and the numbered agent command 1 each to one key
+- **GIVEN** a connected v2 session focused on the empty workspace `scratch`, listed first, with the second workspace `api`, an agent in `api` whose name is `reviewer`, whose display name is `Claude`, and whose agent kind is `claude-code`, a daemon that advertises `workspace.focus.v2` and `pane.focus`, and a keymap that binds the numbered workspace commands 1 and 2 and the numbered agent command 1 each to one key
 - **WHEN** the window draws
 - **THEN** the screen lists a row labelled `Switch to api` for the numbered workspace command 2
-- **AND** a row labelled `Focus Claude` for the numbered agent command 1
+- **AND** a row labelled `Focus reviewer` for the numbered agent command 1
 - **AND** no numbered workspace row for workspace 1, which is the focused one
 
 ### Requirement: Each row is shown only while its command can run
@@ -99,13 +99,13 @@ A command SHALL get a row only when its rule holds for the selected host's lates
 | New Tab | A workspace is focused and `tab.create` is advertised. |
 | Rename Workspace | A workspace is focused and `workspace.rename.v2` is advertised. |
 | Close Workspace | A workspace is focused and `workspace.close` is advertised. |
-| New Worktree | The focused workspace is a repository parent, and `worktree.list` and `worktree.create` are advertised. |
-| Open Worktree | The focused workspace is a repository parent, and `worktree.list` and `worktree.open.v2` are advertised. |
-| Delete Worktree Checkout | The focused workspace is a linked checkout, and `worktree.list` and `worktree.remove` are advertised. |
+| New Worktree | The focused workspace has a repository record or a worktree record and is not a linked checkout, and `worktree.list` and `worktree.create` are advertised. |
+| Open Worktree | The focused workspace has a repository record or a worktree record and is not a linked checkout, and `worktree.list` and `worktree.open.v2` are advertised. |
+| Delete Worktree Checkout | The focused workspace's worktree record says it is a linked worktree, and `worktree.list` and `worktree.remove` are advertised. |
 | Previous Workspace, Next Workspace, numbered workspace | The command's sidebar step lands on a workspace other than the focused one, the target's host advertises the focus method the client would send, and the target has an active tab or that method is `workspace.focus.v2`. |
 | Previous Agent, Next Agent, numbered agent | The command's sidebar step lands on an agent, and the target's host advertises `pane.focus`. |
 
-A workspace SHALL be a linked checkout when its worktree record says it is a linked worktree, and a repository parent when it is not a linked checkout and has a worktree record or a branch. The v2 repository record SHALL NOT decide either. Hiding a row SHALL NOT unbind the command's key: pressing it runs the command as it runs today.
+A workspace SHALL be a linked checkout when its worktree record or its v2 repository record says it is a linked worktree. A branch alone SHALL NOT show New Worktree or Open Worktree. Hiding a row SHALL NOT unbind the command's key: pressing it runs the command as it runs today.
 
 #### Scenario: Empty workspace screen 09 - an unadvertised method hides its row
 - **GIVEN** a connected v2 session focused on the empty workspace `scratch`, which is a repository parent, with every method in the rule table advertised except <missing_method>
@@ -131,10 +131,11 @@ A workspace SHALL be a linked checkout when its worktree record says it is a lin
 | repository_state | shown_rows |
 | --- | --- |
 | a repository parent, with a worktree record that is not a linked worktree | New Worktree, Open Worktree |
-| a repository parent, with a branch and no worktree record | New Worktree, Open Worktree |
+| a repository parent, with a repository record that is not a linked worktree and no worktree record | New Worktree, Open Worktree |
 | a linked checkout, with a worktree record that is a linked worktree | Delete Worktree Checkout |
-| neither, with no worktree record and no branch | none |
-| neither, with no worktree record and no branch, and a repository record that says it is a linked worktree | none |
+| a linked checkout, with a repository record that is a linked worktree and no worktree record | none |
+| a checkout with a branch and no repository or worktree record | none |
+| neither, with no record and no branch | none |
 
 #### Scenario: Empty workspace screen 11 - workspace navigation rows need a different reachable target
 - **GIVEN** a connected v2 session focused on the empty workspace `scratch`, with the other workspaces <other_workspaces>, a daemon that advertises <focus_methods>, and a keymap that binds Previous Workspace and Next Workspace each to one key
@@ -169,35 +170,30 @@ A workspace SHALL be a linked checkout when its worktree record says it is a lin
 
 ### Requirement: Clicking a row or pressing its key runs the command
 
-A click on a row SHALL run the row's command exactly as the command's key does, so a click sends nothing wherever the key would send nothing, such as while a menu is open or while the window waits for surface activation. While the screen is shown, the window SHALL keep keyboard focus, so pressing a command's key runs that command. New Tab SHALL send `tab.create` with `{"workspace_id": <focused workspace id>, "focus": true}`, or open the tab-name prompt when prompting for new tab names is on. New Workspace SHALL send `workspace.create` with `{"focus": true}`, plus `"source_workspace_id": <focused workspace id>` when a workspace is focused, or open the workspace-name prompt when prompting for new workspace names is on and a workspace is focused.
+A click on a row SHALL run the row's command exactly as the command's key does, so a click sends nothing wherever the key would send nothing, such as while a menu is open or while the window waits for surface activation. While the screen is shown, the window SHALL keep keyboard focus, so pressing a command's key runs that command. New Tab SHALL send `tab.create` with `{"workspace_id": <focused workspace id>, "focus": true}`, or open the tab-name prompt when prompting for new tab names is on. New Workspace SHALL open the New Workspace directory prompt, with or without a focused workspace, as the New Workspace command does everywhere.
 
-#### Scenario: Empty workspace screen 14 - clicking a create row sends its request
-- **GIVEN** a connected v2 session focused on the empty workspace `scratch`, a daemon that advertises `workspace.create` and `tab.create`, and name prompts off for new tabs and new workspaces
-- **WHEN** the user clicks the <row> row
-- **THEN** the client sends <method> with <params>
-
-##### Examples
-| row | method | params |
-| --- | --- | --- |
-| New Tab | tab.create | {"workspace_id": "scratch", "focus": true} |
-| New Workspace | workspace.create | {"focus": true, "source_workspace_id": "scratch"} |
+#### Scenario: Empty workspace screen 14 - clicking the New Tab row sends its request
+- **GIVEN** a connected v2 session focused on the empty workspace `scratch`, a daemon that advertises `tab.create`, and name prompts off for new tabs
+- **WHEN** the user clicks the New Tab row
+- **THEN** the client sends `tab.create` with `{"workspace_id": "scratch", "focus": true}`
 
 #### Scenario: Empty workspace screen 15 - pressing a key on the screen runs the command
 - **GIVEN** a connected v2 session focused on the empty workspace `scratch`, whose screen is shown, a daemon that advertises `tab.create`, name prompts off for new tabs, and a keymap that binds New Tab to `cmd-t`
 - **WHEN** the user presses `cmd-t`
 - **THEN** the client sends `tab.create` with `{"workspace_id": "scratch", "focus": true}`
 
-#### Scenario: Empty workspace screen 16 - a create row opens its name prompt when prompting is on
-- **GIVEN** a connected v2 session focused on the empty workspace `scratch`, a daemon that advertises `workspace.create` and `tab.create`, and name prompts on for <prompted_for>
+#### Scenario: Empty workspace screen 16 - a create row opens its prompt before sending
+- **GIVEN** a connected v2 session with <workspace_state>, a daemon that advertises `workspace.create` and `tab.create`, and <prompt_setting>
 - **WHEN** the user clicks the <row> row
 - **THEN** the <prompt> opens
 - **AND** the client sends no <method> request until the prompt is submitted
 
 ##### Examples
-| prompted_for | row | prompt | method |
-| --- | --- | --- | --- |
-| new tabs | New Tab | tab-name prompt | tab.create |
-| new workspaces | New Workspace | workspace-name prompt | workspace.create |
+| workspace_state | prompt_setting | row | prompt | method |
+| --- | --- | --- | --- | --- |
+| the empty workspace `scratch` focused | name prompts on for new tabs | New Tab | tab-name prompt | tab.create |
+| the empty workspace `scratch` focused | name prompts off for new workspaces | New Workspace | New Workspace directory prompt | workspace.create |
+| no workspaces | name prompts off for new workspaces | New Workspace | New Workspace directory prompt | workspace.create |
 
 ### Requirement: A click on a row that is no longer current does nothing
 
@@ -219,7 +215,7 @@ Each row SHALL remember, when it is drawn, the selected host, the snapshot's boo
 
 ### Requirement: The change adds no command-line command
 
-This change SHALL NOT add a `herdr-gpui` command-line command, including for the empty-workspace screen. Creating, focusing, renaming, and listing workspaces and tabs belong to Herdr's own `herdr` command line, and the existing `herdr-gpui run` and `herdr-gpui tab` commands keep their current behavior. The `app` command family SHALL keep refusing any verb other than its existing verbs as an unknown command, and SHALL send nothing to a running app.
+This change SHALL NOT add a `herdr-gpui` command-line command, including for the empty-workspace screen. Creating, focusing, renaming, and listing workspaces and tabs belong to Herdr's own `herdr` command line. The existing `herdr-gpui run` and `herdr-gpui tab` commands keep their current behavior, except that `herdr-gpui run new_workspace` runs the New Workspace command as its key does, so it opens the New Workspace directory prompt in the app. The `app` command family SHALL keep refusing any verb other than its existing verbs as an unknown command, and SHALL send nothing to a running app.
 
 #### Scenario: Empty workspace screen 18 - an empty-workspace action on the command line is refused
 - **GIVEN** a running herdr-gpui window focused on the empty workspace `scratch`
@@ -233,3 +229,12 @@ This change SHALL NOT add a `herdr-gpui` command-line command, including for the
 | new-tab |
 | new-workspace |
 | focus-workspace |
+
+### Requirement: The sidebar names an agent the way the screen does
+
+Every place that shows an agent's name through the sidebar's agent name, including the sidebar's agent rows, the rail's agent tooltip, the palette's Go To rows and preview, and the devices overview, SHALL use the agent's first non-blank field in the order `name`, `display_agent`, `agent`, `title`, and `agent` when all four are blank. The sidebar's `agent` row token SHALL take the first field that is present, in the same order.
+
+#### Scenario: Empty workspace screen 19 - the sidebar row shows the agent's name first
+- **GIVEN** a connected session with the workspace `api`, which holds an agent whose name is `reviewer`, whose display name is `Claude`, and whose agent kind is `claude-code`
+- **WHEN** the sidebar draws its agent rows
+- **THEN** that agent's row is labelled `reviewer`

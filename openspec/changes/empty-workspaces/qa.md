@@ -17,6 +17,7 @@ Shared starting state for the desktop procedures:
 - A myherdr daemon built from `/Users/bmurgic/Development/Personal/myherdr` at commit `ce3c3900` or later, running as the local Herdr session herdr-gpui connects to.
 - For the stock-Herdr step, a stock Herdr daemon (0.9.1 or later) that the tester can start in place of myherdr.
 - A git repository at `/tmp/ew-repo` with one commit, so worktree actions have a repository.
+- A folder `/tmp/ew-repo/docs` inside that repository.
 
 ## Feature: Shell snapshot v2
 
@@ -83,9 +84,9 @@ Shared starting state for the desktop procedures:
 - `empty-workspace-screen / The content area shows the empty-workspace screen / Empty workspace screen 03 - a resize while the screen shows updates the surface size`
 - `empty-workspace-screen / The screen lists one row per available workspace command / Empty workspace screen 05 - the key text joins every bound key`
 - `empty-workspace-screen / The screen lists one row per available workspace command / Empty workspace screen 07 - a tab-only command never gets a row`
-- `empty-workspace-screen / Clicking a row or pressing its key runs the command / Empty workspace screen 14 - clicking a create row sends its request`
+- `empty-workspace-screen / Clicking a row or pressing its key runs the command / Empty workspace screen 14 - clicking the New Tab row sends its request`
 - `empty-workspace-screen / Clicking a row or pressing its key runs the command / Empty workspace screen 15 - pressing a key on the screen runs the command`
-- `empty-workspace-screen / Clicking a row or pressing its key runs the command / Empty workspace screen 16 - a create row opens its name prompt when prompting is on`
+- `empty-workspace-screen / Clicking a row or pressing its key runs the command / Empty workspace screen 16 - a create row opens its prompt before sending`
 
 **User interface**
 - Desktop application (herdr-gpui window) with the myherdr daemon.
@@ -105,11 +106,13 @@ Shared starting state for the desktop procedures:
 4. Close that tab, turn on the setting that asks for a name for new tabs, and click the `New Tab` row.
    - **Observe:** The tab-name prompt opens. No tab opens until the prompt is submitted.
 5. Cancel the prompt and click the `New Workspace` row.
-   - **Observe:** A new workspace appears in the sidebar and is selected.
-6. Close every workspace from its workspace menu.
+   - **Observe:** The New Workspace dialog opens with the text `~/`, and no new workspace appears in the sidebar.
+6. Replace the text with `/tmp/ew-repo` and press Return.
+   - **Observe:** The dialog closes, and a new workspace appears in the sidebar and is selected.
+7. Close every workspace from its workspace menu.
    - **Observe:** The content area shows the heading `No workspaces` and a `New Workspace` row.
-7. Click the `New Workspace` row.
-   - **Observe:** A new workspace appears in the sidebar.
+8. Click the `New Workspace` row, replace the text with `/tmp/ew-repo`, and press Return.
+   - **Observe:** The dialog opens before anything is created, and after Return a new workspace appears in the sidebar.
 
 ### QA procedure: Empty workspace actions stay off the command line
 
@@ -137,6 +140,7 @@ Shared starting state for the desktop procedures:
 - `empty-workspace-screen / Each row is shown only while its command can run / Empty workspace screen 10 - worktree rows follow the workspace's repository`
 - `empty-workspace-screen / Each row is shown only while its command can run / Empty workspace screen 11 - workspace navigation rows need a different reachable target`
 - `empty-workspace-screen / Each row is shown only while its command can run / Empty workspace screen 12 - agent navigation rows need an agent and pane focus`
+- `empty-workspace-screen / The sidebar names an agent the way the screen does / Empty workspace screen 19 - the sidebar row shows the agent's name first`
 
 **User interface**
 - Desktop application (herdr-gpui window) with the myherdr daemon.
@@ -148,7 +152,7 @@ Shared starting state for the desktop procedures:
 **Procedure**
 
 1. Click the `scratch` row in the sidebar.
-   - **Observe:** The content area shows `No terminal tabs`. The rows read, in order: `Go To`, `New Workspace`, `New Worktree`, `Open Worktree`, `Rename Workspace`, `Close Workspace`, `Previous Workspace`, `Next Workspace`, a `Switch to api` row, `Previous Agent`, `Next Agent`, a `Focus <agent name>` row, and `New Tab`. No row offers to switch to `scratch` itself.
+   - **Observe:** The content area shows `No terminal tabs`. The rows read, in order: `Go To`, `New Workspace`, `New Worktree`, `Open Worktree`, `Rename Workspace`, `Close Workspace`, `Previous Workspace`, `Next Workspace`, a `Switch to api` row, `Previous Agent`, `Next Agent`, a `Focus <agent name>` row, and `New Tab`. No row offers to switch to `scratch` itself. The agent name on the `Focus` row is the same text as the agent's row in the sidebar.
 2. Click the `Switch to api` row.
    - **Observe:** `api` is selected in the sidebar and its terminal shows.
 3. Click the `scratch` row in the sidebar again, then click `Rename Workspace`.
@@ -157,3 +161,50 @@ Shared starting state for the desktop procedures:
    - **Observe:** The agent's pane in `api` is focused.
 5. Click the `scratch` row again and click `Close Workspace`.
    - **Observe:** The close confirmation, or the close itself, runs for `scratch` as it does from the workspace menu.
+
+## Feature: New workspace directory
+
+### QA procedure: New Workspace asks for a directory
+
+**Covers**
+- `new-workspace-directory / New Workspace asks for a directory first / New workspace directory 01 - the directory prompt opens first`
+- `new-workspace-directory / The prompt suggests folders on a local host / New workspace directory 03 - suggestions rank by how the name matches`
+- `new-workspace-directory / The prompt suggests folders on a local host / New workspace directory 04 - Tab completes the selected folder`
+- `new-workspace-directory / Submitting the directory creates the workspace or asks for a name / New workspace directory 07 - an accepted directory is sent in the form the daemon reads`
+- `new-workspace-directory / Submitting the directory creates the workspace or asks for a name / New workspace directory 08 - a refused directory keeps the prompt open`
+- `new-workspace-directory / Submitting the directory creates the workspace or asks for a name / New workspace directory 10 - Escape sends nothing`
+- `new-workspace-directory / The name prompt proposes a label for the chosen directory / New workspace directory 11 - the name prompt proposes the repository's name`
+- `new-workspace-directory / The name prompt proposes a label for the chosen directory / New workspace directory 12 - the name sent follows the proposal`
+
+**User interface**
+- Desktop application (herdr-gpui window) on macOS or Linux, with the myherdr daemon, then the stock Herdr daemon.
+
+**Starting state**
+- herdr-gpui is connected to the myherdr daemon as the local session, with the workspace `api` focused.
+- The tester's home folder holds at least one folder whose name starts with `D`, such as `Documents` or `Desktop`.
+- The setting that asks for a name for new workspaces is off.
+
+**Procedure**
+
+1. Press the New Workspace key (`cmd-shift-n` on macOS, or the key the File menu shows for New Workspace).
+   - **Observe:** The New Workspace dialog opens with the text `~/`, and no new workspace appears in the sidebar.
+2. Type `d`.
+   - **Observe:** The dialog lists folders from the home folder whose names contain `d`, with names that start with `d` or `D` above the others, and the first one highlighted.
+3. Press Down, then Tab.
+   - **Observe:** The text becomes `~/` followed by the highlighted folder's name, with no `/` at the end.
+4. Replace the text with `code/api` and press Return.
+   - **Observe:** The dialog stays open and shows `Enter an absolute directory or a path starting with ~/`.
+5. Replace the text with `~/no-such-folder-ew` and press Return.
+   - **Observe:** The dialog stays open and shows `That directory does not exist.`.
+6. Press Escape.
+   - **Observe:** The dialog closes and no new workspace appears.
+7. Open the dialog again, replace the text with `~/` followed by the name of an existing home folder, and press Return.
+   - **Observe:** The dialog closes, a new workspace appears in the sidebar and is selected, and its terminal's working directory is that folder (`pwd` prints it).
+8. Turn on the setting that asks for a name for new workspaces. Open the dialog, replace the text with `/tmp/ew-repo/docs`, and press Return.
+   - **Observe:** A name prompt opens with `ew-repo` selected. No new workspace appears yet.
+9. Type `Docs` and press Return.
+   - **Observe:** A workspace named `Docs` appears in the sidebar and is selected, and `pwd` in its terminal prints `/tmp/ew-repo/docs`.
+10. Turn the name setting off. Quit herdr-gpui, stop the myherdr daemon, start the stock Herdr daemon with one workspace `api`, and start herdr-gpui.
+    - **Observe:** The window connects and shows the `api` terminal.
+11. Open the dialog, replace the text with `~/` followed by the name of an existing home folder, and press Return.
+    - **Observe:** A new workspace appears, and `pwd` in its terminal prints that folder's full path, not the home folder.

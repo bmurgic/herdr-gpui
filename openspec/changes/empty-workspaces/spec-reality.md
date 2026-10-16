@@ -430,3 +430,297 @@ I checked each lead against the cited lines in the worktree. The empty-workspace
 | LEAD-9 (click inherits the key's silent guards) | Survives as a wording fix. | Requirement 4 now says a click sends nothing wherever the key would send nothing, such as while a menu is open or while surface activation is pending. |
 | LEAD-10 (agent-name order differs from the sidebar) | Survives. `agent_name` orders `display_agent` before `name` (`sidebar/agents.rs:135-146`). | Requirement 2 now uses the name the sidebar shows. D7 reuses `agent_name`. This departs from myherdr's order, so it is listed for Brandon. |
 | LEAD-11 (Go To availability uses the sidebar's folded list) | Survives for Go To only. The navigation rows use the same `step` over `sidebar_workspaces` that the commands use (`sidebar/order.rs:38-105`), so their rule matches their command. | The Go To rule now reads "the selected host's snapshot has at least one workspace". D8 is updated. |
+
+#### Brandon's rulings on Round 1
+
+Brandon ruled on the 20 items `design.md` listed for him. The fixes for items 1, 2, 3, 5, 6, 7, 9, 10, 13, 14, 15, 16, 17, 18, and 20 stand as written above. Five rulings changed the fix:
+
+- **Item 4** (workspace-v2-methods LEAD-2), reversed. When the daemon refuses a focus request, the status line shows the daemon's message and the activation fence clears, with no 5-second wait and no reconnect, on v1 and v2. Requirement 1, scenario 03, and D4 now say so.
+- **Item 8** (workspace-v2-methods LEAD-6). The fix stands, and a lone drop now also follows myherdr's shape rule: a workspace with a `worktree` record moves as a one-id block. Requirement 1, scenarios 01 and 02, and D14 now say so.
+- **Item 11** (empty-workspace-screen LEAD-1), reversed. The worktree rows follow myherdr's `worktree_action_context`, which reads the v2 `repository` record, and the handlers accept a repository-only workspace. Requirement 3, scenario 10, D8, and D16 now say so.
+- **Item 12** (empty-workspace-screen LEAD-2), reversed. New Workspace follows myherdr's flow: a directory prompt first, then a name prompt when Herdr's setting asks for one, with no focused workspace needed. The new capability `new-workspace-directory` and D15 describe it.
+- **Item 19** (empty-workspace-screen LEAD-10), reversed. The screen and the sidebar's `agent_name` and `agent_names` use myherdr's screen order: name, display name, agent, title. Requirement 2, the new sidebar requirement, and D7 now say so.
+
+## Round 2
+
+Brandon's ruling on item 12 added the delta spec `specs/new-workspace-directory/spec.md`, so one `validator-spec-reality` checker ran on it. Its facts and leads follow verbatim; only their heading levels are lowered by two to fit this file.
+
+### Checker report: `specs/new-workspace-directory/spec.md`
+
+#### Facts
+
+Paths: S = /Users/bmurgic/.herdr/worktrees/herdr-gpui/feat-empty-workspaces/openspec/changes/empty-workspaces/specs/new-workspace-directory/spec.md. R = /Users/bmurgic/.herdr/worktrees/herdr-gpui/feat-empty-workspaces. G = R/crates/herdr-gpui/src. M = /Users/bmurgic/Development/Personal/myherdr. ST = /Users/bmurgic/Development/Personal/herdr-worktrees/task-3-fd-baseline-4860d477, read as `git show origin/master:...`.
+
+Inputs: D15 and D16 are now in design.md (D15 is the new-workspace-directory design). tasks.md has no task for this spec (spec-time, by design).
+
+Stock ref caveat: ST's origin is `https://github.com/bmurgic/herdr.git`, and origin/master is f70a1f83 ("fix(windows): reject dynamic msvc runtime in packaging (#4200)"). I read it as stock Herdr but cannot prove it equals upstream. The checkout at /Users/bmurgic/Development/Personal/herdr-worktrees/task-3-fd-current-e3281680 is a detached myherdr-derived commit (7113e858), not stock.
+
+##### Req 1: New Workspace asks for a directory first (S:3-23)
+
+**Inventory:**
+- Nouns evaluated at runtime: "selected host connected", "advertises `workspace.create`", "window waiting for surface activation", "focused workspace".
+- Literals: initial text `~/`; no-op when `workspace.create` is not advertised.
+- Scenarios 01 (two focus_state rows) and 02.
+
+**Groundings:**
+- Connected: `live.status.is_connected()`, used at `G/menu/workspace/requests.rs:305`. It is not checked on today's `command()` path, so the new page must add it. Grounded.
+- Advertised methods: `LiveState` has no `methods` field today. `G/state.rs:472-491` reads `welcome.methods` into per-method bools only. Grounded by the planned change (design.md D4, tasks.md:46 task 2.1 "store the welcome's methods as `LiveState.methods`"). I accept the spec's own declaration as ground.
+- Activation wait: `G/window/commands.rs:407-410`, `activation_deadline.is_some() || !surface_requested()`. `surface_requested()` is `endpoint.rs:170`, a hello flag, not a connection state. Grounded.
+- Focused workspace id: `snapshot.focused_workspace_id`, `crates/herdr-protocol/src/wire.rs:324`. Grounded.
+- Initial text `~/`: static copy.
+
+**Entry points.** I read each of these and all reach `HerdrWindow::command(Command::Workspace)`:
+- Key and prefix: `G/keymap/daemon.rs:72-73`, `G/window/prefix.rs:88,148`, `G/window/render.rs:763`.
+- File menu: `G/menus.rs:111-116`.
+- Sidebar button: `G/sidebar/render.rs:685`.
+- Rail button: `G/sidebar/rail.rs:433`.
+- Palette: `G/palette/activate.rs:62-66` (dismisses the menu, then `command`).
+- `herdr-gpui run new_workspace`: `G/control/server/app.rs:274-290` via `in_free_window` (`G/control/server.rs:208-221`). It returns `WindowBusy` if a menu page is open and otherwise always `Response::done("Ran New Workspace")`, even when nothing opened.
+- Empty-screen row: sibling spec, scenario 16.
+- Not through `Command::Workspace` (they send `workspace.create` directly): `G/palette/project_open.rs:149-151`, `G/menu/devices/add_device.rs:700`, `G/smoke.rs:130`.
+- Tab-strip `+` is `Command::Tab`, not this command.
+
+**Callers of `controls::request`.** I ran `rg -n 'controls::request|request\(command' G`:
+- `G/window/commands.rs:~413`, the generic send. The Workspace arm lived only here.
+- `G/close_modal.rs:62`, which only handles ClosePane and CloseTab.
+- Tests.
+
+So D15's claim that the Workspace arm "loses its last caller" holds.
+
+**`open_name_prompt`** (`G/menu/workspace.rs:433-470`) has `Command::Workspace if prompts.workspace` at :448 and a hard `focused_workspace_id` requirement at :457-462. Both go away under the spec.
+
+**Scenario 02:** reachable. The guard is simply not opening.
+
+##### Req 2: The prompt suggests folders on a local host (S:25-48)
+
+**Inventory:**
+- Nouns: home directory, directory listing, "local host".
+- Closed vocabulary: the ranking groups (3), `Cannot read folders: ` (prefix only).
+- Constants: 6 visible rows, Up/Down, Tab.
+- Scenarios 03, 04, 05, 06.
+
+**Groundings:**
+- Home: `crate::config::home()`, `G/config.rs:542` (HOME, plus USERPROFILE on Windows; `Err(MissingHome)` if unset). Grounded. The unset case is unspecified (M: `worktree.rs:65-80` leaves `~/` unexpanded, so there is no listing and no error).
+- Local host:
+  - Ground is `selected_endpoint == 0 && live.local_daemon_peer` (`G/menu/worktree_source.rs:621-633`).
+  - `local_daemon_peer` is set at `G/connection.rs:178-190`. It is true only for `LocalPeer::Trusted`, which exists only on macOS/Linux for the standard session socket (`G/daemon.rs:17-23`, `:120-148`).
+  - Windows is always `Unverified` (`daemon.rs:144-147`). Explicit or forwarded sockets are `Unverified`. A rejected peer is false.
+  - The spec's definition ("daemon peer on this computer") is wider than this flag. See LEAD-2.
+
+**Scenario 03:** checked by hand against M's `ranked_matches` (`M/src/client/shell/directory_suggestions.rs:82-104`). It sorts on `(rank, lowercase, name)`.
+- Children matching `p`: `photos` (rank 0), `Projects` (rank 1), `.pyenv` (rank 2, lowercase `.pyenv`), `api-projects` (rank 2).
+- `notes` is excluded (no `p`) and `plan.txt` is excluded (a file).
+- `.` (0x2e) sorts before `a`, so the result is photos, Projects, .pyenv, api-projects. **Matches the spec.**
+
+**Scenario 04:** M's `completion()` (`:62-67`) is `parent + matches[selected]`. For `~/p` the parent is `~/`, so Down then Tab gives `~/Projects`. **Matches.**
+- Tab then calls `refresh(&path)` (`overlay_input.rs:969-975`): the selection resets to 0 and the list becomes the matches for `Projects`.
+- M does not wrap at the ends: `move_selection` clamps (`:56-61`).
+- `visible_start` scrolls so the selection stays visible (`:69-71`).
+- Tab with no matches is a no-op.
+- M caches children per parent text and does not re-read the disk while the parent is unchanged (`:30-41`).
+- Scenario 04's GIVEN does not state the folder contents.
+
+**Scenario 05:** `/no-such-folder/x` gives parent `/no-such-folder/`. It is absolute, so `read_dir` fails with "No such file or directory (os error 2)", and M formats `Cannot read folders: {error}` (`:37-39`). **The prefix is reachable.**
+- A parent that is not absolute (text with no `/`, or `code/`) clears the children, shows no error, and lists nothing (`:24-41`, `:34-38`). The spec is silent.
+
+**Scenario 06 and remote hosts.** M has no endpoint check anywhere in `DirectorySuggestions::refresh`, `validate_workspace_directory_input` or `open_new_workspace_overlay` (`overlay_input.rs:3-13`, `:346-359`).
+- On a remote endpoint, M lists and checks the CLIENT machine's disk, with `~` expanded from the client's HOME.
+- Spec 06 and 09 deliberately depart from M. design.md D15 says so, but its "Open for Brandon 2" pointer is dangling (LEAD-7).
+
+**Read-side detail:**
+- Listing keeps directories only (`entry.path().is_dir()`, so symlinks to directories count).
+- Non-UTF-8 names are skipped.
+- Hidden folders are included.
+- There is no entry cap in M. D15 adds a 4,096-entry cap the spec does not state (LEAD-4).
+
+##### Req 3: Submitting the directory creates the workspace or asks for a name (S:50-88)
+
+**Inventory:**
+- Nouns: the typed text, home (for the local existence check), the name-prompt setting, the focused workspace id.
+- Closed vocabulary (the message literals): `Enter an absolute directory or a path starting with ~/` and `That directory does not exist.`.
+- Writes: the `workspace.create` params `cwd`, `focus`, `source_workspace_id`.
+- Scenarios 07, 08 (3 rows), 09, 10.
+
+**Groundings:**
+- Name-prompt setting: `G/herdr_settings.rs:135-146` (`NamePrompts`, default `workspace: false`), parsed at `:472-476` from `ui.prompt_new_workspace_name`, read via `self.settings.shared` (`G/menu/workspace.rs:441-446`).
+  - It is the local shared Herdr config and applies to every host, remote included. The spec does not say so.
+  - When `shared` is `None`, the default is false.
+- Focused workspace id: `wire.rs:324`.
+
+**Form check and message literals.** Verbatim match with M `overlay_input.rs:3-13`: `trimmed.starts_with('/') || == "~" || starts_with("~/")`. `That directory does not exist.` is M's `!path.is_dir()` after `expand_tilde_path`.
+
+**Send and the name step.**
+- M's send is `{cwd: trimmed, focus: true, source_workspace_id}` with `label: None` (`overlay_input.rs:1038-1050`).
+- M's `NewWorkspace` name step sends `label` only if `!trimmed.is_empty() && trimmed != suggested_name` (`:1062-1068`). The spec matches.
+- M captures `source_workspace_id` at open (`workspace_action_id()`, `:346-347`). The spec's "when a workspace is focused" does not say at open or at submit.
+
+**Daemon behaviour for `cwd`, which matters most for scenarios 07 and 09:**
+- **myherdr daemon** (`M/src/app/api/workspaces.rs:13-22`, `:68-90`):
+  - Calls `expand_tilde_path(value.trim())`.
+  - Refuses a path that is not absolute with code `invalid_workspace_directory` and message "workspace directory must be an absolute path or start with ~/".
+  - Refuses a non-directory with "workspace directory must exist and be a directory".
+  - `~` and `~/` expand via HOME (`M/src/worktree.rs:65-80`). I confirmed the validator exists at pinned commit ce3c3900 (`git -C M show ce3c3900:src/app/api/workspaces.rs`, lines 13, 88).
+- **Stock Herdr (origin/master):**
+  - `src/app/api/workspaces.rs:58`: `let cwd = params.cwd.map(PathBuf::from).unwrap_or_else(...)`. No tilde expansion and no validation. `git grep invalid_workspace_directory origin/master -- src` returns nothing.
+  - The path goes straight to `create_workspace_with_launch_env` (`src/app/creation.rs:126+`) and then `cmd.cwd(...)` (`src/pane.rs:2012`).
+  - `vendor/portable-pty/src/cmdbuilder.rs:551-561` (Unix) does `.filter(|dir| Path::new(dir).is_dir()).unwrap_or(home)`, and `:665-666` does the same on Windows.
+  - So a literal `~/code/api` becomes a nonexistent relative path, and the shell silently starts in HOME. There is no error, and the workspace is recorded with the literal `~/code/api` path (inferred from reading the code; I did not run it).
+
+**Both daemons ignore `source_workspace_id` when `cwd` is set:**
+- myherdr: `workspaces.rs:73-75`.
+- Stock: `src/app/api/workspaces.rs:44-46`.
+
+**Refusal matrix, Enter on the directory prompt:**
+
+| Message / outcome | Defined in | Trigger | Distinguishable from others |
+|---|---|---|---|
+| Form message | Req 3 (S:52) | trimmed text not `~`, `/…`, `~/…`, on any host | Yes. Runs first. |
+| `That directory does not exist.` | Req 3 (S:52) | form OK, local host only, expanded path `!is_dir()` | Disjoint from the form message (needs form OK). Also fires for an existing FILE, an unreadable path or an unset HOME; the text is then false (LEAD-11). |
+| `invalid_workspace_directory` (two texts) | design D15, not in the spec | after send, myherdr only; stock sends no such code | Not in the spec at all; scenario 09 checks only the send. |
+| `Cannot read folders: …` | Req 2 | live listing error, a separate display | Can co-occur with the submit message. Display precedence is unstated. |
+
+**Command-level no-open conditions** (Req 1): not connected, `workspace.create` not advertised, `activation_deadline` set, `!surface_requested()`, a menu page already open (`command()` returns early at `G/window/commands.rs:209-211`). None has its own message, so there is nothing to distinguish. Disconnect implies `methods` is cleared, so they collapse, which is harmless.
+
+**Scenario 09:** reachable. A remote host gets no existence check, so the request is sent.
+- If the daemon refuses, the prompt is already closed and `fence_focus_change(None)` has already run.
+- I checked the fence. `M/src/server/headless/surface_interest.rs:21-33` shows every `active: true` surface.set bumps the projection revision and requests a repaint, so a frame follows even when nothing changed. A refused create therefore clears the fence normally and does not time out into a reconnect. No lead.
+
+**Write-read pairing:**
+- `cwd`: read by both daemons.
+- `focus`: read by both daemons.
+- `label`: both daemons call `set_custom_name`.
+- `source_workspace_id`: NONE (see LEAD-5).
+
+##### Req 4: The name prompt proposes a label (S:90-109)
+
+**Inventory:**
+- Nouns: the proposal (derived), the nearest `.git` folder, the home dir.
+- Vocabulary: `~`, folder name.
+- Behaviours: host picker, dispatch job.
+- Scenarios 11, 12 (2 rows).
+
+**M's `derive_label_from_cwd`** (`M/src/workspace/git/discovery.rs:24-72`) is called on the RAW, unexpanded text (`overlay_input.rs:1011`).
+- For `~/code/api`: `git_repo_root` sees a relative path that is not a directory, so it starts at the parent `~/code` and pops its way up. It ends up probing `.git` relative to the CLIENT process's cwd. Repo detection effectively fails, and `fallback_label_from_cwd` returns the file name, `api`.
+- For `~` and `~/`: both give `~`.
+- For absolute paths, the real repo walk applies.
+- So M proposes the leaf folder for every `~/…` path, never the repository name. The spec and D15 deliberately expand `~` first, so `~/src/herdr/docs` proposes `herdr` where M proposes `docs`.
+- M's repo test (`discovery.rs:311-329`, `:198-220`):
+  - A folder counts only if `git_dir_for_repo_root(dir)/HEAD` is a file.
+  - A `.git` directory, a `.git` file with `gitdir:`, or a bare layout (HEAD, objects, refs, bare=true) all qualify.
+  - A bare `.git` directory without HEAD is ignored (test `discovery.rs:637-646`).
+- The spec's "holds a `.git` entry" is looser than that (LEAD-8).
+
+**Other hosts.** The proposal is `suggested_workspace_name(cwd)` (`G/menu/workspace.rs:284-291`): trailing `/` trimmed, last segment, `/` for root.
+- `~` and `~/` give `~`.
+- Root `/` gives `/`, which the spec does not define.
+
+**Host picker.**
+- Today the picker opens only when `menu.dispatch_repo()` finds the target workspace's `worktree` record (`G/menu/workspace.rs:~649-660`, `G/menu/workspace/dispatch.rs`).
+- `submit_dispatch` needs `menu.target` (with its `worktree`), `menu.input` and `menu.suggested_name` (`dispatch.rs:48-66`). `Job::workspace(origin, destination, label)` opens the repository's main checkout on the other host and ignores the chosen directory.
+- `render_workspace_dialog` returns nothing without `menu.target` (D15 says so).
+- `poll_dispatch` keeps the picker only for `Page::Dialog(NewWorktree|NewWorkspace)` (`G/dispatch/hosts.rs:147-157`), so it needs a change for the new page.
+- The repository the picker offers comes from the FOCUSED workspace, not from the chosen directory.
+
+**Existing staleness check D15 cites** (`G/menu/workspace/requests.rs:131-143`):
+- It returns early at `:128` unless `menu.deletion` or `menu.creation` is set. The new page sets neither, so the check never fires.
+- `menu_target_current()` (`G/menu/chrome.rs:74-80`) depends on `menu.endpoint_target`, set by `open_workspace_menu`.
+
+**Scenarios:** 11 and 12 are reachable provided the git walk uses M's HEAD-valid rule. No scenario covers the picker branch or the no-workspaces name step.
+
+##### Existing tests contradicted by the spec/design
+
+- `G/endpoint/lifecycle_tests/prompts.rs:40`, the test `name_prompts_follow_shared_config_and_label_creations`:
+  - Case rows at ~:59-63 and ~:70-82 (Command::Workspace, prompts off, immediate `{"focus":true,"source_workspace_id":"w1"}`; prompts on, expects `Page::Dialog(NewWorkspace)` proposing "repo").
+  - Match arm at ~:118-121.
+  - Both contradict.
+- `G/endpoint/lifecycle_tests/focus_fences.rs:104-136`: row `(Command::Workspace, Method::WorkspaceCreate)` at :111 expects `view.command` to send immediately. The other `Command::Workspace` rows (WorkspaceClose, WorktreeCreate/Open/Remove) go through `submit_focus_change` and are unaffected.
+- `G/controls/tests.rs:406-416` (`creation_uses_daemon_cwd_and_explicit_targets`) and `:435-450` (`empty_session_can_create_workspace_only`, which also iterates `COMMANDS`): both assert `request(Command::Workspace, …)` is `Some`, contradicting "the arm is removed".
+- `G/menu/workspace_tests/naming.rs:40-48`: asserts `WorkspaceTarget::request(NewWorkspace, …)`, which D15 removes (`menu/workspace.rs:204-207`).
+- NOT contradicted:
+  - `G/sidebar/layout_tests/text_width/menus.rs:227`: a rename dialog is open, so `command()` returns early.
+  - `G/window/key_action_tests.rs`: no `Command::Workspace`. It tests Rename/Close with "nothing focused, nothing to open", which is unrelated.
+- All these fixtures set no `LiveState.methods`, so every test that expects a New Workspace prompt needs the advertised-method setup.
+
+---
+
+#### Leads
+
+Ranked Critical, Important, Minor.
+
+LEAD-1 | Critical | NounGrounding / cross-spec | S:52 (Req 3, "with any leading `~` left for the daemon to expand"), S:5 (Req 1 opens the prompt on any host advertising `workspace.create`, text starts `~/`), and design D15 Rationale ("both myherdr and stock Herdr accept `cwd` and expand `~` themselves") | Stock Herdr does NOT expand `~` in `workspace.create` and does not validate. Requirement 1 opens the prompt on stock Herdr too, since it advertises `workspace.create`. Requirement 3 then sends the raw `~/...` text. On stock Unix Herdr this literal relative path is not a directory, so the PTY layer silently falls back to HOME: the workspace opens in the wrong directory with no error. The prompt's own default text is `~/`, so nearly every use hits it. Today's stock behaviour (no `cwd`) works, so this is a regression and violates the standing "gate every feature on what the daemon supports" ruling. The "daemon expands `~`" premise in the spec and the Rationale is false; fix both together. | Evidence: `git -C ST show origin/master:src/app/api/workspaces.rs | sed -n 44,63p` -> `params.cwd.map(PathBuf::from)`; `git -C ST grep -n invalid_workspace_directory origin/master -- src` -> no hit; `git -C ST show origin/master:vendor/portable-pty/src/cmdbuilder.rs | sed -n 551,561p` -> falls back to home when cwd is not a dir; myherdr expands and validates at `M/src/app/api/workspaces.rs:13-22,88-91`. Suggested spec fix, pick one:
+  - (a) Gate the directory prompt on a daemon that validates paths (a myherdr-only marker, e.g. the v2 snapshot codec), and keep today's immediate create elsewhere.
+  - (b) On a local host send the client-expanded absolute path, and on any other host refuse a `~` text.
+  - Scenarios 07 and 09 must then state what is sent on stock Herdr.
+
+LEAD-2 | Important | ScenarioReachability / NounGrounding | S:27 and S:46-48 ("A local host is one whose disk this computer reads: the window's first host, connected to a daemon peer on this computer") | The spec's definition is wider than the data source. `local_daemon_peer` is true only for `LocalPeer::Trusted`, which is built only on macOS/Linux and only for the standard session socket. On Windows it is always false (`Unverified`). An explicit or forwarded socket to a local daemon, and a rejected peer, are also false. Scenarios 03, 04, 05, 08 row 2 and 11 therefore cannot hold on a Windows run, and a genuinely local daemon over a custom socket behaves as remote. Say "local host = first host with a trusted local session socket, macOS/Linux only". | `rg -n 'local_daemon_peer' G/connection.rs G/daemon.rs`; `G/daemon.rs:17-23,120-148`; `G/connection.rs:178-190`; `G/menu/worktree_source.rs:621-633`.
+
+LEAD-3 | Important | StateMachine | S:27, S:52, S:92 (Reqs 2-4) | The design runs the listing, the existence check and the name proposal off the UI thread, but the spec states only the settled results, so these states are unspecified:
+  - (a) Between a text change and the listing result, are the old suggestions shown? Tab and Up/Down use whichever list is current. Stale matches plus a stale parent could make Tab replace the user's newer text with an old parent.
+  - (b) Enter while the existence check runs: D15 says "ignored", the spec says nothing. What do Escape and typing do while it runs?
+  - (c) The name step before the proposal arrives: what does the input hold, does typing get overwritten, and what does the "differs from the proposal" rule compare against?
+  M is synchronous, so none of these states exists there. | `G/palette/project_open.rs:113-160` (the token precedent); design.md D15 "Directory step", "Submit", "Name step"; `M/src/client/shell/directory_suggestions.rs:23-48` (sync); `overlay_input.rs:1000-1075`. Fix: state that suggestions and Tab belong to the current text only, that the Enter-in-flight rule is ignore, and that the name step shows the prompt only once the proposal is known (or define the pending behaviour).
+
+LEAD-4 | Important | VocabularyCompleteness (a bound the spec does not state) | S:27 ("SHALL suggest the folders inside the parent folder") | D15 reads at most 4,096 entries (files included, `read_dir` order). The spec states no bound, so a parent with more entries loses matches nondeterministically, and the spec's universal claim is false there. M has no cap. State the cap and whether truncation is shown, or drop it. | design.md D15 "Directory step" ("reads at most 4,096 entries; past that it keeps what it read"); spec S:27.
+
+LEAD-5 | Important | StateMachine (lifecycle) | spec-wide; no requirement covers the open prompt's lifetime | The spec says nothing for these cases, and D15's mechanism does not work as cited:
+  - host disconnected, switched, or boot changed while the prompt is open
+  - the focused workspace closed while the prompt is open
+  - `source_workspace_id` captured at open vs at submit (M captures at open; the spec's wording is ambiguous)
+  - D15 says staleness uses "the same check `update_workspace_dialog` applies" (`requests.rs:131-143`). That check is skipped unless `menu.deletion` or `menu.creation` is set (`requests.rs:128`), and the new page sets neither. `menu_target_current()` also relies on `endpoint_target` set by `open_workspace_menu`.
+  Add a requirement that the page closes and sends nothing on host switch, disconnect or boot change, and say which workspace id is sent. | `G/menu/workspace/requests.rs:120-143`; `G/menu/chrome.rs:74-80`; design.md D15 "Staleness"; `M/src/client/shell/overlay_input.rs:346-359`.
+
+LEAD-6 | Important | ScenarioReachability / cross-spec | S:92 (Req 4) and S:5 (Req 1), vs design.md "Open for Brandon 12" (line ~223) | Two gaps:
+  - (a) Open for Brandon 12 says the workspace-name prompt opens only with a focused workspace, and the old dialog could not open without `menu.target`. Reqs 1 and 3 now say the prompt opens with no workspaces and the name step follows when prompting is on. No scenario covers "no workspaces + names on", and item 12 contradicts the spec.
+  - (b) The host-picker branch (S:92, last sentence) has no scenario. It offers the FOCUSED workspace's repository to another host regardless of whether the chosen directory is in that repository. Dispatch ignores the directory ("without the chosen directory"). The picker is therefore offered for an unrelated directory such as `~/notes`, and the label rule in dispatch is unspecified (it reads `menu.input` and `menu.suggested_name`).
+  Add a scenario for each, and delete or fix item 12. | `rg -n 'Open for Brandon' design.md` (item 12 at ~:223); `G/menu/workspace/dispatch.rs:28-66`; `G/menu/workspace.rs:622-660`; `G/dispatch/hosts.rs:147-157`.
+
+LEAD-7 | Important | PastLesson / process | design.md D15 Rationale, D16 Rationale ("Open for Brandon 2", "3", "1") | The pointers dangle: the Open-for-Brandon list is items 1-20 for other findings, and items 2, 3 and 1 are unrelated. So the departures from "behave as myherdr" are not recorded for the user to rule on:
+  - remote hosts get no listing or check, where M reads the client's disk
+  - the name proposal expands `~` where M does not (M proposes `docs` for `~/src/herdr/docs`, this spec proposes `herdr`)
+  - no entry cap in M
+  Add entries for each. | `sed -n 205,235p design.md`.
+
+LEAD-8 | Minor | ScenarioReachability | S:92 | "holds a `.git` entry" is looser than M. M needs `<dir>/.git/HEAD` to be a file (or a `gitdir:` file resolving to a git dir, or a bare layout with no `.git` entry at all) and ignores an invalid marker. A scenario-11 fixture with only `mkdir .git` would pass the spec but not M's rule. Define the test as M's, or accept the looser rule explicitly. | `M/src/workspace/git/discovery.rs:198-220,311-329,637-646`.
+
+LEAD-9 | Minor | VocabularyCompleteness | S:27 | Unspecified suggestion behaviours that M defines: clamping at the ends (no wrap); keeping the selection visible past six rows; Tab with no suggestions is a no-op; text with no `/` or a relative parent shows no suggestions and no error; the typed text is not trimmed for matching; the submit refusal clears on edit; both the submit message and `Cannot read folders:` can show together. Also a root-path proposal (`/`) and a path ending in `..` are undefined (M falls back to the full path text). | `M/src/client/shell/directory_suggestions.rs:24-71`; `overlay_input.rs:955-1005`; `M/src/workspace/git/discovery.rs:24-45`.
+
+LEAD-10 | Minor | WriteReadPairing | S:52, S:63, S:92, S:108-109 | `source_workspace_id` is mandated in the params but both daemons ignore it whenever `cwd` is present, so it is untestable from user-visible behaviour. | `M/src/app/api/workspaces.rs:73-75`; `git -C ST show origin/master:src/app/api/workspaces.rs | sed -n 44,46p`. Suggested fix: declare it audit-only, or drop it from the `cwd` requests.
+
+LEAD-11 | Minor | VocabularyCompleteness | S:52 | `That directory does not exist.` is also the message for an existing file, an unreadable parent and an unset HOME, so its plain meaning is false there (M identical). The form message says "absolute directory" but refuses absolute Windows paths such as `C:\x` (`~\` is also refused here, though the daemon accepts it). Keep or widen the vocabulary. | `M/src/client/shell/overlay_input.rs:3-13`; `M/src/worktree.rs:69-75` (accepts `~\` on Windows).
+
+LEAD-12 | Minor | DisplayReachability / unspecified outcome | S:79-82 (scenario 09) | Scenario 09 checks only the send. After a daemon refusal (stock: none; myherdr: `invalid_workspace_directory`) the prompt is already closed, so the user must retype the whole path. The spec gives no refusal feedback; D15 says the status line shows the daemon's message. State it. Note also that on stock the typo wrongly succeeds, per LEAD-1. | `G/state.rs:666-671`.
+
+LEAD-13 | Minor | ScenarioReachability | S:5 | The `herdr-gpui run new_workspace` path:
+  - It used to create a workspace non-interactively. It now opens an interactive prompt and still reports `Ran New Workspace`, as it also does when nothing opens (scenario 02). Scripted callers regress, and D10 acknowledges this only in passing.
+  - Requirement 1's guard list omits two guards that the code and D15 keep: `surface_requested()` and "a menu page is already open". A reviewer should not read "wherever the command starts" as bypassing them.
+  | `G/control/server/app.rs:274-290`; `G/control/server.rs:208-221`; `G/window/commands.rs:209-211,407-410`.
+
+LEAD-14 | Minor | PastLesson (tests that will break) | spec-wide | The existing tests listed in Facts contradict the spec and the planned design, and every fixture lacks `LiveState.methods`. The list is: `prompts.rs`, `focus_fences.rs:111`, `controls/tests.rs:406-416` and `:435-450` (including the COMMANDS loop), and `naming.rs:40-48`. `menus.rs:227` and `key_action_tests.rs` are unaffected. Include them in the task list when it is written, since tasks.md has no task for this spec yet. | See Facts, "Existing tests contradicted".
+
+**Checks that produced no lead:**
+- Entry-point reachability for Check 2: all paths reach `command()`.
+- Scenarios 03 and 04 match M exactly.
+- Scenario 05's prefix is reachable.
+- The refused-create fence does not reconnect.
+- The `Because`/`Since`/`SHALL never` grep found nothing in this spec, so there is no bridge clause.
+
+### Adjudication
+
+I checked each lead against the cited lines in the worktree, in myherdr, and in stock Herdr's `origin/master`. Each surviving lead's fix is in the spec, `design.md`, or `tasks.md`, and `design.md` lists it under `## Open for Brandon` as items 4 to 15.
+
+| Lead | Verdict | Action |
+|---|---|---|
+| LEAD-1 (stock Herdr does not expand `~`) | Survives. `git show origin/master:src/app/api/workspaces.rs` has no `invalid_workspace_directory`, and `cwd` is passed through as a path. The `herdr` checkout at `/Users/bmurgic/Development/Personal/herdr` is a myherdr-derived branch, which is why it has the validator. | Requirement 3 now sends the trimmed text only on a `shell.snapshot.v2` session; on any other session a local host sends the path with `~` expanded, and a host that is not local refuses a `~` text with a third message. Scenarios 07, 08, and 09 gain rows for it. D15's rationale no longer claims stock Herdr expands `~`. Gating the prompt on the v2 codec was rejected, because Brandon ruled that availability is `workspace.create` only. Open for Brandon 4. |
+| LEAD-2 (local host wider than the flag) | Survives (`daemon.rs:17-23`, `:120-148`; `connection.rs:178-190`). | Requirement 2 defines a local host by the trusted standard socket on macOS and Linux. Open for Brandon 5. |
+| LEAD-3 (states while a read runs) | Survives. | Requirement 2 shows no suggestions while a new parent is read; Requirement 3 ignores Enter during a check; Requirement 4 opens the name step once its proposal is known. D15 and tasks 3.2 to 3.4 match. Open for Brandon 6. |
+| LEAD-4 (unstated listing bound) | Survives. | Requirement 2 states the 4,096-entry bound. Open for Brandon 7. |
+| LEAD-5 (prompt lifetime; cited check never runs) | Survives. `update_workspace_dialog` returns at `menu/workspace/requests.rs:133` unless `deletion` or `creation` is set. | A new requirement and scenario 14 close the prompt on a host switch, disconnect, or boot change. D15 adds `update_new_workspace`, which `update_workspace_dialog` calls first. `source_workspace_id` is captured when the prompt opens. Open for Brandon 8. |
+| LEAD-6 (no-workspaces name step; picker unscenarioed) | Survives. Part (a)'s Open item 12 was already closed by Brandon's ruling. | Scenario 11 gains a no-workspaces row; new scenario 13 covers the host picker. Open for Brandon 9, with item 3. |
+| LEAD-7 (dangling Open pointers; departures unrecorded) | Survives. The Round 1 list was replaced after the rulings, so items 1 to 3 are now the D8, D15, and D16 items the pointers name. | Open for Brandon 10 lists the three departures from myherdr. |
+| LEAD-8 (repository test looser than myherdr) | Survives (myherdr `src/workspace/git/discovery.rs:198-220`, `:311-329`). | Requirement 4, D15, and task 3.1 use myherdr's test. Open for Brandon 11. |
+| LEAD-9 (unspecified suggestion details) | Survives. | Requirement 2 states the clamp, the scroll, the no-op Tab, the relative-parent case, links to folders, and that an edit clears a refusal. Open for Brandon 12. |
+| LEAD-10 (`source_workspace_id` ignored with `cwd`) | Dropped. myherdr sends it with `cwd` (`overlay_input.rs:1038-1050`), and Brandon's standing ruling is to match myherdr. Scenarios 07, 09, and 12 assert it as a request field, which a test can observe. | None. |
+| LEAD-11 (messages true only for the common case) | Dropped. myherdr shows the same two messages for the same cases (`overlay_input.rs:3-13`), and the standing ruling is to match it. | None. |
+| LEAD-12 (no refusal feedback after send) | Survives. | Requirement 3 says the daemon's refusal shows on the status line. Open for Brandon 13. |
+| LEAD-13 (guards and `run new_workspace`) | Survives. | Requirement 1 adds "no other menu or dialog is open". D10 already records that `run new_workspace` opens the prompt. Open for Brandon 14. |
+| LEAD-14 (tests the spec breaks) | Survives, except `text_width/menus.rs:227`, which runs with a rename dialog open, so `command()` returns at `window/commands.rs:209-211`. | Task 3.2 lists the four broken tests, drops the `menus.rs` change, and requires every prompt test to advertise `workspace.create`. Open for Brandon 15. |
