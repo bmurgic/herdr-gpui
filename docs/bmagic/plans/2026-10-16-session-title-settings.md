@@ -32,7 +32,7 @@
 - Production scope for coverage: changed non-test lines under `crates/herdr-protocol/src` and `crates/herdr-gpui/src`.
 - Evidence destination: `~/.herdr/evidence/feat-session-title-settings/`. The controller creates it before branch review.
 - Coverage command. Per task, substitute `BASE` with the task's start commit and `HEAD_SHA` with its final commit. At closing, `BASE` is the comparison base, and the controller resolves `HEAD_SHA` with `git rev-parse HEAD` from the clean final checkout:
-  `TEST_ENV /Users/bmurgic/.cargo/bin/cargo llvm-cov --workspace --locked --lcov --output-path ~/.herdr/evidence/feat-session-title-settings/lcov-HEAD_SHA.info && /Users/bmurgic/.local/bin/diff-cover ~/.herdr/evidence/feat-session-title-settings/lcov-HEAD_SHA.info --compare-branch=BASE --exclude '*/tests/*' '*/tests.rs' '*_tests.rs' --fail-under 80`
+  `TEST_ENV /Users/bmurgic/.cargo/bin/cargo llvm-cov --workspace --locked --lcov --output-path ~/.herdr/evidence/feat-session-title-settings/lcov-HEAD_SHA.info && /Users/bmurgic/.local/bin/diff-cover ~/.herdr/evidence/feat-session-title-settings/lcov-HEAD_SHA.info --compare-branch=BASE --fail-under 80`
 - TDD order for a new item: add it with a wrong-valued stub body and its caller first, so the tests compile and fail on values. A missing-symbol compile error does not count as the failing step.
 - Test seam: settings-window tests that save use the `SharedIo` seam from Task 1, never the real `loader`, which reads the user's own config files.
 
@@ -55,7 +55,7 @@
 - Modify: `crates/herdr-gpui/src/herdr_settings.rs` (`mod session_titles;`, the re-export of `TitleAgent` and `SessionTitles`, three `Edit` variants, `Parsed`, `Settings.session_titles` and the private invalid flag, `Settings::parse`, the `Settings::save` arms, `Settings::keep_session_titles`, the `Debug` impl)
 - Modify: `crates/herdr-gpui/src/endpoint.rs` (new `HerdrWindow::local_endpoint`, next to `local_development`)
 - Modify: `crates/herdr-gpui/src/settings_window/persistence.rs` (`SharedIo` used by `save_shared`, `apply_loaded` calls `keep_session_titles`, the daemon reload uses `local_endpoint`)
-- Modify: `crates/herdr-gpui/src/settings_window.rs` (`source_changed` notifies when the title-row gate changes; the `SharedIo` field, `#[cfg(test)]`)
+- Modify: `crates/herdr-gpui/src/settings_window.rs` (`source_changed` notifies when the title-row gate changes; the `SharedIo` field, `#[cfg(all(test, unix))]`)
 - Create: `crates/herdr-gpui/src/settings_window/controls/session_titles.rs` (`render_session_titles_controls`, the gate, the cached gate value)
 - Modify: `crates/herdr-gpui/src/settings_window/controls.rs` (`mod session_titles;`, one call in `render_general_controls` directly before `render_session_controls`)
 - Create test: `crates/herdr-gpui/src/herdr_settings/tests/session_titles.rs`, declared in `crates/herdr-gpui/src/herdr_settings/tests.rs`. Save tests inside it are `#[cfg(unix)]`, as in `tests/edits.rs`.
@@ -73,7 +73,7 @@
   - `herdr_settings::SessionTitles { enabled: bool, agent: TitleAgent }`, `Settings.session_titles: SessionTitles`, and `Settings::keep_session_titles(&mut self, previous: &Settings)`.
   - `Edit::SessionSidebar(bool)`, `Edit::SessionTitlesEnabled(bool)`, `Edit::TitleAgent(TitleAgent)`.
   - `HerdrWindow::local_endpoint(&self) -> Option<&Endpoint>`.
-  - `#[cfg(test)] SharedIo { write: Arc<dyn Fn(Edit) -> crate::Result<()> + Send + Sync>, load: Arc<dyn Fn() -> crate::Result<Loaded> + Send + Sync> }` on the settings window, on the pattern of `ThemeIo`. When set, `save_shared` uses it in place of `Settings::save` and `loader`.
+  - `#[cfg(all(test, unix))] SharedIo { write: Arc<dyn Fn(Edit) -> crate::Result<()> + Send + Sync>, load: Arc<dyn Fn() -> crate::Result<Loaded> + Send + Sync> }` on the settings window, on the pattern of `ThemeIo`. When set, `save_shared` uses it in place of `Settings::save` and `loader`. The struct, the settings window's field that holds it, and the `save_shared` branch that reads it are all `#[cfg(all(test, unix))]`, because only `#[cfg(unix)]` tests build one, and a `#[cfg(test)]` struct never built on Windows fails `just lint-windows` as dead code.
   - Test fixtures in `settings_window/controls/tests.rs`, used by Task 2 too: `sessions_fixture` and `recording_shared`.
 
 **TDD:** yes, selected new unit and integration behavior.
@@ -215,12 +215,14 @@ The suggestion list replacing the description is passive layout: protection `non
 Native checks need an active desktop. Record each procedure as not run when none is available. myherdr does not advertise `session_titles` yet, so these procedures cover the `Session sidebar` row and the hidden title rows. The title rows and the title model field are covered by Task 1 and Task 2's headless tests until myherdr ships the capability.
 
 ### Procedure 1: Turn session rows off and back on
-**Opens:** herdr-gpui started per **Startup**, with one agent pane reported by running `/Users/bmurgic/Development/Personal/myherdr/target/release/herdr pane report-agent <pane id> --source qa --agent claude --state idle` in the sandbox shell.
-1. Open the settings window and choose the General page.
+**Opens:** herdr-gpui started per **Startup**.
+1. In the sandbox shell, run `herdr workspace create --cwd $Q --label qa`, then `herdr pane list`, and note the new pane's id. Then run `herdr pane report-agent <that pane id> --source qa --agent claude --state idle`.
+   Observe: the main window's sidebar shows a `qa` workspace with one claude agent row.
+2. Open the settings window and choose the General page.
    Observe: a `Sessions` card directly before `Session restore`, with only the `Session sidebar` row, switched on, and the note `Agents and Spaces tabs, one list at a time`. No `Session titles`, `Title agent`, or `Title model` row shows.
-2. Click the `Session sidebar` switch.
+3. Click the `Session sidebar` switch.
    Observe: the switch turns off, the footer shows no error, and the main window's agent row changes from the four-line session row to the one-line agent row.
-3. Click the switch again.
+4. Click the switch again.
    Observe: the switch turns on and the agent row returns to the four-line session row.
 
 ### Procedure 2: The sidebar switch works with the daemon stopped

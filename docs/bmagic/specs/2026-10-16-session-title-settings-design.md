@@ -136,7 +136,7 @@ myherdr reloads the client's own config right after a successful write, so the s
 
 #### Test seam for shared saves
 
-`save_shared` calls the real `Settings::save` and then `loader`, which reads the user's real configs. A `#[cfg(test)]` `SharedIo { write, load }` on the settings window, on the pattern of `PreferenceIo`, replaces both when set. `write` receives the `Edit` and returns `crate::Result<()>`. `load` returns the `Loaded` the reload sees.
+`save_shared` calls the real `Settings::save` and then `loader`, which reads the user's real configs. A `#[cfg(all(test, unix))]` `SharedIo { write, load }` on the settings window, on the pattern of `PreferenceIo`, replaces both when set. `write` receives the `Edit` and returns `crate::Result<()>`. `load` returns the `Loaded` the reload sees.
 
 `save_with_completion` already takes an `on_saved` hook that runs after a successful write, before the quit check and before `apply_loaded`. Its type widens from `FnOnce(&mut Context<Self>)` to `FnOnce(&mut SettingsWindow, &mut Context<SettingsWindow>)`, so the hook can change the window's own state. The order does not change, so the one existing caller, the agent-skill choice, behaves as before. `save_shared_then(edit, on_saved, cx)` passes its hook through, and `save_shared` calls it with nothing to run. Only the title model field uses the hook.
 
