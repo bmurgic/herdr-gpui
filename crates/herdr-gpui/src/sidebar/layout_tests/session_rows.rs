@@ -155,6 +155,11 @@ fn the_focused_row_background_covers_four_lines(cx: &mut gpui::TestAppContext) {
     let lines = 4. * line_height_of(&view, cx);
     assert!(f32::from(highlight.size.height) >= lines, "{highlight:?}");
     assert!(inside(row, highlight), "{highlight:?} outside {row:?}");
+    // The fill is not visible to debug bounds; the layer's state markers show
+    // the row was built focused, and only the focused one.
+    assert!(cx.debug_bounds("selected-agent-p0").is_some());
+    assert!(cx.debug_bounds("open-agent-p0").is_none());
+    assert!(cx.debug_bounds("selected-agent-p1").is_none());
 }
 
 /// The pane menu opening on a right-click is the reused `agent_menu` test's;
@@ -168,6 +173,7 @@ fn an_open_menu_highlights_the_row(cx: &mut gpui::TestAppContext) {
         view.live.status = crate::state::ConnectionStatus::Connected;
     });
     redraw(cx);
+    assert!(cx.debug_bounds("open-agent-p0").is_none());
     let position = cx.debug_bounds("row-agent-p0").unwrap().center();
     cx.simulate_mouse_down(position, MouseButton::Right, Modifiers::default());
     redraw(cx);
@@ -177,6 +183,8 @@ fn an_open_menu_highlights_the_row(cx: &mut gpui::TestAppContext) {
     let highlight = cx.debug_bounds("highlight-agent-p0").unwrap();
     let lines = 4. * line_height_of(&view, cx);
     assert!(f32::from(highlight.size.height) >= lines, "{highlight:?}");
+    assert!(cx.debug_bounds("open-agent-p0").is_some());
+    assert!(cx.debug_bounds("open-agent-p1").is_none());
 }
 
 #[gpui::test]
@@ -201,7 +209,8 @@ fn a_long_name_wraps_inside_the_row(cx: &mut gpui::TestAppContext) {
     else {
         panic!("the name has no third line among {keys:?}");
     };
-    let title = text_bounds(cx, "herdr");
+    // The branch line starts where the title does, and only this row paints it.
+    let title = text_bounds(cx, "⎇ main");
     for line in [second, third] {
         let bounds = text_bounds(cx, line);
         assert!(inside(row, bounds), "{line:?} {bounds:?} outside {row:?}");
