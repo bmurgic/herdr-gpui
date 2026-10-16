@@ -169,6 +169,8 @@ impl HerdrWindow {
                         active: true,
                         focus_request: None,
                     });
+                    // A refusal names the fence it ended, not this new one.
+                    state.focus_refused = false;
                     state.dirty = true;
                     endpoint.initial_surface = true;
                     self.live = state.clone();
