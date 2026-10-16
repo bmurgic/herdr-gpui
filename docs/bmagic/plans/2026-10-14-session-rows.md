@@ -46,7 +46,7 @@
 
 ### Task 1: Draw the four-line session row
 
-- [ ] Task 1: Draw the four-line session row
+- [x] Task 1: Draw the four-line session row
 
 **Files:**
 - Modify: `crates/herdr-gpui/src/herdr_settings.rs` (`Ui`, `Settings`, `Settings::parse`, and the `#[cfg(test)]` gate on `Settings::parse_text`)
