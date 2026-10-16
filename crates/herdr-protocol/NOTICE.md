@@ -36,7 +36,6 @@ The client discovery rules also adapt `src/server/socket_paths.rs`,
 `src/session.rs`, and `src/config/io.rs` from the same source/license.
 The native client's build mode does not implicitly select Herdr's dev session.
 
-
 `src/snapshot_v2.rs` adapts `src/protocol/snapshot_v2.rs` and the
 `WorkspaceRepositoryInfo` declaration in `src/api/schema/workspaces.rs` from
 myherdr, https://github.com/bmurgic/myherdr, commit `ce3c3900`. myherdr is

@@ -43,8 +43,8 @@ fn sidebar_labels(view: &HerdrWindow) -> Vec<String> {
         .collect()
 }
 
-/// Shell snapshot v2 11. A regression guard for the snapshot type swap: the
-/// sidebar already lists a workspace that has no tabs.
+/// Shell snapshot v2 11: the sidebar lists a workspace that has no tabs, in
+/// snapshot order.
 #[gpui::test]
 fn workspace_without_tabs_stays_in_the_sidebar_in_snapshot_order(cx: &mut gpui::TestAppContext) {
     window_over_v2_session(snapshot_v2(), cx, |view| {
@@ -52,7 +52,7 @@ fn workspace_without_tabs_stays_in_the_sidebar_in_snapshot_order(cx: &mut gpui::
     });
 }
 
-/// Shell snapshot v2 12. A regression guard: an empty workspace list is not an
+/// Shell snapshot v2 12: an empty workspace list draws no rows and is not an
 /// error.
 #[gpui::test]
 fn snapshot_without_workspaces_lists_no_rows_and_no_error(cx: &mut gpui::TestAppContext) {

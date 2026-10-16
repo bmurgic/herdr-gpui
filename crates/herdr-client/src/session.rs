@@ -64,10 +64,8 @@ impl From<&EndpointServerWelcome> for SurfaceEncodings {
 
 /// The snapshot codec the welcome selected. A session decodes only snapshots of
 /// this kind; the other kind means the two sides disagree about the session.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SnapshotCodec {
-    /// Until the welcome selects one, which precedes every snapshot.
-    #[default]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SnapshotCodec {
     V1,
     V2,
 }
@@ -157,7 +155,7 @@ pub(crate) struct Session {
     pub(crate) health: Option<Health>,
     pub(crate) welcome: Option<EndpointServerWelcome>,
     pub(crate) encodings: SurfaceEncodings,
-    pub(crate) snapshot_codec: SnapshotCodec,
+    snapshot_codec: SnapshotCodec,
     pub(crate) snapshot: Option<Arc<ClientShellSnapshotV2>>,
     pub(crate) surface: Option<Arc<PaneSurfaceFrame>>,
     pub(crate) images: ImageStore,
@@ -173,7 +171,9 @@ impl Session {
             health: None,
             welcome: None,
             encodings: SurfaceEncodings::default(),
-            snapshot_codec: SnapshotCodec::default(),
+            // Replaced when the welcome selects a codec; the welcome precedes
+            // every snapshot, so no snapshot is decoded with this placeholder.
+            snapshot_codec: SnapshotCodec::V1,
             snapshot: None,
             surface: None,
             images: ImageStore::default(),

@@ -181,6 +181,31 @@ fn wait_until(mut ready: impl FnMut() -> bool) {
     }
 }
 
+/// Methods `connected_endpoint` advertises beyond the welcome fixture's own.
+const CONNECTED_ENDPOINT_METHODS: &[Method] = &[
+    Method::ClientShellSurfaceSet,
+    Method::WorkspaceCreate,
+    Method::TabCreate,
+    Method::PaneSplit,
+    Method::LayoutSetSplitRatio,
+    Method::TabFocus,
+    Method::PaneFocus,
+    Method::WorkspaceFocus,
+    Method::PaneFocusDirection,
+    Method::PaneZoom,
+    Method::PaneResize,
+    Method::PaneSwap,
+    Method::PaneClear,
+    Method::PaneScroll,
+    Method::PaneClose,
+    Method::TabClose,
+    Method::CommandInvoke,
+    Method::WorkspaceClose,
+    Method::WorktreeCreate,
+    Method::WorktreeOpen,
+    Method::WorktreeRemove,
+];
+
 fn connected_endpoint(id: &str) -> (Endpoint, Server) {
     let (endpoint, server) = connect_endpoint(id, SNAPSHOT_CODEC_V1, snapshot(), |welcome| {
         welcome.methods.extend(
@@ -208,31 +233,6 @@ fn connected_endpoint_v2(
             .collect();
     })
 }
-
-/// Methods `connected_endpoint` advertises beyond the welcome fixture's own.
-const CONNECTED_ENDPOINT_METHODS: &[Method] = &[
-    Method::ClientShellSurfaceSet,
-    Method::WorkspaceCreate,
-    Method::TabCreate,
-    Method::PaneSplit,
-    Method::LayoutSetSplitRatio,
-    Method::TabFocus,
-    Method::PaneFocus,
-    Method::WorkspaceFocus,
-    Method::PaneFocusDirection,
-    Method::PaneZoom,
-    Method::PaneResize,
-    Method::PaneSwap,
-    Method::PaneClear,
-    Method::PaneScroll,
-    Method::PaneClose,
-    Method::TabClose,
-    Method::CommandInvoke,
-    Method::WorkspaceClose,
-    Method::WorktreeCreate,
-    Method::WorktreeOpen,
-    Method::WorktreeRemove,
-];
 
 /// Connects a window endpoint to a mock daemon whose welcome selects
 /// `snapshot_codec` and then sends `snapshot` as a control of that kind. Returns
