@@ -178,7 +178,7 @@ setting key:      [ui] session_sidebar, default true, also while the shared conf
 
 ### Task 2: Show the activity age on line one
 
-- [ ] Task 2: Show the activity age on line one
+- [x] Task 2: Show the activity age on line one
 
 **Files:**
 - Create: `crates/herdr-protocol/src/agent_tokens.rs`
