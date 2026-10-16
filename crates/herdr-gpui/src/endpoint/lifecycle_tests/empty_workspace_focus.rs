@@ -262,7 +262,12 @@ fn refused_focus<'a>(
 /// activation, and does not reconnect even once the deadline would have passed.
 #[gpui::test]
 fn a_refused_workspace_focus_ends_the_wait_without_a_reconnect(cx: &mut gpui::TestAppContext) {
-    let v2_methods = [SURFACE, Method::WorkspaceFocus, Method::WorkspaceFocusV2];
+    let v2_methods = [
+        SURFACE,
+        Method::WorkspaceFocus,
+        Method::WorkspaceFocusV2,
+        Method::TabCreate,
+    ];
     let (v2, v2_server) =
         connected_endpoint_v2("empty-workspaces", &v2_methods, api_and("scratch"));
     let (v1, v1_server) = connect_endpoint(
@@ -282,7 +287,7 @@ fn a_refused_workspace_focus_ends_the_wait_without_a_reconnect(cx: &mut gpui::Te
         (v2, v2_server, "workspace.focus.v2", Some("api".to_owned())),
         (v1, v1_server, "workspace.focus", v1_focus),
     ] {
-        let (view, cx, _server) = refused_focus(
+        let (view, cx, mut server) = refused_focus(
             cx,
             endpoint,
             server,
@@ -340,7 +345,56 @@ fn a_refused_workspace_focus_ends_the_wait_without_a_reconnect(cx: &mut gpui::Te
                 );
             })
         });
+        assert_new_tab_goes_to(&view, cx, &mut server, focus.as_deref().unwrap(), method);
     }
+}
+
+/// The window stays usable after a refusal: once the daemon projects the
+/// unchanged focus again, New Tab acts on the workspace that kept the focus.
+fn assert_new_tab_goes_to(
+    view: &Entity<HerdrWindow>,
+    cx: &mut VisualTestContext,
+    server: &mut Server,
+    workspace_id: &str,
+    method: &str,
+) {
+    let (inbox, snapshot) = view.read_with(cx, |view, _| {
+        (
+            view.endpoints[0].connection.inbox.clone(),
+            view.live.snapshot.clone().unwrap(),
+        )
+    });
+    inbox
+        .lock()
+        .unwrap()
+        .apply(ClientEvent::Surface(surface(&snapshot)));
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            project_until(view, cx, "the surface after the refusal", |view| {
+                view.live.surface.is_some()
+            });
+            assert!(view.input_ready(), "{method} left input fenced");
+            view.settings.shared = Some(
+                crate::herdr_settings::Settings::parse_text("[ui]\nprompt_new_tab_name = false\n")
+                    .unwrap(),
+            );
+            view.command(Command::Tab, window, cx);
+        })
+    });
+    // The fence's own surface request is still unanswered and holds back what
+    // follows it.
+    let creation = loop {
+        let request = next_request(server);
+        if request["method"] == "tab.create" {
+            break request;
+        }
+        server.respond(&request);
+    };
+    assert_eq!(
+        creation["params"],
+        serde_json::json!({"workspace_id": workspace_id, "focus": true}),
+        "{method}"
+    );
 }
 
 /// Only a workspace focus ends its wait: a refused tab focus keeps the fence.
