@@ -1,8 +1,8 @@
 //! What a session row shows, read from one agent and its workspace. A port of
 //! myherdr's `session_rows.rs`.
 
-use crate::sidebar::session_age::parse_activity;
-use herdr_client::protocol::{ACTIVITY_TOKEN_KEY, ClientShellAgent, ClientShellSnapshotV2};
+use crate::sidebar::session_age::agent_activity;
+use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshotV2};
 
 /// Between the machine and the workspace in the title.
 const MACHINE_SEPARATOR: &str = " \u{b7} ";
@@ -54,15 +54,11 @@ impl SessionRow {
         };
         // A stock daemon negotiates V1 and never sets the token, but an agent
         // could still report one, so only a V2 endpoint reads it.
-        let activity_ms = activity
-            .then(|| {
-                agent
-                    .tokens
-                    .iter()
-                    .find(|(key, _)| key == ACTIVITY_TOKEN_KEY)
-                    .and_then(|(_, value)| parse_activity(value))
-            })
-            .flatten();
+        let activity_ms = if activity {
+            agent_activity(agent)
+        } else {
+            None
+        };
         Self {
             title,
             name: pane_label.or(handle).unwrap_or_default().to_owned(),

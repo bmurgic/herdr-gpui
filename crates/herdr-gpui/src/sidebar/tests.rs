@@ -24,6 +24,7 @@ mod hierarchy;
 mod host_mark;
 mod row_text;
 mod session_age;
+mod session_ages;
 mod session_row;
 mod session_text;
 mod statuses;

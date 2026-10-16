@@ -42,6 +42,7 @@ pub(crate) use {
     reorder::WorkspaceDrag,
     row::{compact, github_mark, label_text, styled as styled_token},
     search::SidebarSearch,
+    session_age::{SessionAges, now_ms},
     view::SidebarView,
     workspaces::workspace_label,
 };

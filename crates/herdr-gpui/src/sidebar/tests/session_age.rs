@@ -1,4 +1,4 @@
-use crate::sidebar::session_age::{age_text, now_ms, parse_activity};
+use crate::sidebar::session_age::{age_text, next_change, now_ms, parse_activity};
 
 const ACTIVITY_MS: u64 = 1_000_000_000_000;
 const SECOND: u64 = 1_000;
@@ -65,4 +65,37 @@ fn now_is_the_wall_clock_in_milliseconds() {
     let year_2020_ms = 1_577_836_800_000;
     let year_2200_ms = 7_258_118_400_000;
     assert!((year_2020_ms..year_2200_ms).contains(&now_ms()));
+}
+
+#[test]
+fn next_change_ends_the_now_band_at_one_minute() {
+    assert_eq!(
+        next_change(ACTIVITY_MS, ACTIVITY_MS + 59 * SECOND),
+        ACTIVITY_MS + MINUTE
+    );
+    assert_eq!(
+        next_change(ACTIVITY_MS, ACTIVITY_MS - 30 * SECOND),
+        ACTIVITY_MS + MINUTE
+    );
+}
+
+#[test]
+fn next_change_lands_on_the_next_whole_unit() {
+    for (elapsed_ms, expected_ms) in [
+        (90 * SECOND, 2 * MINUTE),
+        (HOUR, 2 * HOUR),
+        (25 * HOUR, 2 * DAY),
+    ] {
+        assert_eq!(
+            next_change(ACTIVITY_MS, ACTIVITY_MS + elapsed_ms),
+            ACTIVITY_MS + expected_ms,
+            "after {elapsed_ms} ms"
+        );
+    }
+}
+
+#[test]
+fn next_change_saturates_instead_of_overflowing() {
+    assert_eq!(next_change(u64::MAX - 1, 0), u64::MAX);
+    assert_eq!(next_change(0, u64::MAX), u64::MAX);
 }
