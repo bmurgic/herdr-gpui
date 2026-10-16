@@ -3,15 +3,6 @@
 use super::*;
 use gpui::{Entity, VisualTestContext};
 
-fn no_workspaces() -> ClientShellSnapshotV2 {
-    let mut snapshot = scratch_focused();
-    snapshot.workspaces.clear();
-    snapshot.tabs.clear();
-    snapshot.panes.clear();
-    snapshot.focused_workspace_id = None;
-    snapshot
-}
-
 /// Empty workspace screen 01 (rows): a v2 session shows the screen for a
 /// focused workspace without tabs, and for a host without workspaces.
 #[gpui::test]

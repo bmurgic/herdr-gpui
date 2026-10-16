@@ -64,12 +64,7 @@ fn update<R>(
 fn clear_workspaces(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
     update(view, cx, |view, _, _| {
         let snapshot = std::sync::Arc::make_mut(view.live.snapshot.as_mut().unwrap());
-        snapshot.workspaces.clear();
-        snapshot.tabs.clear();
-        snapshot.panes.clear();
-        snapshot.focused_workspace_id = None;
-        snapshot.focused_tab_id = None;
-        snapshot.focused_pane_id = None;
+        crate::test_snapshots::clear_workspaces(snapshot);
     });
 }
 

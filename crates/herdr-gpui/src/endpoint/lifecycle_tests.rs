@@ -1,7 +1,10 @@
 //! Exercise GUI lifecycle transitions through real, isolated client transports.
 #![allow(clippy::unwrap_used)]
 use super::*;
-use crate::controls::Command;
+use crate::{
+    controls::Command,
+    test_snapshots::{api_and_scratch, no_workspaces, scratch_focused, snapshot_v2},
+};
 use gpui::{
     AppContext, ClipboardItem, Image, ImageFormat, MouseButton, MouseDownEvent, MouseMoveEvent,
     MouseUpEvent, point, px, size,
@@ -118,14 +121,6 @@ impl Drop for Server {
 fn snapshot() -> ClientShellSnapshotV2 {
     serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
-    ))
-    .unwrap()
-}
-
-/// Two workspaces: `api` with one tab and `scratch` with none.
-fn snapshot_v2() -> ClientShellSnapshotV2 {
-    serde_json::from_str(include_str!(
-        "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v2.json"
     ))
     .unwrap()
 }
@@ -270,29 +265,6 @@ const CREATE_METHODS: &[Method] = &[
     Method::WorkspaceCreate,
     Method::TabCreate,
 ];
-
-/// `api`, which has the tab `t1`, and `scratch`, which has none. `api` is
-/// focused until a test focuses `scratch`.
-fn api_and_scratch() -> ClientShellSnapshotV2 {
-    let mut snapshot = snapshot_v2();
-    snapshot.workspaces[0].workspace_id = "api".into();
-    snapshot.workspaces[1].workspace_id = "scratch".into();
-    snapshot.focused_workspace_id = Some("api".into());
-    snapshot.tabs[0].workspace_id = "api".into();
-    snapshot.panes[0].workspace_id = "api".into();
-    snapshot
-}
-
-/// `scratch` focused with no focused tab.
-fn scratch_focused() -> ClientShellSnapshotV2 {
-    let mut snapshot = api_and_scratch();
-    snapshot.workspaces[0].focused = false;
-    snapshot.workspaces[1].focused = true;
-    snapshot.focused_workspace_id = Some("scratch".into());
-    snapshot.focused_tab_id = None;
-    snapshot.focused_pane_id = None;
-    snapshot
-}
 
 /// An agent named `name`, shown as `Claude`, in the pane `p1` of
 /// `workspace_id`'s tab `t1`.

@@ -1,7 +1,10 @@
 //! Fixtures shared by the screen's topic files.
 #![allow(clippy::unwrap_used)]
 use super::*;
-use crate::keymap::{Binding, DaemonKeys, Keymap};
+use crate::{
+    keymap::{Binding, DaemonKeys, Keymap},
+    test_snapshots::{no_workspaces, scratch_focused, snapshot_v2},
+};
 use herdr_client::Method;
 use std::collections::BTreeMap;
 
@@ -9,35 +12,6 @@ mod agent_label;
 mod click_fence;
 mod create_rows;
 mod manage_rows;
-
-/// Two workspaces, `api` with one tab and `scratch` with none, the shape
-/// `endpoint-snapshot-v2.json` carries.
-fn snapshot_v2() -> ClientShellSnapshotV2 {
-    serde_json::from_str(include_str!(
-        "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v2.json"
-    ))
-    .unwrap()
-}
-
-/// `scratch`, which has no tab, focused.
-fn scratch_focused() -> ClientShellSnapshotV2 {
-    let mut snapshot = snapshot_v2();
-    snapshot.focused_workspace_id = Some("w2".into());
-    snapshot.focused_tab_id = None;
-    snapshot.focused_pane_id = None;
-    snapshot
-}
-
-fn no_workspaces() -> ClientShellSnapshotV2 {
-    let mut snapshot = snapshot_v2();
-    snapshot.workspaces.clear();
-    snapshot.tabs.clear();
-    snapshot.panes.clear();
-    snapshot.focused_workspace_id = None;
-    snapshot.focused_tab_id = None;
-    snapshot.focused_pane_id = None;
-    snapshot
-}
 
 fn advertised(methods: &[Method]) -> Vec<String> {
     methods

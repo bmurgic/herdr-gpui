@@ -16,7 +16,7 @@ fn connect_on_scratch(view: &mut HerdrWindow) -> DrawnRow {
         endpoint: view.endpoints[view.selected_endpoint].id.clone(),
         boot_id: snapshot.boot_id.clone(),
         revision: snapshot.revision,
-        workspace_id: "w2".into(),
+        workspace_id: "scratch".into(),
         command: Command::Tab,
         label: String::new(),
     };
@@ -44,7 +44,9 @@ fn a_drawn_row_is_current_only_while_everything_it_was_drawn_from_holds(
         ("another revision", |view, _| {
             snapshot_mut(view).revision += 1
         }),
-        ("another workspace", |_, row| row.workspace_id = "w1".into()),
+        ("another workspace", |_, row| {
+            row.workspace_id = "api".into()
+        }),
         ("the workspace gaining a focused tab", |view, _| {
             snapshot_mut(view).focused_tab_id = Some("t1".into());
         }),
