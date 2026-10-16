@@ -19,6 +19,7 @@ use std::{
 mod close_pane;
 mod close_sequence;
 mod dead_keys;
+mod empty_workspace_sidebar;
 mod endpoint_switch;
 mod file_paste;
 mod focus_fences;
@@ -55,6 +56,8 @@ mod workspace_menu_navigation;
 struct Server {
     stream: UnixStream,
     path: PathBuf,
+    /// The boot id of the snapshot the connection delivered; responses carry it.
+    boot_id: String,
 }
 
 // Keep the tested entity out of the render tree: a terminal canvas would enqueue
@@ -79,14 +82,21 @@ impl Server {
     }
 
     fn respond(&mut self, request: &serde_json::Value) {
+        self.reply(request, serde_json::json!({"result": {}}));
+    }
+
+    /// Answers `request` with `envelope` (an `error` or a typed `result`) as one
+    /// final response chunk at the connection's boot id.
+    fn reply(&mut self, request: &serde_json::Value, mut envelope: serde_json::Value) {
         let id = request["id"].as_str().unwrap();
+        envelope["id"] = id.into();
         write_message(
             &mut self.stream,
             &ServerMessage::ClientShellEndpointResponseChunk {
-                boot_id: snapshot().boot_id,
+                boot_id: self.boot_id.clone(),
                 request_id: id.into(),
                 final_chunk: true,
-                data: serde_json::to_vec(&serde_json::json!({"id": id, "result": {}})).unwrap(),
+                data: serde_json::to_vec(&envelope).unwrap(),
             },
             MAX_GRAPHICS_FRAME_SIZE,
         )
@@ -103,6 +113,14 @@ impl Drop for Server {
 fn snapshot() -> ClientShellSnapshotV2 {
     serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
+    ))
+    .unwrap()
+}
+
+/// Two workspaces: `api` with one tab and `scratch` with none.
+fn snapshot_v2() -> ClientShellSnapshotV2 {
+    serde_json::from_str(include_str!(
+        "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v2.json"
     ))
     .unwrap()
 }
@@ -164,6 +182,67 @@ fn wait_until(mut ready: impl FnMut() -> bool) {
 }
 
 fn connected_endpoint(id: &str) -> (Endpoint, Server) {
+    let (endpoint, server) = connect_endpoint(id, SNAPSHOT_CODEC_V1, snapshot(), |welcome| {
+        welcome.methods.extend(
+            CONNECTED_ENDPOINT_METHODS
+                .iter()
+                .map(|method| method.as_str().to_owned()),
+        );
+    });
+    assert!(endpoint.live.supports_surface);
+    (endpoint, server)
+}
+
+/// Connects over a `shell.snapshot.v2` session whose welcome advertises exactly
+/// `methods`, so a test sees only the actions it names. The returned `Server`
+/// answers with `snapshot.boot_id`.
+fn connected_endpoint_v2(
+    id: &str,
+    methods: &[Method],
+    snapshot: ClientShellSnapshotV2,
+) -> (Endpoint, Server) {
+    connect_endpoint(id, SNAPSHOT_CODEC_V2, snapshot, |welcome| {
+        welcome.methods = methods
+            .iter()
+            .map(|method| method.as_str().to_owned())
+            .collect();
+    })
+}
+
+/// Methods `connected_endpoint` advertises beyond the welcome fixture's own.
+const CONNECTED_ENDPOINT_METHODS: &[Method] = &[
+    Method::ClientShellSurfaceSet,
+    Method::WorkspaceCreate,
+    Method::TabCreate,
+    Method::PaneSplit,
+    Method::LayoutSetSplitRatio,
+    Method::TabFocus,
+    Method::PaneFocus,
+    Method::WorkspaceFocus,
+    Method::PaneFocusDirection,
+    Method::PaneZoom,
+    Method::PaneResize,
+    Method::PaneSwap,
+    Method::PaneClear,
+    Method::PaneScroll,
+    Method::PaneClose,
+    Method::TabClose,
+    Method::CommandInvoke,
+    Method::WorkspaceClose,
+    Method::WorktreeCreate,
+    Method::WorktreeOpen,
+    Method::WorktreeRemove,
+];
+
+/// Connects a window endpoint to a mock daemon whose welcome selects
+/// `snapshot_codec` and then sends `snapshot` as a control of that kind. Returns
+/// once the endpoint holds the snapshot and a zero-pane 80x24 surface.
+fn connect_endpoint(
+    id: &str,
+    snapshot_codec: &str,
+    snapshot: ClientShellSnapshotV2,
+    configure_welcome: impl FnOnce(&mut EndpointServerWelcome),
+) -> (Endpoint, Server) {
     static SERIAL: AtomicU64 = AtomicU64::new(0);
     let path = std::env::temp_dir().join(format!(
         "hg-{}-{}.sock",
@@ -187,6 +266,7 @@ fn connected_endpoint(id: &str) -> (Endpoint, Server) {
     let mut server = Server {
         stream: accepted.unwrap().0,
         path,
+        boot_id: snapshot.boot_id.clone(),
     };
     server.stream.set_nonblocking(false).unwrap();
     server
@@ -205,45 +285,18 @@ fn connected_endpoint(id: &str) -> (Endpoint, Server) {
         "../../../herdr-protocol/tests/fixtures/endpoint-welcome-v1.json"
     ))
     .unwrap();
+    welcome.snapshot_codec = snapshot_codec.into();
     welcome.capabilities.extend([
         "surface_interest".into(),
         "presentation_effects_fence".into(),
     ]);
-    welcome.methods.extend(
-        [
-            Method::ClientShellSurfaceSet,
-            Method::WorkspaceCreate,
-            Method::TabCreate,
-            Method::PaneSplit,
-            Method::LayoutSetSplitRatio,
-            Method::TabFocus,
-            Method::PaneFocus,
-            Method::WorkspaceFocus,
-            Method::PaneFocusDirection,
-            Method::PaneZoom,
-            Method::PaneResize,
-            Method::PaneSwap,
-            Method::PaneClear,
-            Method::PaneScroll,
-            Method::PaneClose,
-            Method::TabClose,
-            Method::CommandInvoke,
-            Method::WorkspaceClose,
-            Method::WorktreeCreate,
-            Method::WorktreeOpen,
-            Method::WorktreeRemove,
-        ]
-        .map(|method| method.as_str().to_owned()),
-    );
+    configure_welcome(&mut welcome);
     for (kind, data) in [
         (
             ENDPOINT_WELCOME_KIND,
             serde_json::to_string(&welcome).unwrap(),
         ),
-        (
-            ENDPOINT_SNAPSHOT_KIND,
-            serde_json::to_string(&snapshot()).unwrap(),
-        ),
+        (snapshot_codec, serde_json::to_string(&snapshot).unwrap()),
     ] {
         write_message(
             &mut server.stream,
@@ -259,7 +312,6 @@ fn connected_endpoint(id: &str) -> (Endpoint, Server) {
         endpoint.poll(Instant::now());
         endpoint.connection.handle.is_some() && endpoint.live.snapshot.is_some()
     });
-    assert!(endpoint.live.supports_surface);
     let frame = surface(endpoint.live.snapshot.as_ref().unwrap());
     endpoint
         .connection
