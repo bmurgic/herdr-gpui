@@ -769,19 +769,20 @@ it. Every button, menu item, shortcut, palette entry, and `herdr-gpui run
 new_workspace` opens it. The page asks for the directory the workspace opens in,
 starting at `~/`. On this computer's Herdr it suggests the folders under the
 path you type, Up and Down pick one, and Tab completes it. Other hosts get no
-suggestions. Enter sends the text as typed. It refuses a path that does not
-start with `/` or `~/`, and on this computer a folder that does not exist. A
-remote host whose Herdr does not send v2 snapshots cannot expand `~`, so give it
-an absolute directory.
+suggestions. Enter sends the text as typed. It refuses anything but `~` or a
+path that starts with `/` or `~/`, and on this computer a folder that does not
+exist. A remote host whose Herdr does not send v2 snapshots cannot expand `~`,
+so give it an absolute directory.
 
 New tab and New Workspace follow the shared `ui.prompt_new_tab_name` (default
 on) and `ui.prompt_new_workspace_name` (default off). With the first set, New
 tab asks for a name and proposes the next tab number. With the second set, the
 New Workspace page asks for a name after the directory. On this computer it
 proposes the name of the nearest Git repository folder at or above that
-directory, and elsewhere the directory's own folder name. Enter creates, Escape
-cancels, and an empty or unchanged name lets the daemon choose it, as in the
-TUI. Teleport, worktree creation, and browser tabs never prompt.
+directory. Outside a repository, and on other hosts, it proposes the directory's
+own folder name, or `~` for the home folder. Enter creates, Escape cancels, and
+an empty or unchanged name lets the daemon choose it, as in the TUI. Teleport,
+worktree creation, and browser tabs never prompt.
 
 Sound uses the dedicated Rodio backend, shared global/per-agent settings and
 custom local paths, with Herdr's bundled sounds as fallbacks. The Sound tab sets
