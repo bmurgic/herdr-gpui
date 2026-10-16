@@ -14,7 +14,7 @@ fn fixture() -> ClientShellSnapshotV2 {
 }
 
 fn row(snapshot: &ClientShellSnapshotV2, machine: Option<&str>) -> SessionRow {
-    SessionRow::new(snapshot, &snapshot.agents[0], machine)
+    SessionRow::new(snapshot, &snapshot.agents[0], machine, false)
 }
 
 fn agent(snapshot: &mut ClientShellSnapshotV2) -> &mut ClientShellAgent {
@@ -93,4 +93,39 @@ fn the_branch_comes_from_the_workspace() {
     assert_eq!(row(&snapshot, None).branch.as_deref(), Some("fix/upload"));
     snapshot.workspaces[0].branch = None;
     assert_eq!(row(&snapshot, None).branch, None);
+}
+
+const ACTIVITY_KEY: &str = "herdr_activity_at";
+
+fn activity_ms(tokens: &[(&str, &str)], activity: bool) -> Option<u64> {
+    let mut snapshot = fixture();
+    agent(&mut snapshot).tokens = tokens
+        .iter()
+        .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+        .collect();
+    SessionRow::new(&snapshot, &snapshot.agents[0], None, activity).activity_ms
+}
+
+#[test]
+fn the_row_reads_the_activity_token() {
+    assert_eq!(
+        activity_ms(&[(ACTIVITY_KEY, "1700000000000")], true),
+        Some(1_700_000_000_000)
+    );
+    assert_eq!(activity_ms(&[(ACTIVITY_KEY, "abc")], true), None);
+    assert_eq!(activity_ms(&[], true), None);
+    assert_eq!(activity_ms(&[("other_key", "1700000000000")], true), None);
+}
+
+#[test]
+fn the_first_activity_token_counts() {
+    assert_eq!(
+        activity_ms(&[(ACTIVITY_KEY, "1000"), (ACTIVITY_KEY, "2000")], true),
+        Some(1000)
+    );
+}
+
+#[test]
+fn a_v1_daemon_never_shows_an_age() {
+    assert_eq!(activity_ms(&[(ACTIVITY_KEY, "1700000000000")], false), None);
 }

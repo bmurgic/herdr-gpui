@@ -8,6 +8,7 @@ use crate::{
         cell::{RowContext, RowState},
         glyph_width, label_text, line_height,
         row::{RowKind, row_text},
+        session_age::{AgeClock, age_text},
         session_row::SessionRow,
         session_text::{fit_line_one, truncate_end, wrap_two_lines},
     },
@@ -26,7 +27,7 @@ impl HerdrWindow {
     /// The session row for the agent of endpoint `index`, drawn in `row_cx`.
     /// It stands in for Herdr's agent row in every layout, so only the
     /// layout's look is used: its padding, highlight, and host mark. `gap` is
-    /// the blank line above it. `machine` names the host in the title.
+    /// the blank line above it. `machine` names the host in the title, and `age` dates its activity.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn session_cell(
         &self,
@@ -35,6 +36,7 @@ impl HerdrWindow {
         snapshot: &ClientShellSnapshotV2,
         row_cx: &RowContext,
         machine: Option<&str>,
+        age: AgeClock,
         gap: f32,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
@@ -56,7 +58,7 @@ impl HerdrWindow {
             highlighted: menu_open,
             ..Default::default()
         };
-        let session = SessionRow::new(snapshot, agent, machine);
+        let session = SessionRow::new(snapshot, agent, machine, age.shown);
 
         // The text column starts past the status mark, as Herdr's own row's
         // does, and every line fits the room it leaves.
@@ -68,7 +70,11 @@ impl HerdrWindow {
 
         let icon = crate::icons::AgentIcon::from_identity(agent.agent.as_deref());
         let (name_color, weight, _) = row_text(RowKind::Agent(icon), state.selected, theme);
-        let (title, _) = fit_line_one(&session.title, None, columns);
+        let age_text = session
+            .activity_ms
+            .map(|activity_ms| age_text(activity_ms, age.now_ms));
+        let (title, age_kept) = fit_line_one(&session.title, age_text.as_deref(), columns);
+        let age_text = age_text.filter(|_| age_kept);
         let (name_first, name_second) = wrap_two_lines(&session.name, columns);
         let branch = format!(
             "{BRANCH_MARK}{}",
@@ -85,7 +91,15 @@ impl HerdrWindow {
             .w(px(room))
             .flex_none()
             .overflow_hidden()
-            .child(text_line(&title, name_color, room, line).font_weight(weight))
+            .child(first_line(
+                &title,
+                age_text.as_deref(),
+                &agent.pane_id,
+                (name_color, theme.muted),
+                room,
+                line,
+                weight,
+            ))
             .child(text_line(&name_first, name_color, room, line))
             .child(text_line(&name_second, name_color, room, line))
             .child(text_line(
@@ -126,6 +140,42 @@ impl HerdrWindow {
             .when(gap > 0., |row| row.mt(px(gap)));
         self.wire_agent_row(row, index, &agent.pane_id, cx)
     }
+}
+
+/// Line one: the title from the left, and the age, when it was kept, in the
+/// muted colour at the right edge.
+fn first_line(
+    title: &str,
+    age: Option<&str>,
+    pane_id: &str,
+    (title_color, age_color): (u32, u32),
+    width: f32,
+    line: f32,
+    weight: FontWeight,
+) -> Div {
+    div()
+        .w(px(width))
+        .h(px(line))
+        .flex_none()
+        .flex()
+        .text_color(rgb(title_color))
+        .child(
+            div()
+                .min_w_0()
+                .truncate()
+                .font_weight(weight)
+                .when(!title.is_empty(), |div| div.child(label_text(title))),
+        )
+        .when_some(age, |line, age| {
+            line.child(
+                div()
+                    .flex_none()
+                    .ml_auto()
+                    .text_color(rgb(age_color))
+                    .debug_selector(|| format!("session-age-{pane_id}"))
+                    .child(label_text(age)),
+            )
+        })
 }
 
 /// One line of `width`, one `line` tall. An empty line paints no text, so a

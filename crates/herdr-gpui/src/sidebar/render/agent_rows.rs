@@ -8,7 +8,9 @@ use crate::{
         agents::{agent_place, state_label, status_text},
         cell::{AgentRow, Cell, RowContext, RowData, layout_for},
         layout::SidebarLook,
-        line_height, tokens, wash,
+        line_height,
+        session_age::{AgeClock, now_ms},
+        tokens, wash,
     },
 };
 use gpui::{prelude::*, *};
@@ -32,6 +34,7 @@ impl HerdrWindow {
         let multi = self.endpoints.len() > 1;
         let mut count = 0;
         let mut focused = None;
+        let now_ms = now_ms();
         for (index, agent) in self.panel_agents() {
             let Some(endpoint) = self.endpoints.get(index) else {
                 continue;
@@ -62,7 +65,12 @@ impl HerdrWindow {
             // Every row names its machine while several are listed, the local
             // one included, as the agents of all of them share this list.
             let machine = multi.then_some(endpoint.label.as_str());
-            let Some(row) = self.agent_row(index, agent, snapshot, &row_cx, machine, count, cx)
+            let age = AgeClock {
+                shown: live.snapshot_v2,
+                now_ms,
+            };
+            let Some(row) =
+                self.agent_row(index, agent, snapshot, &row_cx, machine, age, count, cx)
             else {
                 continue;
             };
@@ -114,7 +122,7 @@ impl HerdrWindow {
     /// One agent's row in either list, in the shape the settings ask for: a
     /// session row, or Herdr's own with any configured lines. `count` is the
     /// number of rows already in the list. `machine` is the label a session
-    /// row names its machine with. None when the configured rows leave this
+    /// row names its machine with, and `age` what it dates its activity by. None when the configured rows leave this
     /// agent out, which a session row never does.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn agent_row(
@@ -124,12 +132,13 @@ impl HerdrWindow {
         snapshot: &ClientShellSnapshotV2,
         row_cx: &RowContext,
         machine: Option<&str>,
+        age: AgeClock,
         count: usize,
         cx: &mut Context<Self>,
     ) -> Option<Stateful<Div>> {
         let gap = self.agent_row_gap(count);
         if self.session_sidebar() {
-            return Some(self.session_cell(index, agent, snapshot, row_cx, machine, gap, cx));
+            return Some(self.session_cell(index, agent, snapshot, row_cx, machine, age, gap, cx));
         }
         let lines = self.configured_agent_lines(agent, snapshot, row_cx.host)?;
         Some(self.agent_cell(index, agent, snapshot, row_cx, lines, gap, cx))

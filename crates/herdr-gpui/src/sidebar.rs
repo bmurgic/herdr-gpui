@@ -16,6 +16,7 @@ mod render;
 mod reorder;
 mod row;
 mod search;
+mod session_age;
 mod session_row;
 mod session_text;
 mod sticky;

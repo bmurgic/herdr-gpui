@@ -2,9 +2,12 @@ use super::*;
 use crate::{
     NavigationTarget,
     config::LayoutMode,
-    sidebar::{layout, line_height},
+    sidebar::{glyph_width, layout, line_height, session_age::now_ms},
 };
 use gpui::MouseButton;
+use herdr_client::protocol::ACTIVITY_TOKEN_KEY;
+
+const FIVE_MINUTES_MS: u64 = 300_000;
 
 const LONG_NAME: &str = "Fix the flaky upload test and re-run the integration suite";
 
@@ -32,6 +35,27 @@ fn session_window(
     let view = cx.update(|_, cx| fixture.read(cx).0.clone());
     cx.simulate_resize(size(px(800.), px(900.)));
     cx.run_until_parked();
+    redraw(cx);
+    (view, cx)
+}
+
+/// `session_window` over a V2 endpoint, the only kind whose agents show an
+/// age, with `p0` carrying an activity time `elapsed_ms` ago.
+fn age_window(
+    cx: &mut gpui::TestAppContext,
+    width: f32,
+    elapsed_ms: u64,
+    edit: impl FnOnce(&mut ClientShellSnapshotV2) + 'static,
+) -> (Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
+    let activity_ms = now_ms() - elapsed_ms;
+    let (view, cx) = session_window(cx, width, move |listing| {
+        listing.agents[0].tokens = vec![(ACTIVITY_TOKEN_KEY.into(), activity_ms.to_string())];
+        edit(listing);
+    });
+    view.update(cx, |view, cx| {
+        view.live.snapshot_v2 = true;
+        cx.notify();
+    });
     redraw(cx);
     (view, cx)
 }
@@ -296,4 +320,95 @@ fn a_collapsed_machine_keeps_its_agents_listed(cx: &mut gpui::TestAppContext) {
     redraw(cx);
     assert!(painted(cx, "Remote · herdr"));
     assert!(painted(cx, "Local · herdr"));
+}
+
+#[gpui::test]
+fn line_one_shows_the_age(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = age_window(cx, 240., FIVE_MINUTES_MS, |listing| {
+        listing.workspaces[0].label = "ws".into();
+    });
+    assert!(painted(cx, "5m"));
+    let row = cx.debug_bounds("row-agent-p0").unwrap();
+    let age = cx.debug_bounds("session-age-p0").unwrap();
+    assert!(inside(row, age), "{age:?} outside {row:?}");
+    // Right-aligned: far from the short title, not placed after it.
+    let title = text_bounds(cx, "ws");
+    let glyph = view.read_with(cx, |view, _| glyph_width(&view.config.sidebar));
+    let gap = f32::from(age.left() - title.right());
+    assert!(gap > 5. * glyph, "{gap} px between {title:?} and {age:?}");
+}
+
+#[gpui::test]
+fn a_row_without_a_token_shows_no_age(cx: &mut gpui::TestAppContext) {
+    let (_view, cx) = age_window(cx, 240., FIVE_MINUTES_MS, |listing| {
+        listing.agents[0].tokens.clear();
+    });
+    assert!(cx.debug_bounds("row-agent-p0").is_some());
+    assert!(cx.debug_bounds("session-age-p0").is_none());
+    assert!(!painted(cx, "5m"));
+}
+
+#[gpui::test]
+fn a_narrow_row_drops_the_age_whole(cx: &mut gpui::TestAppContext) {
+    // A 36 pt font in a 300 px window leaves the sidebar 60 px.
+    let (fixture, cx) = cx.add_window_view(|window, cx| {
+        let view = cx.new(|cx| {
+            let mut view = fixture_window(window, cx);
+            view.config.sidebar.size = 36.;
+            let mut listing = snapshot(1);
+            listing.agents[0].tokens = vec![(
+                ACTIVITY_TOKEN_KEY.into(),
+                (now_ms() - FIVE_MINUTES_MS).to_string(),
+            )];
+            view.live.snapshot = Some(Arc::new(listing));
+            view.live.snapshot_v2 = true;
+            view
+        });
+        cx.observe(&view, |_, _, cx| cx.notify()).detach();
+        SidebarFixture(view)
+    });
+    let view = cx.update(|_, cx| fixture.read(cx).0.clone());
+    cx.simulate_resize(size(px(300.), px(900.)));
+    cx.run_until_parked();
+    redraw(cx);
+    // The room a line has: the content width less the status mark and the gap.
+    let mark = cx.debug_bounds("mark-agent-p0").unwrap();
+    let columns = view.read_with(cx, |view, _| {
+        let look = layout::for_config(&view.config, view.fill());
+        let room = look.content_width(60.) - f32::from(mark.size.width) - look.density.gap();
+        room / glyph_width(&view.config.sidebar)
+    });
+    assert!(columns < 2., "{columns} columns leave room for the age");
+    assert!(cx.debug_bounds("session-age-p0").is_none());
+    assert!(cx.debug_bounds("mark-agent-p0").is_some());
+}
+
+#[gpui::test]
+fn only_a_v2_endpoint_shows_an_age(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = two_endpoint_window(cx);
+    let activity = vec![(
+        ACTIVITY_TOKEN_KEY.to_owned(),
+        (now_ms() - FIVE_MINUTES_MS).to_string(),
+    )];
+    view.update(cx, |view, cx| {
+        // Both agents carry the token; the remote's gets its own pane id so
+        // the two rows' selectors differ.
+        for (live, pane_id) in [
+            (&mut view.live, "p0"),
+            (&mut view.endpoints[1].live, "remote-pane"),
+        ] {
+            let mut listing = live.snapshot.as_deref().unwrap().clone();
+            listing.agents[0].pane_id = pane_id.into();
+            listing.agents[0].tokens = activity.clone();
+            live.snapshot = Some(Arc::new(listing));
+        }
+        view.live.snapshot_v2 = true;
+        view.endpoints[1].live.snapshot_v2 = false;
+        cx.notify();
+    });
+    redraw(cx);
+    // Several hosts name a row by its host, so the status mark shows it painted.
+    assert!(cx.debug_bounds("mark-agent-remote-pane").is_some());
+    assert!(cx.debug_bounds("session-age-p0").is_some());
+    assert!(cx.debug_bounds("session-age-remote-pane").is_none());
 }

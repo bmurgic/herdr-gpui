@@ -5,7 +5,14 @@
 
 use crate::{
     HerdrWindow,
-    sidebar::{Indicators, agents::sorted_agents, cell::RowContext, layout::SidebarLook, wash},
+    sidebar::{
+        Indicators,
+        agents::sorted_agents,
+        cell::RowContext,
+        layout::SidebarLook,
+        session_age::{AgeClock, now_ms},
+        wash,
+    },
 };
 use gpui::{prelude::*, *};
 
@@ -83,11 +90,16 @@ impl HerdrWindow {
         };
         let mut count = 0;
         let mut focused = None;
+        let age = AgeClock {
+            shown: live.snapshot_v2,
+            now_ms: now_ms(),
+        };
         for agent in sorted_agents(snapshot, self.agent_sort) {
             // Configured `[sidebar_layout.agents]` rows apply here as in the
             // agents panel, gap included. A session row leaves the machine
             // unnamed, as the header above names it.
-            let Some(row) = self.agent_row(index, agent, snapshot, &row_cx, None, count, cx) else {
+            let Some(row) = self.agent_row(index, agent, snapshot, &row_cx, None, age, count, cx)
+            else {
                 continue;
             };
             if selected && agent.focused {
