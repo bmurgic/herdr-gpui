@@ -300,9 +300,10 @@ fn a_refused_workspace_focus_ends_the_wait_without_a_reconnect(cx: &mut gpui::Te
             );
         },
     );
-    for (endpoint, server, method) in [
-        (v2, v2_server, "workspace.focus.v2"),
-        (v1, v1_server, "workspace.focus"),
+    let v1_focus = v1_with_scratch().focused_workspace_id;
+    for (endpoint, server, method, focus) in [
+        (v2, v2_server, "workspace.focus.v2", Some("api".to_owned())),
+        (v1, v1_server, "workspace.focus", v1_focus),
     ] {
         let (view, cx, _server) = refused_focus(
             cx,
@@ -320,7 +321,7 @@ fn a_refused_workspace_focus_ends_the_wait_without_a_reconnect(cx: &mut gpui::Te
                     .unwrap()
                     .focused_workspace_id
                     .clone();
-                assert_ne!(focused.as_deref(), Some("scratch"), "{method}");
+                assert_eq!(focused, focus, "{method} moved the focused workspace");
                 assert_eq!(
                     view.live.error.as_deref(),
                     Some("workspace scratch not found"),

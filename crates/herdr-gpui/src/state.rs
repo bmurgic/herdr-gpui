@@ -127,7 +127,7 @@ pub struct LiveState {
     /// there is no activation to wait for. The window reads it to drop the
     /// fence's deadline instead of reconnecting when it passes. The next fence
     /// and a new session clear it.
-    pub focus_refused: bool,
+    pub(crate) focus_refused: bool,
     pub supports_surface: bool,
     // Bounded rename slots survive coalesced snapshots and do not overwrite a
     // worktree operation whose dialog has already closed.
@@ -182,9 +182,9 @@ pub struct SurfaceActivation {
     pub failed: bool,
     pub focus: Option<crate::OwnedNavigationTarget>,
     pub active: bool,
-    /// The `workspace.focus` request that raised this fence, when it was a
-    /// workspace focus. A refusal of that request ends the activation, because
-    /// no focus change is coming for the surface to settle on.
+    /// The workspace focus request (`workspace.focus` or its `.v2` form) that
+    /// raised this fence, when it was one. A refusal of that request ends the
+    /// activation, because no focus change is coming for the surface to settle on.
     pub focus_request: Option<String>,
 }
 
