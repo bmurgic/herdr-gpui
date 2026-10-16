@@ -187,6 +187,15 @@ impl Endpoint {
         self.initial_surface = true;
     }
 
+    /// Forgets a workspace focus refusal the window has acted on, in the inbox
+    /// and the polled copy, so a later poll cannot read it again.
+    pub(crate) fn consume_focus_refusal(&mut self) {
+        self.live.focus_refused = false;
+        if let Ok(mut state) = self.connection.inbox.lock() {
+            state.focus_refused = false;
+        }
+    }
+
     /// Refreshes state derived from `live` after it is replaced.
     pub(crate) fn sync_live(&mut self) {
         #[cfg(any(target_os = "macos", target_os = "linux"))]

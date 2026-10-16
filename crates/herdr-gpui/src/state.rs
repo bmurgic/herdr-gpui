@@ -125,8 +125,8 @@ pub struct LiveState {
     pub activation: Option<SurfaceActivation>,
     /// The daemon refused the workspace focus that raised the last fence, so
     /// there is no activation to wait for. The window reads it to drop the
-    /// fence's deadline instead of reconnecting when it passes. The next fence
-    /// and a new session clear it.
+    /// fence's deadline instead of reconnecting when it passes, and consumes
+    /// it there. The next fence and a new session clear it too.
     pub(crate) focus_refused: bool,
     pub supports_surface: bool,
     // Bounded rename slots survive coalesced snapshots and do not overwrite a
@@ -828,13 +828,12 @@ impl LiveState {
 
     /// Ends the activation `request_id` raised, when it is a workspace focus
     /// the daemon refused. Tab and pane focus keep their fence: only a
-    /// workspace focus is ruled to stop waiting.
+    /// workspace focus is ruled to stop waiting. A fence that failed to raise
+    /// has no acknowledgement coming and stays for its deadline's reconnect.
     fn end_refused_focus(&mut self, request_id: &str) {
-        if self
-            .activation
-            .as_ref()
-            .is_some_and(|activation| activation.focus_request.as_deref() == Some(request_id))
-        {
+        if self.activation.as_ref().is_some_and(|activation| {
+            !activation.failed && activation.focus_request.as_deref() == Some(request_id)
+        }) {
             self.activation = None;
             self.focus_refused = true;
         }

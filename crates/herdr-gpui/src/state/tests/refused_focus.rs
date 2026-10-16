@@ -90,3 +90,14 @@ fn a_disconnect_forgets_the_refusal() {
     });
     assert!(!state.focus_refused);
 }
+
+/// A fence that failed to raise has no acknowledgement coming and relies on its
+/// expired deadline to reconnect. A refusal arriving first must not drop it.
+#[test]
+fn a_refusal_leaves_a_failed_activation_for_the_reconnect() {
+    let mut state = focusing(Some("focus-1"));
+    state.activation.as_mut().unwrap().failed = true;
+    state.apply(refusal("focus-1"));
+    assert!(state.activation.as_ref().is_some_and(|a| a.failed));
+    assert!(!state.focus_refused);
+}

@@ -333,9 +333,25 @@ fn a_refused_workspace_focus_ends_the_wait_without_a_reconnect(cx: &mut gpui::Te
                     "{method} kept its deadline"
                 );
 
-                // Once the deadline would have passed, nothing reconnects or switches host.
+                // The poll that read the refusal consumed it, so the next polls
+                // are not held back by it.
+                assert!(!view.live.focus_refused, "{method} kept the refusal");
+                assert!(
+                    !view.endpoints[0]
+                        .connection
+                        .inbox
+                        .lock()
+                        .unwrap()
+                        .focus_refused,
+                    "{method} left the refusal in the inbox"
+                );
+
+                // A refusal that reaches the poll after the deadline passed wins:
+                // nothing reconnects or switches host.
+                view.live.focus_refused = true;
                 view.activation_deadline = Some(Instant::now() - Duration::from_secs(1));
                 view.poll_endpoints(cx);
+                assert!(view.activation_deadline.is_none(), "{method}");
                 assert!(view.live.status.is_connected(), "{method} reconnected");
                 assert_eq!(view.selected_endpoint, 0, "{method} switched host");
                 assert!(
@@ -370,5 +386,36 @@ fn a_refused_tab_focus_keeps_waiting_for_the_activation(cx: &mut gpui::TestAppCo
         );
         assert!(view.live.activation.is_some());
         assert!(view.activation_deadline.is_some());
+    });
+}
+
+/// The refusal ends one fence. A later activation, here the initial surface a
+/// host switch back installs, keeps its own deadline.
+#[gpui::test]
+fn a_refusal_does_not_disarm_a_later_activation(cx: &mut gpui::TestAppContext) {
+    let v2_methods = [SURFACE, Method::WorkspaceFocus, Method::WorkspaceFocusV2];
+    let (endpoint, server) =
+        connected_endpoint_v2("empty-workspaces", &v2_methods, api_and("scratch"));
+    let (view, cx, _server) = refused_focus(
+        cx,
+        endpoint,
+        server,
+        NavigationTarget::Workspace("scratch"),
+        "workspace.focus.v2",
+    );
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            // What release_selected leaves behind when the user switches away.
+            view.endpoints[0].initial_surface = false;
+            view.poll_endpoints(cx);
+            assert!(
+                view.live.activation.is_some(),
+                "no new activation installed"
+            );
+            assert!(
+                view.activation_deadline.is_some(),
+                "a new activation runs without a deadline"
+            );
+        })
     });
 }
