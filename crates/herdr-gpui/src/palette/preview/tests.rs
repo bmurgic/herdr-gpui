@@ -5,8 +5,8 @@ use herdr_client::protocol::{FrameData, PaneSurfacePane};
 mod remembered;
 
 /// w1:t1 holds the blocked agent w1:p1; w1:t2 holds the terminal w1:p2.
-fn snapshot() -> ClientShellSnapshot {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+fn snapshot() -> ClientShellSnapshotV2 {
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

@@ -3,7 +3,7 @@
 use super::*;
 use crate::processes::{Command, Daemon, Row};
 use core::prelude::v1::test;
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::sync::Arc;
 
 fn row(pid: u32, depth: usize) -> Row {
@@ -58,7 +58,7 @@ fn choosing_confirming_and_ending_exact_processes(cx: &mut TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
         let mut view = crate::sidebar::layout_tests::fixture_window(window, cx);
-        let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+        let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
             "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
         ))
         .unwrap();

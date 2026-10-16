@@ -444,7 +444,7 @@ pub(crate) fn repository_input(
 /// verified against the branch before anything is read. Remote devices keep
 /// requiring metadata: their directories are not this machine's.
 pub(crate) fn workspace_input(
-    workspace: &herdr_client::protocol::ClientShellWorkspace,
+    workspace: &herdr_client::protocol::ClientShellWorkspaceV2,
     origin: &Origin,
 ) -> crate::Result<Input> {
     let worktree = workspace.worktree.as_ref();

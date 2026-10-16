@@ -1,7 +1,7 @@
 //! Local project discovery and path validation run only on background workers.
 
 use crate::{Error, Result};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::{
     collections::HashSet,
     ffi::OsString,
@@ -178,7 +178,7 @@ pub(super) fn validate(project: &Project) -> Result<()> {
 /// The first surviving pane in the first tab supplies the launch directory.
 /// Snapshots have no original-root identity; never infer one from opaque IDs
 /// or substitute a foreground process directory.
-pub(super) fn workspace_for_path(snapshot: &ClientShellSnapshot, path: &Path) -> Option<String> {
+pub(super) fn workspace_for_path(snapshot: &ClientShellSnapshotV2, path: &Path) -> Option<String> {
     workspace_roots(snapshot)
         .into_iter()
         .find_map(|(workspace, cwd)| {
@@ -188,7 +188,7 @@ pub(super) fn workspace_for_path(snapshot: &ClientShellSnapshot, path: &Path) ->
         })
 }
 
-pub(super) fn workspace_roots(snapshot: &ClientShellSnapshot) -> Vec<(String, String)> {
+pub(super) fn workspace_roots(snapshot: &ClientShellSnapshotV2) -> Vec<(String, String)> {
     snapshot
         .workspaces
         .iter()
@@ -202,7 +202,7 @@ pub(super) fn workspace_roots(snapshot: &ClientShellSnapshot) -> Vec<(String, St
 }
 
 pub(crate) fn launch_root<'a>(
-    snapshot: &'a ClientShellSnapshot,
+    snapshot: &'a ClientShellSnapshotV2,
     workspace: &str,
 ) -> Option<&'a str> {
     let tab = snapshot
@@ -307,7 +307,7 @@ mod tests {
         let path = fs::canonicalize(root.path())?;
         let nested = path.join("nested");
         fs::create_dir(&nested)?;
-        let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+        let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
             "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
         ))?;
         snapshot.panes[0].cwd = Some(path.to_string_lossy().into_owned());

@@ -4,7 +4,7 @@
 
 use super::{agents::panel_agents, visible_workspace_entries};
 use crate::{HerdrWindow, controls::Command, state::LiveState};
-use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshot};
+use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshotV2};
 
 /// A listed row: its host, by endpoint index, and the workspace or agent
 /// pane it shows.
@@ -28,7 +28,7 @@ impl HerdrWindow {
     }
 
     /// Each host the sidebar lists, with the snapshot it draws from.
-    fn listed_hosts(&self) -> impl Iterator<Item = (usize, &ClientShellSnapshot)> {
+    fn listed_hosts(&self) -> impl Iterator<Item = (usize, &ClientShellSnapshotV2)> {
         self.listed_lives()
             .filter_map(|(index, live)| live.snapshot.as_deref().map(|snapshot| (index, snapshot)))
     }

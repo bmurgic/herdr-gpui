@@ -104,7 +104,7 @@ impl HerdrWindow {
 
     /// The menu's workspace as the live snapshot reports it, while it still
     /// has the repository and branch the menu was opened with.
-    pub(super) fn menu_target_workspace(&self) -> Option<&ClientShellWorkspace> {
+    pub(super) fn menu_target_workspace(&self) -> Option<&ClientShellWorkspaceV2> {
         let target = self.menu.target.as_ref()?;
         let snapshot = self
             .live
@@ -454,7 +454,7 @@ impl HerdrWindow {
 }
 
 fn workspace_pr_inputs<'a>(
-    snapshot: &'a ClientShellSnapshot,
+    snapshot: &'a ClientShellSnapshotV2,
     origin: &'a Origin,
     open: Option<&'a str>,
     cursor: usize,

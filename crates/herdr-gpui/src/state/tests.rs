@@ -15,7 +15,7 @@ mod surfaces;
 mod version_mismatch;
 mod workspace_move;
 
-fn snapshot() -> Arc<ClientShellSnapshot> {
+fn snapshot() -> Arc<ClientShellSnapshotV2> {
     Arc::new(
         serde_json::from_str(include_str!(
             "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
@@ -24,7 +24,7 @@ fn snapshot() -> Arc<ClientShellSnapshot> {
     )
 }
 
-fn surface(snapshot: &ClientShellSnapshot) -> Arc<PaneSurfaceFrame> {
+fn surface(snapshot: &ClientShellSnapshotV2) -> Arc<PaneSurfaceFrame> {
     Arc::new(PaneSurfaceFrame {
         boot_id: snapshot.boot_id.clone(),
         projection_revision: snapshot.revision,

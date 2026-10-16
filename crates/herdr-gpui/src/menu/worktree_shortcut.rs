@@ -5,7 +5,7 @@
 use super::{Page, WorkspaceAction, workspace::WorkspaceTarget};
 use crate::HerdrWindow;
 use gpui::{Context, Point, Window};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 
 /// A worktree shortcut, each opening one dialog of the workspace menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,7 +52,7 @@ impl WorktreeShortcut {
     /// The workspace whose menu row this shortcut stands in for. Herdr lists
     /// and opens checkouts only through a repository's main checkout, so a
     /// focused linked checkout opens through it, as a new worktree does.
-    pub(super) fn target(self, snapshot: &ClientShellSnapshot) -> Result<String, Unavailable> {
+    pub(super) fn target(self, snapshot: &ClientShellSnapshotV2) -> Result<String, Unavailable> {
         let focused = snapshot
             .workspaces
             .iter()

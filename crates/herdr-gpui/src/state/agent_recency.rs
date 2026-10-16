@@ -3,7 +3,7 @@
 //! changes, so an agents panel that merges several hosts by recency needs an
 //! order across them, as Herdr's terminal client keeps one.
 
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicU64, Ordering},
@@ -23,8 +23,8 @@ impl AgentRecency {
     /// panes `next` no longer lists. Without one, every agent is new.
     pub(super) fn observe(
         &mut self,
-        previous: Option<&ClientShellSnapshot>,
-        next: &ClientShellSnapshot,
+        previous: Option<&ClientShellSnapshotV2>,
+        next: &ClientShellSnapshotV2,
     ) {
         let mut changed: Vec<_> = next
             .agents

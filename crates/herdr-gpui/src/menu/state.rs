@@ -7,7 +7,7 @@ use super::endpoint_error;
 use super::{Page, WorkspaceMenuAction, WorkspaceTarget, git, github};
 use crate::dialog_input::DialogInput;
 use gpui::{App, Entity, FocusHandle, Pixels, Point, ScrollHandle, Subscription};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 
 /// What an open menu covers, as its last frame laid it out: the window's
 /// native pages above GPUI would hide it, so the ones it covers step aside.
@@ -117,7 +117,7 @@ pub(crate) struct MenuState {
     pub(crate) pr_cache: crate::pull_request::Cache,
     pub(super) pr_cache_connection:
         Option<std::sync::Weak<std::sync::Mutex<crate::state::LiveState>>>,
-    pub(super) pr_snapshot: Option<std::sync::Weak<ClientShellSnapshot>>,
+    pub(super) pr_snapshot: Option<std::sync::Weak<ClientShellSnapshotV2>>,
     pub(crate) github: crate::github::Auth,
     /// Saved SSH devices' own accounts, keyed by endpoint ID. A device without
     /// one signed in looks up pull requests with `github`.

@@ -7,7 +7,7 @@ use crate::{
 };
 use core::prelude::v1::test;
 use herdr_client::protocol::{
-    ClientMessage, ClientShellSnapshot, FrameData, PaneSurfaceFrame, PaneSurfacePane, SurfaceRect,
+    ClientMessage, ClientShellSnapshotV2, FrameData, PaneSurfaceFrame, PaneSurfacePane, SurfaceRect,
 };
 use std::sync::Arc;
 
@@ -15,7 +15,7 @@ mod padding;
 mod titlebar_navigation;
 
 /// A coherent surface for `snapshot`, as the daemon projects one.
-pub(super) fn surface(snapshot: &ClientShellSnapshot, pane: &str) -> Arc<PaneSurfaceFrame> {
+pub(super) fn surface(snapshot: &ClientShellSnapshotV2, pane: &str) -> Arc<PaneSurfaceFrame> {
     let rect = SurfaceRect {
         x: 0,
         y: 0,
@@ -61,7 +61,7 @@ fn parked(
     workspace: (Scope, String),
     target: herdr_client::ConnectTarget,
     peer: &MockPeer,
-    snapshot: ClientShellSnapshot,
+    snapshot: ClientShellSnapshotV2,
 ) -> Parked {
     let mut connection = ConnectionBridge::new(target);
     connection.handle = Some(peer.client.handle.clone());
@@ -84,7 +84,7 @@ fn parked(
     }
 }
 
-fn fixture_snapshot() -> ClientShellSnapshot {
+fn fixture_snapshot() -> ClientShellSnapshotV2 {
     serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))

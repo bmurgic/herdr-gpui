@@ -213,7 +213,7 @@ impl Peer {
             target: HOST.into(),
             session: "default".into(),
         };
-        let snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+        let snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
             "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
         ))
         .unwrap();

@@ -211,7 +211,7 @@ fn status_shapes_match_upstream_dots_and_wire_casing() {
     ] {
         let mut value = serde_json::to_value(&snapshot.workspaces[0]).unwrap();
         value["agent_status"] = wire.into();
-        let workspace: ClientShellWorkspace = serde_json::from_value(value).unwrap();
+        let workspace: ClientShellWorkspaceV2 = serde_json::from_value(value).unwrap();
         assert_eq!(workspace.agent_status, status);
         let mut value = serde_json::to_value(&snapshot.agents[0]).unwrap();
         value["agent_status"] = wire.into();

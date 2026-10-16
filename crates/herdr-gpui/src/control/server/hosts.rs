@@ -18,7 +18,7 @@ use crate::{
     },
 };
 use gpui::App;
-use herdr_client::protocol::{ClientShellSnapshot, ClientShellWorkspace};
+use herdr_client::protocol::{ClientShellSnapshotV2, ClientShellWorkspaceV2};
 use std::time::SystemTime;
 
 pub(super) fn serve(
@@ -97,7 +97,7 @@ impl Place {
         self.index == view.selected_endpoint
     }
 
-    fn snapshot<'a>(&self, view: &'a HerdrWindow) -> Option<&'a ClientShellSnapshot> {
+    fn snapshot<'a>(&self, view: &'a HerdrWindow) -> Option<&'a ClientShellSnapshotV2> {
         let live = if self.selected(view) {
             &view.live
         } else {
@@ -106,7 +106,10 @@ impl Place {
         live.snapshot.as_deref()
     }
 
-    pub(super) fn workspace<'a>(&self, view: &'a HerdrWindow) -> Option<&'a ClientShellWorkspace> {
+    pub(super) fn workspace<'a>(
+        &self,
+        view: &'a HerdrWindow,
+    ) -> Option<&'a ClientShellWorkspaceV2> {
         self.snapshot(view)?
             .workspaces
             .iter()

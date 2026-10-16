@@ -17,7 +17,7 @@ use std::sync::{
 #[derive(Debug)]
 pub enum ClientEvent {
     Connected(EndpointServerWelcome),
-    Snapshot(Arc<ClientShellSnapshot>),
+    Snapshot(Arc<ClientShellSnapshotV2>),
     /// Complete text baseline, including after a cell patch. Its graphics
     /// scene carries placements only; the pixels arrive as `SurfaceImages`.
     Surface(Arc<PaneSurfaceFrame>),

@@ -3,10 +3,11 @@ use herdr_client::protocol::ClientShellWorktree;
 
 mod single_move;
 
-fn workspace(id: &str, tree: Option<(&str, bool)>) -> ClientShellWorkspace {
-    ClientShellWorkspace {
+fn workspace(id: &str, tree: Option<(&str, bool)>) -> ClientShellWorkspaceV2 {
+    ClientShellWorkspaceV2 {
         workspace_id: id.into(),
-        active_tab_id: String::new(),
+        active_tab_id: Some(String::new()),
+        repository: None,
         new_workspace_cwd: String::new(),
         number: 0,
         label: id.into(),
@@ -25,7 +26,7 @@ fn workspace(id: &str, tree: Option<(&str, bool)>) -> ClientShellWorkspace {
 }
 
 /// `a` heads a group whose child `a2` sits after `b` in daemon order.
-fn list() -> Vec<ClientShellWorkspace> {
+fn list() -> Vec<ClientShellWorkspaceV2> {
     vec![
         workspace("a", Some(("repo-a", false))),
         workspace("a1", Some(("repo-a", true))),

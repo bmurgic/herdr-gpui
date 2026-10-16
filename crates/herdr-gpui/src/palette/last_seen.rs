@@ -12,7 +12,7 @@
 //! its daemon boot and never shown for another.
 
 use herdr_client::protocol::{
-    CellData, ClientShellPopupSurface, ClientShellSnapshot, FrameData, PaneSurfaceFrame,
+    CellData, ClientShellPopupSurface, ClientShellSnapshotV2, FrameData, PaneSurfaceFrame,
     PaneSurfacePane, PaneSurfaceSplit, SurfaceGraphicsAsset, SurfaceGraphicsAssetKey,
     SurfaceGraphicsPlacement, SurfaceGraphicsSource, SurfaceGraphicsTarget,
 };
@@ -133,7 +133,7 @@ fn bytes(surface: &PaneSurfaceFrame) -> usize {
 
 /// The tab `surface` streams, by `snapshot`, when both are of one boot.
 fn tab_of<'a>(
-    snapshot: Option<&'a ClientShellSnapshot>,
+    snapshot: Option<&'a ClientShellSnapshotV2>,
     surface: Option<&Arc<PaneSurfaceFrame>>,
 ) -> Option<&'a str> {
     let (snapshot, surface) = snapshot.zip(surface)?;
@@ -155,8 +155,14 @@ impl LastSeen {
     /// is forgotten, since its live cells take over.
     pub(crate) fn observe(
         &mut self,
-        before: (Option<&ClientShellSnapshot>, Option<&Arc<PaneSurfaceFrame>>),
-        after: (Option<&ClientShellSnapshot>, Option<&Arc<PaneSurfaceFrame>>),
+        before: (
+            Option<&ClientShellSnapshotV2>,
+            Option<&Arc<PaneSurfaceFrame>>,
+        ),
+        after: (
+            Option<&ClientShellSnapshotV2>,
+            Option<&Arc<PaneSurfaceFrame>>,
+        ),
         now: u64,
     ) {
         let left = tab_of(before.0, before.1);

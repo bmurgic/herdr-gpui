@@ -5,11 +5,11 @@
 use super::{Action, Entry, Source, frecency, projects};
 use crate::{Error, NavigationTarget, Result};
 use gpui::SharedString;
-use herdr_client::protocol::{AgentStatus, ClientShellSnapshot};
+use herdr_client::protocol::{AgentStatus, ClientShellSnapshotV2};
 
 /// Whether a Go To destination listed from `boot` still exists in `snapshot`.
 pub(super) fn destination_exists(
-    snapshot: &ClientShellSnapshot,
+    snapshot: &ClientShellSnapshotV2,
     boot: &str,
     target: NavigationTarget<&str>,
 ) -> Result<()> {
@@ -54,7 +54,7 @@ pub(super) fn status_badge(status: AgentStatus) -> &'static str {
 pub(super) fn go_to_entries(
     endpoint: &str,
     host: Option<&str>,
-    snapshot: &ClientShellSnapshot,
+    snapshot: &ClientShellSnapshotV2,
     entries: &mut Vec<Entry>,
 ) {
     let go = |target| Action::Go {

@@ -1,6 +1,6 @@
 use herdr_client::{
     ClientEvent, Method, SurfaceImages,
-    protocol::{ClientShellSnapshot, PaneSurfaceFrame, ServerMessage},
+    protocol::{ClientShellSnapshotV2, PaneSurfaceFrame, ServerMessage},
 };
 use std::sync::Arc;
 
@@ -60,7 +60,7 @@ pub struct LiveState {
     pub(crate) window_title: Option<String>,
     pub(crate) sound_cancel: Arc<std::sync::atomic::AtomicBool>,
     pub(crate) sound_connection_cancel: Arc<std::sync::atomic::AtomicBool>,
-    pub snapshot: Option<Arc<ClientShellSnapshot>>,
+    pub snapshot: Option<Arc<ClientShellSnapshotV2>>,
     /// When each of `snapshot`'s agents last changed, on a clock shared with
     /// every other connection, so the agents panel can merge hosts by recency.
     pub(crate) agent_recency: AgentRecency,
@@ -152,7 +152,7 @@ pub(crate) struct AnnouncementDismissal {
 }
 
 impl AnnouncementDismissal {
-    fn covers(&self, snapshot: &ClientShellSnapshot) -> bool {
+    fn covers(&self, snapshot: &ClientShellSnapshotV2) -> bool {
         snapshot
             .product_announcement
             .as_ref()
@@ -821,7 +821,7 @@ fn sanitize_window_title(title: &str) -> Option<String> {
     (!title.is_empty()).then(|| title.to_owned())
 }
 
-fn coherent(snapshot: &ClientShellSnapshot, surface: &PaneSurfaceFrame) -> bool {
+fn coherent(snapshot: &ClientShellSnapshotV2, surface: &PaneSurfaceFrame) -> bool {
     snapshot.boot_id == surface.boot_id && snapshot.revision == surface.projection_revision
 }
 

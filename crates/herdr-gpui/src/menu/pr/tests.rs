@@ -8,7 +8,7 @@ fn metadata_priority_alternates_with_round_robin_and_skips_ineligible_workspaces
     snapshot.focused_workspace_id = Some("w5".into());
     // A saved device requires daemon metadata, so only metadata decides here.
     let origin = Origin::Ssh("device".into());
-    let branches = |snapshot: &super::ClientShellSnapshot, open, cursor| {
+    let branches = |snapshot: &super::ClientShellSnapshotV2, open, cursor| {
         super::workspace_pr_inputs(snapshot, &origin, open, cursor)
             .map(|input| input.branch)
             .collect::<Vec<_>>()

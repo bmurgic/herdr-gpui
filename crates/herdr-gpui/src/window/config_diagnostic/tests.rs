@@ -1,6 +1,6 @@
 use crate::sidebar::layout_tests::fixture_window;
 use gpui::{TestAppContext, VisualTestContext, px, size};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::sync::Arc;
 
 mod command_chip;
@@ -12,7 +12,7 @@ fn set_diagnostic(
     diagnostic: Option<&str>,
     cx: &mut VisualTestContext,
 ) {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

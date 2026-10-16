@@ -3,9 +3,9 @@
 
 use super::*;
 use crate::pull_request::{local_checkout, repository_key, workspace_input};
-use herdr_client::protocol::{ClientShellWorkspace, ClientShellWorktree};
+use herdr_client::protocol::{ClientShellWorkspaceV2, ClientShellWorktree};
 
-fn workspace(cwd: &str, branch: Option<&str>) -> ClientShellWorkspace {
+fn workspace(cwd: &str, branch: Option<&str>) -> ClientShellWorkspaceV2 {
     let mut workspace = crate::sidebar::layout_tests::snapshot(1)
         .workspaces
         .remove(0);

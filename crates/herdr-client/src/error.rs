@@ -140,6 +140,8 @@ pub enum Error {
     MissingHealthCheck { server_version: String },
     #[error("endpoint boot changed or snapshot revision regressed; reconnect required")]
     SnapshotIdentity,
+    #[error("snapshot of kind {received} on a session that selected {selected}")]
+    SnapshotKind { selected: String, received: String },
     #[error("surface before snapshot")]
     SurfaceBeforeSnapshot,
     #[error("invalid surface identity/revision")]

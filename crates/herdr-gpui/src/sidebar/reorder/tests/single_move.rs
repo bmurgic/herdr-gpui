@@ -1,7 +1,7 @@
 use super::*;
 
 /// The order Herdr leaves after `reorder`, by its own two algorithms.
-fn apply(list: &[ClientShellWorkspace], reorder: &WorkspaceReorder) -> Vec<String> {
+fn apply(list: &[ClientShellWorkspaceV2], reorder: &WorkspaceReorder) -> Vec<String> {
     let mut ids: Vec<String> = list.iter().map(|w| w.workspace_id.clone()).collect();
     match reorder {
         WorkspaceReorder::Move(params) => {

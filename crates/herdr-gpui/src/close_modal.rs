@@ -7,7 +7,7 @@ use crate::{
 use gpui::{prelude::*, *};
 use herdr_client::{
     Method,
-    protocol::{AgentStatus, ClientShellSnapshot},
+    protocol::{AgentStatus, ClientShellSnapshotV2},
 };
 use serde_json::{Value, json};
 
@@ -29,7 +29,7 @@ pub(super) struct CloseConfirmation {
 }
 
 impl CloseConfirmation {
-    pub(super) fn capture_pane(snapshot: &ClientShellSnapshot, id: &str) -> Option<Self> {
+    pub(super) fn capture_pane(snapshot: &ClientShellSnapshotV2, id: &str) -> Option<Self> {
         let pane = snapshot.panes.iter().find(|pane| pane.pane_id == id)?;
         let mut close = Self::capture_tab(snapshot, &pane.tab_id)?;
         if close.workspace != pane.workspace_id {
@@ -41,7 +41,7 @@ impl CloseConfirmation {
         Some(close)
     }
 
-    pub(super) fn capture_tab(snapshot: &ClientShellSnapshot, id: &str) -> Option<Self> {
+    pub(super) fn capture_tab(snapshot: &ClientShellSnapshotV2, id: &str) -> Option<Self> {
         let tab = snapshot.tabs.iter().find(|tab| tab.tab_id == id)?;
         Some(Self {
             boot: snapshot.boot_id.clone(),
@@ -55,7 +55,7 @@ impl CloseConfirmation {
         })
     }
 
-    fn capture(command: Command, snapshot: &ClientShellSnapshot) -> Option<Self> {
+    fn capture(command: Command, snapshot: &ClientShellSnapshotV2) -> Option<Self> {
         if !matches!(command, Command::ClosePane | Command::CloseTab) {
             return None;
         }
@@ -92,7 +92,7 @@ impl CloseConfirmation {
     /// working, or blocked on a prompt. Idle, done, and unknown agents, and
     /// tabs without any, have nothing in flight to lose. Pane closes ask
     /// unless `confirm_close_pane` is off, so this only matters for tabs.
-    fn interrupts_agent(&self, snapshot: &ClientShellSnapshot) -> bool {
+    fn interrupts_agent(&self, snapshot: &ClientShellSnapshotV2) -> bool {
         let busy = |status| matches!(status, AgentStatus::Working | AgentStatus::Blocked);
         // The tab's aggregate status may rank a finished agent above a
         // working one, so each agent in the tab is checked as well.
@@ -106,7 +106,7 @@ impl CloseConfirmation {
                 .any(|agent| agent.tab_id == self.tab && busy(agent.agent_status))
     }
 
-    fn request(&self, snapshot: &ClientShellSnapshot) -> Result<(Method, Value)> {
+    fn request(&self, snapshot: &ClientShellSnapshotV2) -> Result<(Method, Value)> {
         if snapshot.boot_id != self.boot
             || !snapshot
                 .workspaces

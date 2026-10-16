@@ -44,7 +44,7 @@ fn tab_icon_bounds_and_inactive_cross_confirmation(cx: &mut TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
         let mut view = crate::sidebar::layout_tests::fixture_window(window, cx);
-        let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+        let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
             "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
         ))
         .unwrap();
@@ -142,7 +142,7 @@ fn tab_icon_bounds_and_inactive_cross_confirmation(cx: &mut TestAppContext) {
 
 #[test]
 fn only_a_working_or_blocked_agent_holds_a_tab_close() -> anyhow::Result<()> {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))?;
     let close = CloseConfirmation::capture_tab(&snapshot, "w1:t1")
@@ -179,7 +179,7 @@ fn only_a_working_or_blocked_agent_holds_a_tab_close() -> anyhow::Result<()> {
 fn idle_tab_closes_without_asking_but_panes_still_ask(cx: &mut TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = crate::sidebar::layout_tests::fixture_window(window, cx);
-        let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+        let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
             "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
         ))
         .unwrap();
@@ -206,7 +206,7 @@ fn idle_tab_closes_without_asking_but_panes_still_ask(cx: &mut TestAppContext) {
 
 #[test]
 fn explicit_pane_close_retains_inactive_target_and_membership() {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();
@@ -240,7 +240,7 @@ fn explicit_pane_close_retains_inactive_target_and_membership() {
 
 #[test]
 fn explicit_tab_close_does_not_follow_focus() -> anyhow::Result<()> {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))?;
     let mut inactive = snapshot.tabs[0].clone();
@@ -260,7 +260,7 @@ fn explicit_tab_close_does_not_follow_focus() -> anyhow::Result<()> {
 }
 #[test]
 fn close_retains_original_target_and_rejects_replaced_sessions() -> anyhow::Result<()> {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))?;
     for command in [Command::ClosePane, Command::CloseTab] {

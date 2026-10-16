@@ -188,7 +188,7 @@ fn open_worktree_branch_only_parent_membership_preserves_correlated_navigation(
     ))
     .unwrap();
     welcome["methods"] = json!(["worktree.list", "worktree.open", "workspace.focus"]);
-    let snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

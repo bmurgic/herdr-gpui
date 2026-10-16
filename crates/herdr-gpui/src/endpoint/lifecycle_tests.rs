@@ -100,14 +100,14 @@ impl Drop for Server {
     }
 }
 
-fn snapshot() -> ClientShellSnapshot {
+fn snapshot() -> ClientShellSnapshotV2 {
     serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap()
 }
 
-fn surface(snapshot: &ClientShellSnapshot) -> Arc<PaneSurfaceFrame> {
+fn surface(snapshot: &ClientShellSnapshotV2) -> Arc<PaneSurfaceFrame> {
     Arc::new(PaneSurfaceFrame {
         boot_id: snapshot.boot_id.clone(),
         projection_revision: snapshot.revision,

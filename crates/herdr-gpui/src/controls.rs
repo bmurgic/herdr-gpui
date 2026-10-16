@@ -1,4 +1,4 @@
-use herdr_client::{Method, protocol::ClientShellSnapshot};
+use herdr_client::{Method, protocol::ClientShellSnapshotV2};
 use serde_json::{Value, json};
 
 mod shortcuts;
@@ -660,7 +660,7 @@ pub const COMMANDS: &[CommandInfo] = &[
     },
 ];
 
-pub fn request(command: Command, snapshot: &ClientShellSnapshot) -> Option<(Method, Value)> {
+pub fn request(command: Command, snapshot: &ClientShellSnapshotV2) -> Option<(Method, Value)> {
     let workspace = snapshot
         .workspaces
         .iter()

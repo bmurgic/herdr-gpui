@@ -12,9 +12,9 @@ mod local_peer_warning;
 
 #[gpui::test]
 fn targeted_previews_use_only_current_snapshot_ids(cx: &mut TestAppContext) {
-    use herdr_client::protocol::{ClientShellSnapshot, SemanticNotificationKind};
+    use herdr_client::protocol::{ClientShellSnapshotV2, SemanticNotificationKind};
     let (view, cx) = cx.add_window_view(fixture_window);
-    let snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

@@ -23,7 +23,7 @@ fn find_ignores_case_and_measures_the_original_bytes() {
     assert_eq!(find("main", "   "), None);
 }
 
-fn devices(snapshot: &ClientShellSnapshot) -> [Device<'_>; 2] {
+fn devices(snapshot: &ClientShellSnapshotV2) -> [Device<'_>; 2] {
     [
         Device {
             id: "local",
@@ -40,7 +40,7 @@ fn devices(snapshot: &ClientShellSnapshot) -> [Device<'_>; 2] {
     ]
 }
 
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 
 #[test]
 fn results_group_devices_then_worktrees_then_branches_in_sidebar_order() {

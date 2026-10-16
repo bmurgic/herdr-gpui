@@ -220,7 +220,7 @@ pub fn start(handle: WindowHandle<HerdrWindow>, cx: &mut App) {
                         bail!("external workspace not consumed by GUI within {EXTERNAL_TIMEOUT:?}: elapsed={elapsed:?} id={} snapshot={:?}", created.id, view.live.snapshot);
                     }
                     let Some(snapshot) = &view.live.snapshot else { return Ok(false) };
-                    let before: &Arc<ClientShellSnapshot> = before;
+                    let before: &Arc<ClientShellSnapshotV2> = before;
                     if snapshot.boot_id != before.boot_id || snapshot.focused_workspace_id != before.focused_workspace_id
                         || snapshot.focused_tab_id != before.focused_tab_id || snapshot.focused_pane_id != before.focused_pane_id {
                         bail!("external unfocused creation changed GUI boot/focus");

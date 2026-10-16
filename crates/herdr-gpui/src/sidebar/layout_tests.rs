@@ -393,7 +393,7 @@ pub(crate) const REPO_KEY: &str = if cfg!(windows) {
     "/fixture/agent-launcher/.git"
 };
 
-pub(crate) fn snapshot(workspace_count: usize) -> ClientShellSnapshot {
+pub(crate) fn snapshot(workspace_count: usize) -> ClientShellSnapshotV2 {
     serde_json::from_value(serde_json::json!({
         "boot_id": "layout-test", "revision": 1,
         "update_install_command": "", "latest_release_notes_available": false,

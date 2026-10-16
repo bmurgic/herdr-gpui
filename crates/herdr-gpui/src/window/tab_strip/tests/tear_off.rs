@@ -88,7 +88,7 @@ fn a_tab_dropped_inside_the_window_tears_nothing_off(cx: &mut TestAppContext) {
 fn a_lone_tab_can_be_torn_off(cx: &mut TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = crate::sidebar::layout_tests::fixture_window(window, cx);
-        let snapshot: herdr_client::protocol::ClientShellSnapshot = serde_json::from_str(
+        let snapshot: herdr_client::protocol::ClientShellSnapshotV2 = serde_json::from_str(
             include_str!("../../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"),
         )
         .unwrap();

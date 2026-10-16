@@ -9,7 +9,7 @@ use crate::{
     herdr_settings::{IndicatorStyle, Settings},
 };
 use gpui::{prelude::*, *};
-use herdr_client::protocol::{AgentStatus, ClientShellAgent, ClientShellSnapshot};
+use herdr_client::protocol::{AgentStatus, ClientShellAgent, ClientShellSnapshotV2};
 
 pub(super) fn agents_sort(window: &HerdrWindow, cx: &mut Context<HerdrWindow>) -> Stateful<Div> {
     let theme = &window.theme;
@@ -62,7 +62,7 @@ pub(super) fn status_priority(status: AgentStatus) -> u8 {
 /// being non-empty, and drops ids the snapshot has no agent for. Without a
 /// view the local sort applies.
 pub(super) fn sorted_agents(
-    snapshot: &ClientShellSnapshot,
+    snapshot: &ClientShellSnapshotV2,
     sort: crate::preferences::AgentSort,
 ) -> Vec<&ClientShellAgent> {
     if snapshot.agent_view_label.is_some() {
@@ -150,7 +150,7 @@ pub(super) fn agent_names(agent: &ClientShellAgent) -> [Option<&str>; 4] {
 /// naming it. `None` once the agent's workspace has gone.
 pub(super) fn agent_place<'a>(
     agent: &ClientShellAgent,
-    snapshot: &'a ClientShellSnapshot,
+    snapshot: &'a ClientShellSnapshotV2,
 ) -> Option<(&'a str, Option<&'a str>)> {
     let workspace = snapshot
         .workspaces
@@ -561,7 +561,7 @@ mod tests {
     }
 
     fn ordered(
-        snapshot: &herdr_client::protocol::ClientShellSnapshot,
+        snapshot: &herdr_client::protocol::ClientShellSnapshotV2,
         sort: crate::preferences::AgentSort,
     ) -> Vec<&str> {
         sorted_agents(snapshot, sort)

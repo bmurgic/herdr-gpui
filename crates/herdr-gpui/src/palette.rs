@@ -7,7 +7,7 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use herdr_client::{
-    protocol::{ClientShellCommandAction, ClientShellSnapshot},
+    protocol::{ClientShellCommandAction, ClientShellSnapshotV2},
     scrollback::SelectionReadParams,
 };
 use serde_json::{Value, json};
@@ -228,7 +228,7 @@ struct Target {
 }
 
 impl Target {
-    fn capture(snapshot: &ClientShellSnapshot, selection: Option<SelectionReadParams>) -> Self {
+    fn capture(snapshot: &ClientShellSnapshotV2, selection: Option<SelectionReadParams>) -> Self {
         Self {
             boot: snapshot.boot_id.clone(),
             workspace: snapshot.focused_workspace_id.clone(),
@@ -238,14 +238,14 @@ impl Target {
         }
     }
 
-    fn validate_boot(&self, snapshot: &ClientShellSnapshot) -> Result<()> {
+    fn validate_boot(&self, snapshot: &ClientShellSnapshotV2) -> Result<()> {
         if self.boot.is_empty() || self.boot != snapshot.boot_id {
             return Err(Error::PaletteSessionChanged);
         }
         Ok(())
     }
 
-    fn workspace_exists(&self, snapshot: &ClientShellSnapshot, id: &str) -> Result<()> {
+    fn workspace_exists(&self, snapshot: &ClientShellSnapshotV2, id: &str) -> Result<()> {
         self.validate_boot(snapshot)?;
         if !snapshot.workspaces.iter().any(|w| w.workspace_id == id) {
             return Err(Error::PaletteWorkspaceRemoved);
@@ -255,7 +255,7 @@ impl Target {
 
     fn invocation(
         &self,
-        snapshot: &ClientShellSnapshot,
+        snapshot: &ClientShellSnapshotV2,
         id: &str,
         action: ClientShellCommandAction,
     ) -> Result<Value> {
@@ -369,7 +369,7 @@ struct Source {
     endpoint: String,
     generation: u64,
     enabled: bool,
-    snapshot: Option<Arc<ClientShellSnapshot>>,
+    snapshot: Option<Arc<ClientShellSnapshotV2>>,
 }
 
 #[derive(Clone)]

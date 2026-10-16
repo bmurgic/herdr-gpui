@@ -12,12 +12,12 @@ use crate::{
     state::ConnectionStatus,
 };
 use gpui::{Keystroke, TestAppContext, VisualTestContext};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::sync::Arc;
 
 fn connected(window: &mut gpui::Window, cx: &mut gpui::Context<HerdrWindow>) -> HerdrWindow {
     let mut view = fixture_window(window, cx);
-    let snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

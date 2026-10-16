@@ -9,7 +9,7 @@ const KEY: &str = "/repo/.git";
 
 /// Two agents: p0 in w4 (a linked worktree on `feature`), p1 in w0 (no
 /// worktree), both idle.
-fn snapshot() -> ClientShellSnapshot {
+fn snapshot() -> ClientShellSnapshotV2 {
     let mut snapshot = crate::sidebar::layout_tests::snapshot(5);
     snapshot.workspaces[4].worktree = Some(ClientShellWorktree {
         key: KEY.into(),
@@ -25,7 +25,7 @@ fn snapshot() -> ClientShellSnapshot {
     snapshot
 }
 
-fn with(statuses: [AgentStatus; 2]) -> Arc<ClientShellSnapshot> {
+fn with(statuses: [AgentStatus; 2]) -> Arc<ClientShellSnapshotV2> {
     let mut snapshot = snapshot();
     for (agent, status) in snapshot.agents.iter_mut().zip(statuses) {
         agent.agent_status = status;

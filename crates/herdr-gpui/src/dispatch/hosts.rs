@@ -10,13 +10,13 @@ use crate::{
     window::Flash,
 };
 use gpui::{App, Context, Window};
-use herdr_client::protocol::{AgentStatus, ClientShellSnapshot};
+use herdr_client::protocol::{AgentStatus, ClientShellSnapshotV2};
 use std::time::Instant;
 
 /// Host scripts need a POSIX client; see `herdr_client::run_script`.
 const SCRIPTABLE_CLIENT: bool = cfg!(any(target_os = "linux", target_os = "macos"));
 
-fn working(snapshot: &ClientShellSnapshot) -> u32 {
+fn working(snapshot: &ClientShellSnapshotV2) -> u32 {
     snapshot
         .agents
         .iter()
@@ -24,7 +24,7 @@ fn working(snapshot: &ClientShellSnapshot) -> u32 {
         .count() as u32
 }
 
-fn repository(snapshot: Option<&ClientShellSnapshot>, repo: &str) -> Repository {
+fn repository(snapshot: Option<&ClientShellSnapshotV2>, repo: &str) -> Repository {
     let Some(snapshot) = snapshot else {
         return Repository::Unknown;
     };
@@ -44,7 +44,7 @@ fn repository(snapshot: Option<&ClientShellSnapshot>, repo: &str) -> Repository 
 impl HerdrWindow {
     /// The connected snapshot of endpoint `index`, reading the selected one
     /// from the window's own copy.
-    pub(crate) fn endpoint_snapshot(&self, index: usize) -> Option<&ClientShellSnapshot> {
+    pub(crate) fn endpoint_snapshot(&self, index: usize) -> Option<&ClientShellSnapshotV2> {
         let live = if index == self.selected_endpoint {
             &self.live
         } else {

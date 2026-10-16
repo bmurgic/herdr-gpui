@@ -3,7 +3,7 @@ use super::*;
 use crate::sidebar::layout_tests::snapshot;
 use herdr_client::protocol::{AgentStatus, ClientShellAgent};
 
-fn with_statuses(statuses: &[AgentStatus]) -> herdr_client::protocol::ClientShellSnapshot {
+fn with_statuses(statuses: &[AgentStatus]) -> herdr_client::protocol::ClientShellSnapshotV2 {
     let mut snapshot = snapshot(1);
     let agent = snapshot.agents[0].clone();
     snapshot.agents = statuses

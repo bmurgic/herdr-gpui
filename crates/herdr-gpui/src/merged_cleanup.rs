@@ -16,7 +16,7 @@ use crate::{
 use gpui::{Context, Window};
 use herdr_client::{
     ConnectTarget,
-    protocol::{AgentStatus, ClientShellSnapshot, ClientShellWorkspace},
+    protocol::{AgentStatus, ClientShellSnapshotV2, ClientShellWorkspaceV2},
 };
 use std::{
     sync::{
@@ -88,7 +88,7 @@ pub(crate) enum Action {
 pub(crate) fn decide(
     candidate: &Candidate,
     report: &Report,
-    workspace: &ClientShellWorkspace,
+    workspace: &ClientShellWorkspaceV2,
     focused: bool,
 ) -> Result<Action, Skip> {
     if report.dirty {
@@ -116,7 +116,7 @@ pub(crate) fn decide(
 /// The workspaces of `snapshot` whose cached pull request is merged, in
 /// snapshot order. Only linked worktrees qualify, never a main checkout.
 pub(crate) fn candidates<'a, R: std::ops::Deref<Target = PullRequest>>(
-    snapshot: &'a ClientShellSnapshot,
+    snapshot: &'a ClientShellSnapshotV2,
     pull_request: impl Fn(&Input) -> Option<R> + 'a,
 ) -> impl Iterator<Item = Candidate> + 'a {
     snapshot.workspaces.iter().filter_map(move |workspace| {

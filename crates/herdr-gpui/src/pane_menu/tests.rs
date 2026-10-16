@@ -12,8 +12,8 @@ mod carry;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod moves;
 
-fn snapshot() -> ClientShellSnapshot {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+fn snapshot() -> ClientShellSnapshotV2 {
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

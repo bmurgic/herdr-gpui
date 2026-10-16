@@ -9,7 +9,8 @@ mod sandbox;
 use herdr_client::{
     Client, ClientEvent, ConnectOptions, ConnectTarget, Method, connect,
     protocol::{
-        ClientKeyCode, ClientKeyKind, ClientPaneInputEvent, ClientShellSnapshot, ClientSurfaceSize,
+        ClientKeyCode, ClientKeyKind, ClientPaneInputEvent, ClientShellSnapshotV2,
+        ClientSurfaceSize,
     },
 };
 use sandbox::{Sandbox, daemon_binary, stop_children};
@@ -153,7 +154,7 @@ impl Daemon {
 
 struct Session {
     client: Client,
-    snapshot: Option<Arc<ClientShellSnapshot>>,
+    snapshot: Option<Arc<ClientShellSnapshotV2>>,
 }
 
 impl Session {
@@ -245,7 +246,7 @@ impl Session {
     }
 
     fn focused(&mut self, workspace: &str, tab: &str) {
-        let matches = |s: &ClientShellSnapshot| {
+        let matches = |s: &ClientShellSnapshotV2| {
             s.focused_workspace_id.as_deref() == Some(workspace)
                 && s.focused_tab_id.as_deref() == Some(tab)
         };
@@ -446,7 +447,7 @@ fn daemon_completion_status_live() {
         BufReader::new(api).read_line(&mut response).unwrap();
         let response: Value = serde_json::from_str(&response).unwrap();
         assert!(response.get("error").is_none(), "{response}");
-        let matches = |snapshot: &ClientShellSnapshot| {
+        let matches = |snapshot: &ClientShellSnapshotV2| {
             snapshot.agents.iter().any(|agent| {
                 agent.pane_id == pane
                     && previous_sequence.is_none_or(|previous| agent.state_change_seq > previous)

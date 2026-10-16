@@ -2,7 +2,7 @@ use crate::{
     HerdrWindow, browser::GroupId, controls::Command, menu::Page, search_input::SearchInput,
 };
 use gpui::{prelude::*, *};
-use herdr_client::{Method, protocol::ClientShellSnapshot};
+use herdr_client::{Method, protocol::ClientShellSnapshotV2};
 use serde_json::{Value, json};
 
 #[derive(Clone)]
@@ -17,7 +17,7 @@ struct Target {
 mod tests;
 
 impl Target {
-    fn capture(snapshot: &ClientShellSnapshot, id: &str) -> Option<Self> {
+    fn capture(snapshot: &ClientShellSnapshotV2, id: &str) -> Option<Self> {
         let tab = snapshot.tabs.iter().find(|tab| tab.tab_id == id)?;
         Some(Self {
             boot: snapshot.boot_id.clone(),
@@ -27,7 +27,7 @@ impl Target {
         })
     }
 
-    fn validate(&self, snapshot: &ClientShellSnapshot) -> crate::Result<()> {
+    fn validate(&self, snapshot: &ClientShellSnapshotV2) -> crate::Result<()> {
         if snapshot.boot_id != self.boot
             || !snapshot
                 .workspaces

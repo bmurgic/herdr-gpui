@@ -2,14 +2,14 @@
 use super::*;
 use herdr_client::protocol::ClientShellTab;
 
-fn snapshot() -> ClientShellSnapshot {
+fn snapshot() -> ClientShellSnapshotV2 {
     serde_json::from_str(include_str!(
         "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap()
 }
 
-fn pane_notice(snapshot: &ClientShellSnapshot) -> Notice {
+fn pane_notice(snapshot: &ClientShellSnapshotV2) -> Notice {
     let mut wire = notification("claude finished");
     wire.body = Some("10 · 1".into());
     wire.workspace_id = None;

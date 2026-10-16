@@ -14,7 +14,7 @@ use crate::{
 use gpui::{
     App, AppContext as _, Context, Entity, KeyDownEvent, ScrollHandle, Subscription, Window,
 };
-use herdr_client::protocol::{AgentStatus, ClientShellWorkspace};
+use herdr_client::protocol::{AgentStatus, ClientShellWorkspaceV2};
 use std::ops::Range;
 
 mod heading;
@@ -105,7 +105,7 @@ pub(super) struct Hit {
 pub(super) struct Device<'a> {
     pub id: &'a str,
     pub label: &'a str,
-    pub workspaces: &'a [ClientShellWorkspace],
+    pub workspaces: &'a [ClientShellWorkspaceV2],
     pub notes: Option<&'a crate::worktree_notes::Notes>,
 }
 

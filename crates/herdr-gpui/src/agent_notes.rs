@@ -13,7 +13,7 @@ use crate::{
 use gpui::{App, ClipboardItem, Context};
 use herdr_client::protocol::{
     AgentStatus, ClientKeyCode, ClientKeyKind, ClientPaneInputEvent, ClientShellAgent,
-    ClientShellSnapshot,
+    ClientShellSnapshotV2,
 };
 use std::{
     cell::RefCell,
@@ -149,7 +149,7 @@ impl Deliveries {
 
 /// The agent in `pane_id`, if Herdr sees one there.
 pub(crate) fn agent<'a>(
-    snapshot: &'a ClientShellSnapshot,
+    snapshot: &'a ClientShellSnapshotV2,
     pane_id: &str,
 ) -> Option<&'a ClientShellAgent> {
     snapshot

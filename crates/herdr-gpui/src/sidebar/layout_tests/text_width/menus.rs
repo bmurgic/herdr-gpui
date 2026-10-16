@@ -4,7 +4,7 @@ use gpui::MouseButton;
 
 pub(super) fn check_workspace_menu_rows(
     view: &Entity<HerdrWindow>,
-    before: &ClientShellSnapshot,
+    before: &ClientShellSnapshotV2,
     cx: &mut gpui::VisualTestContext,
 ) -> Bounds<Pixels> {
     // Exercise the actual right-click overlay and platform text handler, without a daemon.

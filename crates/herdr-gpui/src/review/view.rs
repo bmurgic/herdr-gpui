@@ -12,7 +12,7 @@ use crate::{
     HerdrWindow, fonts::StyledFont, pull_request::Input, search_input::SearchInput, window::Flash,
 };
 use gpui::{prelude::*, *};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::{
     cell::Cell,
     collections::{BTreeSet, HashMap, HashSet},
@@ -63,7 +63,7 @@ pub(crate) struct Agent {
 
 /// The agent whose changes these are: the one in the focused pane, or else
 /// the first in the focused workspace.
-pub(crate) fn pick_agent(snapshot: &ClientShellSnapshot) -> Option<Agent> {
+pub(crate) fn pick_agent(snapshot: &ClientShellSnapshotV2) -> Option<Agent> {
     let workspace = snapshot.focused_workspace_id.as_deref().or_else(|| {
         snapshot
             .workspaces
@@ -86,7 +86,7 @@ pub(crate) fn pick_agent(snapshot: &ClientShellSnapshot) -> Option<Agent> {
 }
 
 /// The agent Herdr sees in `pane`, as a review names it.
-pub(crate) fn agent_in(snapshot: &ClientShellSnapshot, pane: &str) -> Option<Agent> {
+pub(crate) fn agent_in(snapshot: &ClientShellSnapshotV2, pane: &str) -> Option<Agent> {
     crate::agent_notes::agent(snapshot, pane).map(describe)
 }
 

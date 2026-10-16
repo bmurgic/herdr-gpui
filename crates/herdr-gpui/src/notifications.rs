@@ -1,6 +1,6 @@
 //! Bounded presentation data with snapshot-validated navigation hints.
 use crate::{icons::AgentIcon, navigation::NavigationTarget};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use herdr_client::protocol::{SemanticNotification, SemanticNotificationKind, ToastHerdrPosition};
 use std::{
     collections::VecDeque,
@@ -168,14 +168,14 @@ impl Notice {
         }
     }
 
-    pub fn with_snapshot(mut self, snapshot: Option<&ClientShellSnapshot>) -> Self {
+    pub fn with_snapshot(mut self, snapshot: Option<&ClientShellSnapshotV2>) -> Self {
         if let Some(snapshot) = snapshot {
             self.initialize(snapshot);
         }
         self
     }
 
-    fn initialize(&mut self, snapshot: &ClientShellSnapshot) {
+    fn initialize(&mut self, snapshot: &ClientShellSnapshotV2) {
         if self.initialized
             || self
                 .boot
@@ -223,7 +223,7 @@ impl Notice {
 
     pub fn target<'a>(
         &'a self,
-        snapshot: &ClientShellSnapshot,
+        snapshot: &ClientShellSnapshotV2,
     ) -> Option<NavigationTarget<&'a str>> {
         if !self.initialized {
             return None;
@@ -233,7 +233,7 @@ impl Notice {
 
     fn resolve_target<'a>(
         &'a self,
-        snapshot: &ClientShellSnapshot,
+        snapshot: &ClientShellSnapshotV2,
     ) -> Option<NavigationTarget<&'a str>> {
         if self.boot.as_deref() != Some(snapshot.boot_id.as_str()) {
             return None;
@@ -559,7 +559,7 @@ pub(crate) mod tests {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn targets_validate_specificity_membership_and_boot_without_fallback() {
-        let snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+        let snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
             "../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
         ))
         .unwrap();

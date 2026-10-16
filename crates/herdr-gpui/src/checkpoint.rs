@@ -20,7 +20,7 @@ pub(crate) use script::valid_id;
 use crate::{Error, Result, usage::Host};
 use herdr_client::{
     ConnectTarget, ScriptHost, ScriptLimits,
-    protocol::{AgentStatus, ClientShellSnapshot},
+    protocol::{AgentStatus, ClientShellSnapshotV2},
     run_script,
 };
 use std::{
@@ -224,7 +224,7 @@ struct Lane {
 /// What one endpoint's agents were doing in the last snapshot looked at.
 #[derive(Default)]
 struct Watch {
-    snapshot: Weak<ClientShellSnapshot>,
+    snapshot: Weak<ClientShellSnapshotV2>,
     boot_id: String,
     statuses: HashMap<String, AgentStatus>,
 }
@@ -309,7 +309,7 @@ impl Checkpoints {
     /// checkout whose agent just started or finished a turn. A snapshot
     /// already looked at, the first one, and one from a restarted daemon
     /// only record statuses: no turn is seen across a gap.
-    pub fn observe(&mut self, endpoint: &str, host: &Host, snapshot: &Arc<ClientShellSnapshot>) {
+    pub fn observe(&mut self, endpoint: &str, host: &Host, snapshot: &Arc<ClientShellSnapshotV2>) {
         let watch = self.watches.entry(endpoint.to_owned()).or_default();
         if std::ptr::eq(watch.snapshot.as_ptr(), Arc::as_ptr(snapshot)) {
             return;

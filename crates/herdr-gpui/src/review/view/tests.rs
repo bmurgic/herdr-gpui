@@ -9,10 +9,10 @@ fn the(view: &HerdrWindow) -> TabId {
     *view.reviews.keys().next().unwrap()
 }
 use gpui::Entity;
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::{collections::HashMap, sync::Arc};
 
-fn snapshot(value: serde_json::Value) -> ClientShellSnapshot {
+fn snapshot(value: serde_json::Value) -> ClientShellSnapshotV2 {
     serde_json::from_value(value).unwrap()
 }
 

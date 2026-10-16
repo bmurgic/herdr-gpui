@@ -262,7 +262,7 @@ unsupported there. Ordinary Windows commands retain their existing behavior.
 
 ```text
 Connected(EndpointServerWelcome)
-Snapshot(Arc<ClientShellSnapshot>)
+Snapshot(Arc<ClientShellSnapshotV2>)
 Surface(Arc<PaneSurfaceFrame>)
 SurfaceImages(Arc<SurfaceImages>)
 Response { request_id: String, response: serde_json::Value }
@@ -320,10 +320,17 @@ not execute escape sequences, read graphics file paths, or mutate the clipboard.
 Wire types are re-exported by `herdr_client::protocol` and defined in
 `herdr-protocol`. They retain every gen1 bincode enum variant in source order.
 
-- `ClientShellSnapshot`: `boot_id`, `revision`, focused workspace/tab/pane IDs,
+- `ClientShellSnapshotV2`: `boot_id`, `revision`, focused workspace/tab/pane IDs,
   `workspaces`, `tabs`, `panes`, `agents`, `commands`, diagnostics and updates.
-- `ClientShellWorkspace`: stable ID, active tab ID, number/label, branch,
+  It is the only snapshot shape `ClientEvent::Snapshot` carries. The hello
+  offers `shell.snapshot.v2` before `shell.snapshot.v1`; the session decodes only
+  the codec the welcome selected, converts a v1 snapshot with `From`, and ends
+  with `Error::SnapshotKind` on a snapshot of the other kind.
+- `ClientShellWorkspaceV2`: stable ID, optional active tab ID (absent for a
+  workspace with no tabs), optional repository record, number/label, branch,
   worktree, cwd, focus and agent status. Tabs and panes carry their parent IDs.
+- `ClientShellSnapshot` and `ClientShellWorkspace` remain the v1 shapes that the
+  bincode `ServerMessage::ClientShellSnapshot` carries.
 - `PaneSurfaceFrame`: `boot_id`, `projection_revision`, `surface_revision`,
   `frame`, pane geometry/scroll/mouse metadata, splits, optional popup, graphics.
 - `FrameData`: row-major `cells` of exactly `width * height`, optional cursor,

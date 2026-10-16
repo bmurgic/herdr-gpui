@@ -14,12 +14,12 @@ use super::{
     row::{PrBadge, first_text},
 };
 use crate::config::Theme;
-use herdr_client::protocol::{AgentStatus, ClientShellWorkspace};
+use herdr_client::protocol::{AgentStatus, ClientShellWorkspaceV2};
 use std::collections::{HashMap, HashSet};
 
 /// The repositories that form a group: those with at least one parent and at
 /// least one linked worktree among `workspaces`.
-pub(super) fn grouped_keys(workspaces: &[ClientShellWorkspace]) -> HashSet<&str> {
+pub(super) fn grouped_keys(workspaces: &[ClientShellWorkspaceV2]) -> HashSet<&str> {
     let mut kinds = HashMap::<&str, (bool, bool)>::new();
     for tree in workspaces.iter().filter_map(|w| w.worktree.as_ref()) {
         let (parent, linked) = kinds.entry(&tree.key).or_default();
@@ -35,7 +35,7 @@ pub(super) fn grouped_keys(workspaces: &[ClientShellWorkspace]) -> HashSet<&str>
 
 /// Display order as `(index, child)`. A group shows where its earliest member
 /// sits: all its parents first, in daemon order, then its linked worktrees.
-pub(super) fn workspace_entries(workspaces: &[ClientShellWorkspace]) -> Vec<(usize, bool)> {
+pub(super) fn workspace_entries(workspaces: &[ClientShellWorkspaceV2]) -> Vec<(usize, bool)> {
     let grouped = grouped_keys(workspaces);
     let mut members = HashMap::<&str, (Vec<usize>, Vec<usize>)>::new();
     for (index, workspace) in workspaces.iter().enumerate() {
@@ -74,7 +74,7 @@ pub(super) fn workspace_entries(workspaces: &[ClientShellWorkspace]) -> Vec<(usi
 /// Visible rows as `(index, child, group)`: `group` names the repository a
 /// parent row folds, on every parent of a group.
 pub(super) fn visible_workspace_entries(
-    workspaces: &[ClientShellWorkspace],
+    workspaces: &[ClientShellWorkspaceV2],
     collapsed: &HashSet<String>,
 ) -> Vec<(usize, bool, Option<String>)> {
     let grouped = grouped_keys(workspaces);
@@ -102,7 +102,7 @@ pub(super) fn visible_workspace_entries(
 /// cache holds only that device's lookups, and the same path and branch can
 /// exist on another host.
 pub(super) fn workspace_badge(
-    workspace: &ClientShellWorkspace,
+    workspace: &ClientShellWorkspaceV2,
     cache: Option<&crate::pull_request::Cache>,
     git: &crate::git::Git,
     marks: (&crate::teleport::Marks, &str),
@@ -124,7 +124,7 @@ pub(super) fn workspace_badge(
 
 /// The note the user keeps on a workspace's checkout, if it has one.
 pub(super) fn workspace_note<'a>(
-    workspace: &ClientShellWorkspace,
+    workspace: &ClientShellWorkspaceV2,
     notes: Option<&'a crate::worktree_notes::Notes>,
     endpoint: &str,
 ) -> Option<&'a str> {
@@ -135,7 +135,7 @@ pub(super) fn workspace_note<'a>(
     )
 }
 
-pub(crate) fn workspace_label(workspace: &ClientShellWorkspace, indented: bool) -> &str {
+pub(crate) fn workspace_label(workspace: &ClientShellWorkspaceV2, indented: bool) -> &str {
     let branch = (indented && !workspace.custom_label)
         .then_some(workspace.branch.as_deref())
         .flatten()
@@ -145,8 +145,8 @@ pub(crate) fn workspace_label(workspace: &ClientShellWorkspace, indented: bool) 
 
 /// Collapsed groups show their most urgent member's status.
 pub(super) fn displayed_workspace_status(
-    workspaces: &[ClientShellWorkspace],
-    workspace: &ClientShellWorkspace,
+    workspaces: &[ClientShellWorkspaceV2],
+    workspace: &ClientShellWorkspaceV2,
     collapsed: &HashSet<String>,
 ) -> AgentStatus {
     let Some(worktree) = workspace

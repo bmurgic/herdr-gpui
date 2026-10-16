@@ -97,7 +97,7 @@ fn a_typed_name_labels_the_created_worktree(cx: &mut gpui::TestAppContext) {
     ))
     .unwrap();
     welcome["methods"] = json!(["worktree.list", "worktree.create", "workspace.focus"]);
-    let snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

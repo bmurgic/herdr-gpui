@@ -829,7 +829,7 @@ impl HerdrWindow {
 /// else goes through the same `worktree.create` validation a typed branch does.
 pub(super) fn pick_request(
     target: &super::WorkspaceTarget,
-    snapshot: &herdr_client::protocol::ClientShellSnapshot,
+    snapshot: &herdr_client::protocol::ClientShellSnapshotV2,
     pending: &Pending,
 ) -> crate::Result<(Method, serde_json::Value)> {
     match pending {
@@ -851,7 +851,7 @@ pub(super) fn pick_request(
 /// branch is new, so it keeps the dialog's default base of `HEAD`.
 pub(super) fn item_request(
     target: &super::WorkspaceTarget,
-    snapshot: &herdr_client::protocol::ClientShellSnapshot,
+    snapshot: &herdr_client::protocol::ClientShellSnapshotV2,
     item: &Item,
 ) -> crate::Result<(Method, serde_json::Value)> {
     let branch = item.branch();

@@ -18,7 +18,7 @@ use crate::{
 };
 use gpui::{Context, Pixels, Point, Task};
 use herdr_client::{
-    protocol::ClientShellWorkspace,
+    protocol::ClientShellWorkspaceV2,
     workspaces::{WorkspaceMoveBlockParams, WorkspaceMoveParams, WorkspaceReorder},
 };
 use std::{cell::RefCell, collections::HashMap, time::Instant};
@@ -84,7 +84,7 @@ impl WorkspaceDrag {
 
     /// Whether the list should show the drop in place: while it floats, and
     /// after it is dropped until the daemon's order replaces the old one.
-    pub(super) fn previewing(&self, workspaces: &[ClientShellWorkspace]) -> bool {
+    pub(super) fn previewing(&self, workspaces: &[ClientShellWorkspaceV2]) -> bool {
         self.lifted
             && self.dropped.as_ref().is_none_or(|order| {
                 order.iter().map(String::as_str).eq(workspaces
@@ -129,7 +129,7 @@ impl MoveBlock {
     /// daemon offers it (`single`), so it announces `workspace.moved` as the
     /// same drag in Herdr's TUI does. A group's members may sit apart in the
     /// daemon's order, which only `workspace.move_block` gathers in one step.
-    fn reorder(&self, workspaces: &[ClientShellWorkspace], single: bool) -> WorkspaceReorder {
+    fn reorder(&self, workspaces: &[ClientShellWorkspaceV2], single: bool) -> WorkspaceReorder {
         if single && let [workspace_id] = self.workspace_ids.as_slice() {
             // The index counts the workspace still in place, so landing
             // before `before` is `before`'s own index, and last is the length.
@@ -165,7 +165,7 @@ pub(super) struct Plan {
 
 impl Plan {
     /// `None` when the pressed row has nowhere else to go.
-    pub(super) fn new(workspaces: &[ClientShellWorkspace], workspace: &str) -> Option<Self> {
+    pub(super) fn new(workspaces: &[ClientShellWorkspaceV2], workspace: &str) -> Option<Self> {
         let pressed = workspaces
             .iter()
             .position(|w| w.workspace_id == workspace)?;
@@ -237,7 +237,7 @@ impl Plan {
     /// `None` for the two gaps around the carried unit, which move nothing.
     pub(super) fn request(
         &self,
-        workspaces: &[ClientShellWorkspace],
+        workspaces: &[ClientShellWorkspaceV2],
         slot: usize,
     ) -> Option<MoveBlock> {
         if slot == self.dragged || slot == self.dragged + 1 || slot > self.units.len() {

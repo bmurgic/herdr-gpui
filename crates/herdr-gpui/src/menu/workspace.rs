@@ -13,7 +13,7 @@ use crate::{HerdrWindow, dialog_input::DialogInput};
 use gpui::{prelude::*, *};
 use herdr_client::{
     Method,
-    protocol::{ClientShellSnapshot, ClientShellWorkspace, ClientShellWorktree},
+    protocol::{ClientShellSnapshotV2, ClientShellWorkspaceV2, ClientShellWorktree},
 };
 
 pub(crate) struct WorkspaceTarget {
@@ -33,7 +33,10 @@ pub(crate) struct WorkspaceTarget {
 }
 
 impl WorkspaceTarget {
-    pub(super) fn new(snapshot: &ClientShellSnapshot, workspace: &ClientShellWorkspace) -> Self {
+    pub(super) fn new(
+        snapshot: &ClientShellSnapshotV2,
+        workspace: &ClientShellWorkspaceV2,
+    ) -> Self {
         Self {
             boot_id: snapshot.boot_id.clone(),
             id: workspace.workspace_id.clone(),
@@ -50,8 +53,8 @@ impl WorkspaceTarget {
     /// checkout resolves to its repository's open main checkout, based on the
     /// linked checkout's branch so the new branch starts where it stands.
     pub(super) fn for_new_worktree(
-        snapshot: &ClientShellSnapshot,
-        workspace: &ClientShellWorkspace,
+        snapshot: &ClientShellSnapshotV2,
+        workspace: &ClientShellWorkspaceV2,
     ) -> Result<Self, NewWorktreeUnavailable> {
         let Some(tree) = workspace
             .worktree
@@ -105,7 +108,10 @@ impl WorkspaceTarget {
             .is_some_and(|tree| tree.is_linked_worktree)
     }
 
-    pub(super) fn validate_repository(&self, snapshot: &ClientShellSnapshot) -> crate::Result<()> {
+    pub(super) fn validate_repository(
+        &self,
+        snapshot: &ClientShellSnapshotV2,
+    ) -> crate::Result<()> {
         let workspace = snapshot
             .workspaces
             .iter()
@@ -139,7 +145,7 @@ impl WorkspaceTarget {
 
     pub(super) fn request(
         &self,
-        snapshot: &ClientShellSnapshot,
+        snapshot: &ClientShellSnapshotV2,
         action: WorkspaceAction,
         text: &str,
     ) -> crate::Result<(Method, serde_json::Value)> {
@@ -244,7 +250,7 @@ impl NewWorktreeUnavailable {
 
 /// The workspace focused when the new worktree shortcut is pressed, once it
 /// is known to have a source for one.
-fn new_worktree_source(snapshot: &ClientShellSnapshot) -> Result<String, NewWorktreeUnavailable> {
+fn new_worktree_source(snapshot: &ClientShellSnapshotV2) -> Result<String, NewWorktreeUnavailable> {
     let focused = snapshot
         .workspaces
         .iter()
@@ -257,9 +263,9 @@ fn new_worktree_source(snapshot: &ClientShellSnapshot) -> Result<String, NewWork
 /// The open main checkout of `tree`'s repository, through which the daemon
 /// lists, opens, and creates that repository's worktrees.
 pub(super) fn main_checkout<'a>(
-    snapshot: &'a ClientShellSnapshot,
+    snapshot: &'a ClientShellSnapshotV2,
     tree: &ClientShellWorktree,
-) -> Option<&'a ClientShellWorkspace> {
+) -> Option<&'a ClientShellWorkspaceV2> {
     snapshot.workspaces.iter().find(|w| {
         w.worktree
             .as_ref()
@@ -269,7 +275,7 @@ pub(super) fn main_checkout<'a>(
 
 /// The name a new tab dialog proposes: the next number in its workspace, as
 /// Herdr numbers an unnamed tab.
-pub(super) fn suggested_tab_name(snapshot: &ClientShellSnapshot, workspace: &str) -> String {
+pub(super) fn suggested_tab_name(snapshot: &ClientShellSnapshotV2, workspace: &str) -> String {
     let count = snapshot
         .tabs
         .iter()
@@ -300,7 +306,10 @@ pub(super) fn chosen_label<'a>(text: &'a str, suggested: Option<&str>) -> Option
 /// The workspaces closing `workspace` closes: its whole group when it is its
 /// repository's only parent and linked worktrees hang off it, else itself.
 /// Like the TUI, a parent beside another parent closes alone.
-fn close_members(snapshot: &ClientShellSnapshot, workspace: &ClientShellWorkspace) -> Vec<String> {
+fn close_members(
+    snapshot: &ClientShellSnapshotV2,
+    workspace: &ClientShellWorkspaceV2,
+) -> Vec<String> {
     let alone = || vec![workspace.workspace_id.clone()];
     let Some(tree) = workspace
         .worktree
@@ -326,7 +335,7 @@ fn close_members(snapshot: &ClientShellSnapshot, workspace: &ClientShellWorkspac
 }
 
 /// Whether `workspace` is a parent with linked worktrees of its repository open.
-fn heads_group(snapshot: &ClientShellSnapshot, workspace: &ClientShellWorkspace) -> bool {
+fn heads_group(snapshot: &ClientShellSnapshotV2, workspace: &ClientShellWorkspaceV2) -> bool {
     workspace
         .worktree
         .as_ref()
