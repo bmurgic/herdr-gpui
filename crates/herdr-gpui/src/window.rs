@@ -24,7 +24,8 @@ mod image_source;
 mod images;
 mod input;
 mod lifecycle;
-#[cfg(test)]
+// Only the Unix-only endpoint lifecycle tests read it.
+#[cfg(all(test, unix))]
 pub(crate) use lifecycle::RESIZE_SETTLE;
 mod links;
 mod monitors;
