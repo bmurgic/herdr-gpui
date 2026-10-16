@@ -15,7 +15,7 @@ struct Outcome {
 }
 
 /// The `worktree_list` reply that lists `CHECKOUT` for `api`.
-fn api_listing() -> Value {
+pub(super) fn api_listing() -> Value {
     json!({"result": {"type": "worktree_list", "source": {
         "repo_key": "/src/.git", "repo_name": "src", "source_workspace_id": "api"
     }, "worktrees": [{"path": CHECKOUT, "branch": "api-fix", "label": "api-fix",

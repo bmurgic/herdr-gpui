@@ -12,6 +12,7 @@ mod issues;
 mod merged_removal;
 mod naming;
 mod pull_requests;
+mod repository_record;
 mod scripts;
 mod targets;
 mod tiles;

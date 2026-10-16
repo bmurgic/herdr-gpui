@@ -171,12 +171,13 @@ impl HerdrWindow {
         if target.validate_repository(snapshot).is_ok() {
             return true;
         }
-        // Opening can establish the branch-only source's parent membership before
-        // its response reaches the UI. Allow only the listed identity, while pending.
+        // Opening can establish the parent membership of a source known only by its
+        // branch or its repository record before its response reaches the UI.
+        // Allow only the listed identity, while pending.
         if self.menu.page != Some(Page::Dialog(WorkspaceAction::OpenWorktree))
             || self.menu.creation.is_none()
             || target.worktree.is_some()
-            || target.branch.is_none()
+            || (target.branch.is_none() && target.repository.is_none())
         {
             return false;
         }

@@ -27,6 +27,9 @@ pub(super) enum Unavailable {
     MainCheckoutClosed,
     /// Herdr removes only linked worktrees, never a repository's main checkout.
     MainCheckout,
+    /// The workspace is a linked checkout known only by its repository
+    /// record, so Herdr has no worktree record to remove.
+    NoWorktreeRecord,
 }
 
 impl Unavailable {
@@ -37,6 +40,9 @@ impl Unavailable {
             Self::NotGit => "This workspace is not a Git repository",
             Self::MainCheckoutClosed => "Open this repository's main checkout to open a worktree",
             Self::MainCheckout => "Only a linked worktree can be removed, not a main checkout",
+            Self::NoWorktreeRecord => {
+                "Herdr has no worktree record for this checkout, so it cannot remove it"
+            }
         }
     }
 }
@@ -60,7 +66,7 @@ impl WorktreeShortcut {
             .ok_or(Unavailable::NoWorkspace)?;
         // The same tests the menu uses to offer each row.
         let target = WorkspaceTarget::new(snapshot, focused);
-        if !target.can_create() && !target.can_delete() {
+        if !target.can_create() && !target.is_linked_checkout() {
             return Err(Unavailable::NotGit);
         }
         let linked = focused
@@ -70,6 +76,14 @@ impl WorktreeShortcut {
         let row = match (self, linked) {
             (Self::Open, Some(tree)) => super::workspace::main_checkout(snapshot, tree)
                 .ok_or(Unavailable::MainCheckoutClosed)?,
+            // Only the repository record says it is linked, and that record
+            // names no main checkout and no worktree to remove.
+            (Self::Open, None) if target.is_linked_checkout() => {
+                return Err(Unavailable::MainCheckoutClosed);
+            }
+            (Self::Remove, None) if target.is_linked_checkout() => {
+                return Err(Unavailable::NoWorktreeRecord);
+            }
             (Self::Open, None) | (Self::Remove, Some(_)) => focused,
             (Self::Remove, None) => return Err(Unavailable::MainCheckout),
         };

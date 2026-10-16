@@ -17,7 +17,9 @@ use crate::{HerdrWindow, dialog_input::DialogInput};
 use gpui::{prelude::*, *};
 use herdr_client::{
     Method,
-    protocol::{ClientShellSnapshotV2, ClientShellWorkspaceV2, ClientShellWorktree},
+    protocol::{
+        ClientShellSnapshotV2, ClientShellWorkspaceV2, ClientShellWorktree, WorkspaceRepositoryInfo,
+    },
 };
 
 pub(crate) struct WorkspaceTarget {
@@ -25,6 +27,9 @@ pub(crate) struct WorkspaceTarget {
     pub(super) id: String,
     pub(super) label: String,
     pub(super) worktree: Option<ClientShellWorktree>,
+    /// The daemon's repository record, which a workspace can have without a
+    /// `worktree` record (a Git checkout Herdr has no worktree membership for).
+    pub(super) repository: Option<WorkspaceRepositoryInfo>,
     pub(super) close_members: Vec<String>,
     /// Whether linked worktrees of this parent's repository are open, so its
     /// row folds a group even when another parent closes on its own.
@@ -37,7 +42,7 @@ pub(crate) struct WorkspaceTarget {
 }
 
 impl WorkspaceTarget {
-    pub(super) fn new(
+    pub(crate) fn new(
         snapshot: &ClientShellSnapshotV2,
         workspace: &ClientShellWorkspaceV2,
     ) -> Self {
@@ -46,6 +51,7 @@ impl WorkspaceTarget {
             id: workspace.workspace_id.clone(),
             label: workspace.label.clone(),
             worktree: workspace.worktree.clone(),
+            repository: workspace.repository.clone(),
             close_members: close_members(snapshot, workspace),
             heads_group: heads_group(snapshot, workspace),
             branch: workspace.branch.clone(),
@@ -66,6 +72,10 @@ impl WorkspaceTarget {
             .filter(|tree| tree.is_linked_worktree)
         else {
             let target = Self::new(snapshot, workspace);
+            // The repository record carries no key to find the main checkout by.
+            if target.is_linked_checkout() {
+                return Err(NewWorktreeUnavailable::MainCheckoutClosed);
+            }
             return if target.can_create() {
                 Ok(target)
             } else {
@@ -103,13 +113,30 @@ impl WorkspaceTarget {
 
     pub(super) fn can_create(&self) -> bool {
         // Like the TUI, accept Git branches before worktree metadata is available.
-        (self.worktree.is_some() || self.branch.is_some()) && !self.can_delete()
+        (self.worktree.is_some() || self.repository.is_some() || self.branch.is_some())
+            && !self.is_linked_checkout()
     }
 
-    pub(super) fn can_delete(&self) -> bool {
+    pub(crate) fn can_delete(&self) -> bool {
         self.worktree
             .as_ref()
             .is_some_and(|tree| tree.is_linked_worktree)
+    }
+
+    /// Whether the `worktree` record or the `repository` record says this
+    /// workspace is a linked checkout.
+    pub(crate) fn is_linked_checkout(&self) -> bool {
+        self.can_delete()
+            || self
+                .repository
+                .as_ref()
+                .is_some_and(|repository| repository.is_linked_worktree)
+    }
+
+    /// Whether this workspace is a repository's own checkout: it has a
+    /// `worktree` or `repository` record and is not a linked checkout.
+    pub(crate) fn is_repository_parent(&self) -> bool {
+        (self.worktree.is_some() || self.repository.is_some()) && !self.is_linked_checkout()
     }
 
     pub(super) fn validate_repository(
@@ -124,7 +151,10 @@ impl WorkspaceTarget {
             .ok_or(crate::Error::StaleWorkspace)?;
         if !self.can_create()
             || self.worktree != workspace.worktree
-            || (workspace.worktree.is_none() && workspace.branch.is_none())
+            || self.repository != workspace.repository
+            || (workspace.worktree.is_none()
+                && workspace.repository.is_none()
+                && workspace.branch.is_none())
         {
             return Err(crate::Error::WorkspaceRepositoryChanged);
         }
