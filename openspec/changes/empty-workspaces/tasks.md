@@ -7,6 +7,7 @@ Every slice follows `design.md`'s `## Global constraints`: the branch comparison
 **Test layers:** Shell snapshot v2 01 → integration, Shell snapshot v2 02 → integration, Shell snapshot v2 03 → integration, Shell snapshot v2 04 → integration, Shell snapshot v2 05 → integration, Shell snapshot v2 06 → integration, Shell snapshot v2 07 → integration, Shell snapshot v2 08 → integration, Shell snapshot v2 09 → unit, Shell snapshot v2 10 → unit, Shell snapshot v2 11 → integration, Shell snapshot v2 12 → integration
 **QA procedures:** QA procedure: Empty workspace appears in the sidebar
 **Design:** D1, D2, D3, D11, D13
+**Security:** on
 
 Independent test: against a myherdr daemon, close the last tab of a workspace and the sidebar keeps listing it; against stock Herdr the window connects on v1 as before.
 
@@ -69,6 +70,7 @@ Readers of `menu.creation`, which changes from `Option<String>` to `Option<(Stri
 **Test layers:** New workspace directory 01 → integration, New workspace directory 02 → integration, New workspace directory 03 → unit, New workspace directory 04 → integration, New workspace directory 05 → integration, New workspace directory 06 → integration, New workspace directory 07 → integration, New workspace directory 08 → integration, New workspace directory 09 → integration, New workspace directory 10 → integration, New workspace directory 11 → integration, New workspace directory 12 → integration, New workspace directory 13 → integration, New workspace directory 14 → integration
 **QA procedures:** QA procedure: New Workspace asks for a directory
 **Design:** D6, D10, D13, D15
+**Security:** on
 
 Independent test: against any daemon that advertises `workspace.create`, press the New Workspace key with or without a focused workspace, complete a folder with Tab, submit, and a workspace opens in that folder.
 
