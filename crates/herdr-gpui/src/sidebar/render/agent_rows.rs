@@ -91,7 +91,7 @@ impl HerdrWindow {
 
     /// The lines a configured agent row shows, empty for Herdr's own row, or
     /// None when the configured rows leave this agent out.
-    pub(super) fn configured_agent_lines(
+    fn configured_agent_lines(
         &self,
         agent: &ClientShellAgent,
         snapshot: &ClientShellSnapshotV2,
@@ -106,7 +106,7 @@ impl HerdrWindow {
     /// Space above the agent row painted `count`-th in its list: a blank line
     /// between session rows, whatever `row_gap` says; otherwise a configured
     /// `row_gap` between configured rows, none for Herdr's own.
-    pub(super) fn agent_row_gap(&self, count: usize) -> f32 {
+    fn agent_row_gap(&self, count: usize) -> f32 {
         let line = line_height(&self.config.sidebar);
         if count == 0 {
             0.
@@ -149,7 +149,7 @@ impl HerdrWindow {
     /// the agent of endpoint `index`, drawn in `row_cx`, that shows its pane
     /// when clicked.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn agent_cell(
+    fn agent_cell(
         &self,
         index: usize,
         agent: &ClientShellAgent,
