@@ -1,5 +1,7 @@
 use super::*;
 
+mod preferred;
+
 #[test]
 fn integration_methods_require_exact_advertisement() {
     for (method, name) in [
@@ -144,6 +146,16 @@ const OFFERED: &[&str] = &[
     "worktree.remove",
 ];
 
+/// The `.v2` methods only myherdr's daemon answers on the client endpoint
+/// (its `src/api/schema.rs`). Herdr's `OFFERED` list does not hold them.
+const MYHERDR_OFFERED: &[&str] = &[
+    "workspace.focus.v2",
+    "workspace.move.v2",
+    "workspace.move_block.v2",
+    "workspace.rename.v2",
+    "worktree.open.v2",
+];
+
 /// Every variant. The match in the test stops compiling when a variant is
 /// added, as a reminder to list it here too.
 const ALL: &[Method] = &[
@@ -180,12 +192,17 @@ const ALL: &[Method] = &[
     Method::WorkspaceClose,
     Method::WorkspaceCreate,
     Method::WorkspaceFocus,
+    Method::WorkspaceFocusV2,
     Method::WorkspaceMove,
     Method::WorkspaceMoveBlock,
+    Method::WorkspaceMoveBlockV2,
+    Method::WorkspaceMoveV2,
     Method::WorkspaceRename,
+    Method::WorkspaceRenameV2,
     Method::WorktreeCreate,
     Method::WorktreeList,
     Method::WorktreeOpen,
+    Method::WorktreeOpenV2,
     Method::WorktreeRemove,
 ];
 
@@ -232,12 +249,27 @@ fn every_method_is_offered_to_endpoint_clients() {
             | Method::WorktreeCreate
             | Method::WorktreeList
             | Method::WorktreeOpen
-            | Method::WorktreeRemove => {}
+            | Method::WorktreeRemove => {
+                assert!(
+                    OFFERED.contains(&method.as_str()),
+                    "{method} is not offered to endpoint clients"
+                );
+            }
+            Method::WorkspaceFocusV2
+            | Method::WorkspaceMoveBlockV2
+            | Method::WorkspaceMoveV2
+            | Method::WorkspaceRenameV2
+            | Method::WorktreeOpenV2 => {
+                assert!(
+                    MYHERDR_OFFERED.contains(&method.as_str()),
+                    "{method} is not offered by myherdr"
+                );
+                assert!(
+                    !OFFERED.contains(&method.as_str()),
+                    "{method} is a myherdr-only method"
+                );
+            }
         }
-        assert!(
-            OFFERED.contains(&method.as_str()),
-            "{method} is not offered to endpoint clients"
-        );
     }
     // `workspace.get` is API-socket only; the snapshot carries what we need.
     assert!(!OFFERED.contains(&"workspace.get"));

@@ -88,9 +88,12 @@ pub struct LiveState {
     /// `tab.move` reorders a workspace's tabs; daemons that do not offer it
     /// to clients keep their tabs where they are.
     pub(crate) supports_tab_move: bool,
-    /// `workspace.move` takes a single workspace; without it a drop sends
-    /// every reorder as `workspace.move_block`.
+    /// `workspace.move` or `workspace.move.v2` takes a single workspace;
+    /// without either a drop sends every reorder as a block move.
     pub(crate) supports_workspace_move: bool,
+    /// The methods the daemon's welcome advertised; empty when not connected.
+    /// Send sites read it through `Method::preferred_in`.
+    pub(crate) methods: Arc<[String]>,
     /// `pane.link.resolve` and `pane.link.activate` let the daemon find links
     /// across wrapped rows and run plugin link handlers; without them links
     /// are found row by row here and always opened by this client.
@@ -203,6 +206,7 @@ impl Default for LiveState {
             supports_pane_clear: false,
             supports_tab_move: false,
             supports_workspace_move: false,
+            methods: Arc::from([]),
             supports_link_resolve: false,
             supports_link_activate: false,
             supports_copy_search: false,
@@ -261,6 +265,7 @@ impl LiveState {
             supports_pane_clear,
             supports_tab_move,
             supports_workspace_move,
+            methods,
             supports_link_resolve,
             supports_link_activate,
             supports_copy_search,
@@ -319,6 +324,7 @@ impl LiveState {
             && *supports_pane_clear == self.supports_pane_clear
             && *supports_tab_move == self.supports_tab_move
             && *supports_workspace_move == self.supports_workspace_move
+            && *methods == self.methods
             && *supports_link_resolve == self.supports_link_resolve
             && *supports_link_activate == self.supports_link_activate
             && *supports_copy_search == self.supports_copy_search
@@ -471,8 +477,9 @@ impl LiveState {
                 self.settings_reload = false;
                 self.supports_pane_clear = Method::PaneClear.advertised_in(&welcome.methods);
                 self.supports_tab_move = Method::TabMove.advertised_in(&welcome.methods);
-                self.supports_workspace_move =
-                    Method::WorkspaceMove.advertised_in(&welcome.methods);
+                self.supports_workspace_move = Method::WorkspaceMove.advertised_in(&welcome.methods)
+                    || Method::WorkspaceMoveV2.advertised_in(&welcome.methods);
+                self.methods = Arc::from(welcome.methods.as_slice());
                 self.supports_announcement_dismiss =
                     Method::ProductAnnouncementDismiss.advertised_in(&welcome.methods);
                 self.supports_release_notes_dismiss =
@@ -576,6 +583,8 @@ impl LiveState {
                 self.bells = 0;
                 self.window_title = None;
                 self.status = ConnectionStatus::Disconnected;
+                self.methods = Arc::from([]);
+                self.supports_workspace_move = false;
                 self.error = Some(reason);
                 self.snapshot = None;
                 self.agent_recency = AgentRecency::default();
