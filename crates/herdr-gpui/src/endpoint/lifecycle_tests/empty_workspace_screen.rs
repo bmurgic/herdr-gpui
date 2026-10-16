@@ -5,7 +5,7 @@ use crate::sidebar::layout_tests::{fixture_window, full_draw};
 use gpui::{Entity, VisualTestContext};
 
 /// What a v2 session needs for the screen's create rows to be offered.
-const CREATE_METHODS: &[Method] = &[
+pub(super) const CREATE_METHODS: &[Method] = &[
     Method::ClientShellSurfaceSet,
     Method::WorkspaceCreate,
     Method::TabCreate,
@@ -13,7 +13,7 @@ const CREATE_METHODS: &[Method] = &[
 
 /// `api`, which has the tab `t1`, and `scratch`, which has none. `api` is
 /// focused until a test focuses `scratch`.
-fn api_and_scratch() -> ClientShellSnapshotV2 {
+pub(super) fn api_and_scratch() -> ClientShellSnapshotV2 {
     let mut snapshot = snapshot_v2();
     snapshot.workspaces[0].workspace_id = "api".into();
     snapshot.workspaces[1].workspace_id = "scratch".into();
@@ -24,7 +24,7 @@ fn api_and_scratch() -> ClientShellSnapshotV2 {
 }
 
 /// `scratch` focused with no focused tab.
-fn scratch_focused() -> ClientShellSnapshotV2 {
+pub(super) fn scratch_focused() -> ClientShellSnapshotV2 {
     let mut snapshot = api_and_scratch();
     snapshot.workspaces[0].focused = false;
     snapshot.workspaces[1].focused = true;
@@ -43,14 +43,14 @@ fn no_workspaces() -> ClientShellSnapshotV2 {
     snapshot
 }
 
-fn draw(cx: &mut VisualTestContext) {
+pub(super) fn draw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| full_draw(window, cx).clear(cx));
 }
 
 /// A drawn window selecting `endpoint`, as the render tests do: the real
 /// terminal element measures the window before the endpoint is selected, so
 /// the measurement is not what the server reads first.
-fn window_drawn_over(
+pub(super) fn window_drawn_over(
     cx: &mut gpui::TestAppContext,
     endpoint: Endpoint,
 ) -> (Entity<HerdrWindow>, &mut VisualTestContext) {
@@ -75,7 +75,7 @@ fn window_drawn_over(
     (view, cx)
 }
 
-fn screen_shown(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool {
+pub(super) fn screen_shown(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool {
     let rows_drawn = view.read_with(cx, |view, _| !view.empty_workspace_rows.is_empty());
     let screen = cx.debug_bounds("empty-workspace");
     let drawn = screen.is_some();
@@ -273,7 +273,11 @@ fn use_prompt_settings(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, t
 
 /// Binds each command to the key a test presses, in the window's keymap and
 /// in the app's key bindings, which is where a keystroke becomes an action.
-fn bind_keys(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, bindings: &[(Command, &str)]) {
+pub(super) fn bind_keys(
+    view: &Entity<HerdrWindow>,
+    cx: &mut VisualTestContext,
+    bindings: &[(Command, &str)],
+) {
     let overrides = bindings
         .iter()
         .map(|(command, key)| {

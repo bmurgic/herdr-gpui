@@ -43,8 +43,6 @@ pub(crate) use {
     workspaces::workspace_label,
 };
 
-pub(crate) use order::step as sidebar_step;
-
 #[cfg(any(test, feature = "integration-test"))]
 pub(crate) use metrics::LABEL_WIDTH;
 

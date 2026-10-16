@@ -1,7 +1,7 @@
 //! Which of the screen's commands can run on the current snapshot.
-use super::{RowContext, focused_workspace};
+use super::{Destination, RowContext, focused_workspace};
 use crate::{controls::Command, menu::WorkspaceTarget};
-use herdr_client::Method;
+use herdr_client::{Method, protocol::ClientShellWorkspaceV2};
 
 /// Whether `command`'s row shows: the snapshot has what the command acts on,
 /// and the host advertises the method the command sends. A command the screen
@@ -31,6 +31,28 @@ pub(super) fn shown(command: Command, context: &RowContext<'_>) -> bool {
                 && advertised(Method::WorktreeList)
                 && advertised(Method::WorktreeRemove)
         }
+        Command::PreviousWorkspace
+        | Command::NextWorkspace
+        | Command::WorkspaceNumber(_)
+        | Command::PreviousAgent
+        | Command::NextAgent
+        | Command::AgentNumber(_) => match context.destination(command) {
+            Some(Destination::Workspace {
+                workspace,
+                methods,
+                is_focused,
+            }) => !is_focused && workspace_focusable(workspace, methods),
+            Some(Destination::Agent { methods, .. }) => Method::PaneFocus.advertised_in(methods),
+            None => false,
+        },
         _ => false,
     }
+}
+
+/// Whether the host that owns `workspace` can focus it. A workspace with no
+/// active tab only takes `workspace.focus.v2`, which focuses it anyway.
+fn workspace_focusable(workspace: &ClientShellWorkspaceV2, methods: &[String]) -> bool {
+    let focus = Method::WorkspaceFocus.preferred_in(methods);
+    focus.advertised_in(methods)
+        && (workspace.active_tab_id.is_some() || focus == Method::WorkspaceFocusV2)
 }

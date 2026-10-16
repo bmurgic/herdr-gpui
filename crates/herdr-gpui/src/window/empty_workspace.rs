@@ -13,7 +13,7 @@ use crate::{
 use gpui::{
     AnyElement, Context, Div, FontWeight, Rgba, Stateful, Window, div, prelude::*, px, rgb,
 };
-use herdr_client::protocol::{ClientShellSnapshotV2, ClientShellWorkspaceV2};
+use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshotV2, ClientShellWorkspaceV2};
 
 /// The commands the screen can list, in the order it lists them. A command
 /// that is not here never gets a row, whatever its key: the tab commands have
@@ -26,6 +26,28 @@ const ROW_COMMANDS: &[Command] = &[
     Command::RemoveWorktree,
     Command::RenameWorkspace,
     Command::CloseWorkspace,
+    Command::PreviousWorkspace,
+    Command::NextWorkspace,
+    Command::WorkspaceNumber(1),
+    Command::WorkspaceNumber(2),
+    Command::WorkspaceNumber(3),
+    Command::WorkspaceNumber(4),
+    Command::WorkspaceNumber(5),
+    Command::WorkspaceNumber(6),
+    Command::WorkspaceNumber(7),
+    Command::WorkspaceNumber(8),
+    Command::WorkspaceNumber(9),
+    Command::PreviousAgent,
+    Command::NextAgent,
+    Command::AgentNumber(1),
+    Command::AgentNumber(2),
+    Command::AgentNumber(3),
+    Command::AgentNumber(4),
+    Command::AgentNumber(5),
+    Command::AgentNumber(6),
+    Command::AgentNumber(7),
+    Command::AgentNumber(8),
+    Command::AgentNumber(9),
     Command::Tab,
 ];
 
@@ -53,6 +75,25 @@ pub(crate) struct DrawnRow {
     /// Empty when the host has no workspaces.
     workspace_id: String,
     pub(crate) command: Command,
+    /// The label the row drew, for the window tests that check what a numbered
+    /// row names.
+    pub(crate) label: String,
+}
+
+/// What a navigation command lands on, with the methods of the host that owns
+/// it: a step onto another host is judged by that host, not the selected one.
+enum Destination<'a> {
+    Workspace {
+        workspace: &'a ClientShellWorkspaceV2,
+        methods: &'a [String],
+        /// Whether it is the selected host's focused workspace, which a step
+        /// has no reason to focus again.
+        is_focused: bool,
+    },
+    Agent {
+        agent: &'a ClientShellAgent,
+        methods: &'a [String],
+    },
 }
 
 /// Everything the row list is built from. Later rows read more of the window,
@@ -61,6 +102,18 @@ struct RowContext<'a> {
     snapshot: &'a ClientShellSnapshotV2,
     keymap: &'a Keymap,
     methods: &'a [String],
+    /// Where each bound navigation command lands. A command with no key, or
+    /// with nowhere to land, is not here.
+    destinations: Vec<(Command, Destination<'a>)>,
+}
+
+impl<'a> RowContext<'a> {
+    fn destination(&self, command: Command) -> Option<&Destination<'a>> {
+        self.destinations
+            .iter()
+            .find(|(candidate, _)| *candidate == command)
+            .map(|(_, destination)| destination)
+    }
 }
 
 /// `No workspaces` when the host has none, else `No terminal tabs`.
@@ -77,22 +130,53 @@ fn rows(context: &RowContext<'_>) -> Vec<EmptyWorkspaceRow> {
     ROW_COMMANDS
         .iter()
         .filter(|command| availability::shown(**command, context))
-        .filter_map(|command| row(*command, context.keymap))
+        .filter_map(|command| row(*command, context))
         .collect()
 }
 
-/// `command`'s row, or `None` when no key runs it.
-fn row(command: Command, keymap: &Keymap) -> Option<EmptyWorkspaceRow> {
-    let shortcuts = keymap.shortcuts(command).collect::<Vec<_>>();
+/// `command`'s row, or `None` when no key runs it. A numbered navigation row
+/// names what it lands on; every other row keeps its command's label.
+fn row(command: Command, context: &RowContext<'_>) -> Option<EmptyWorkspaceRow> {
+    let shortcuts = context.keymap.shortcuts(command).collect::<Vec<_>>();
     if shortcuts.is_empty() {
         return None;
     }
-    let info = COMMANDS.iter().find(|info| info.command == command)?;
+    let label = match (command, context.destination(command)) {
+        (Command::WorkspaceNumber(_), Some(Destination::Workspace { workspace, .. })) => {
+            format!("Switch to {}", workspace.label)
+        }
+        (Command::AgentNumber(_), Some(Destination::Agent { agent, .. })) => {
+            format!("Focus {}", agent_label(agent))
+        }
+        _ => COMMANDS
+            .iter()
+            .find(|info| info.command == command)?
+            .label
+            .to_owned(),
+    };
     Some(EmptyWorkspaceRow {
         command,
         keys: shortcuts.join(KEY_SEPARATOR),
-        label: info.label.to_owned(),
+        label,
     })
+}
+
+/// What the numbered agent row calls `agent`: the first of its `name`,
+/// `display_agent`, `agent`, and `title` that is not blank, else `agent`.
+/// This is myherdr's screen order, name first; the sidebar's `agent_name`
+/// keeps the display name first and is not used here.
+fn agent_label(agent: &ClientShellAgent) -> &str {
+    [
+        agent.name.as_deref(),
+        agent.display_agent.as_deref(),
+        agent.agent.as_deref(),
+        agent.title.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(str::trim)
+    .find(|text| !text.is_empty())
+    .unwrap_or("agent")
 }
 
 /// The workspace the snapshot focuses, when the snapshot lists it.
@@ -147,10 +231,51 @@ impl HerdrWindow {
     }
 
     fn row_context<'a>(&'a self, snapshot: &'a ClientShellSnapshotV2) -> RowContext<'a> {
+        let keymap = self.keymap();
+        let destinations = ROW_COMMANDS
+            .iter()
+            .filter(|command| keymap.shortcuts(**command).next().is_some())
+            .filter_map(|command| Some((*command, self.destination(*command)?)))
+            .collect();
         RowContext {
             snapshot,
-            keymap: self.keymap(),
+            keymap,
             methods: &self.live.methods,
+            destinations,
+        }
+    }
+
+    /// Where `command`, a sidebar step, lands, with the live methods of the
+    /// host it lands on. `None` for any other command or a step with no row.
+    fn destination(&self, command: Command) -> Option<Destination<'_>> {
+        let (host, id) = self.sidebar_destination(command)?;
+        let live = if host == self.selected_endpoint {
+            &self.live
+        } else {
+            &self.endpoints[host].live
+        };
+        let snapshot = live.snapshot.as_deref()?;
+        let methods: &[String] = &live.methods;
+        match command {
+            Command::PreviousAgent | Command::NextAgent | Command::AgentNumber(_) => {
+                let agent = snapshot.agents.iter().find(|agent| agent.pane_id == id)?;
+                Some(Destination::Agent { agent, methods })
+            }
+            _ => {
+                let workspace = snapshot
+                    .workspaces
+                    .iter()
+                    .find(|workspace| workspace.workspace_id == id)?;
+                let is_focused = host == self.selected_endpoint
+                    && self.live.snapshot.as_deref().is_some_and(|selected| {
+                        selected.focused_workspace_id.as_deref() == Some(id)
+                    });
+                Some(Destination::Workspace {
+                    workspace,
+                    methods,
+                    is_focused,
+                })
+            }
         }
     }
 
@@ -173,6 +298,7 @@ impl HerdrWindow {
                 revision: snapshot.revision,
                 workspace_id: workspace_id.to_owned(),
                 command: row.command,
+                label: row.label.clone(),
             })
             .collect();
         Some(Screen {

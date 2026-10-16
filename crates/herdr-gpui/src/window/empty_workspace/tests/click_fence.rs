@@ -18,6 +18,7 @@ fn connect_on_scratch(view: &mut HerdrWindow) -> DrawnRow {
         revision: snapshot.revision,
         workspace_id: "w2".into(),
         command: Command::Tab,
+        label: String::new(),
     };
     view.live.status = ConnectionStatus::Connected;
     view.live.snapshot_v2 = true;

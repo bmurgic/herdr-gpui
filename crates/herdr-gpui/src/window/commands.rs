@@ -578,27 +578,10 @@ impl HerdrWindow {
             command,
             Command::PreviousAgent | Command::NextAgent | Command::AgentNumber(_)
         );
-        let rows = if agents {
-            self.sidebar_agents()
-        } else {
-            self.sidebar_workspaces()
-        };
-        let selected = self.selected_endpoint;
-        let focused = self.live.snapshot.as_ref().and_then(|snapshot| {
-            if agents {
-                snapshot.focused_pane_id.as_deref()
-            } else {
-                snapshot.focused_workspace_id.as_deref()
-            }
-        });
-        let current = rows
-            .iter()
-            .position(|&(host, id)| host == selected && Some(id) == focused);
-        let Some(&(host, id)) = crate::sidebar::sidebar_step(&rows, current, selected, command)
-            .and_then(|index| rows.get(index))
-        else {
+        let Some((host, id)) = self.sidebar_destination(command) else {
             return;
         };
+        let selected = self.selected_endpoint;
         let id = id.to_owned();
         let target = if agents {
             NavigationTarget::Pane(id.as_str())

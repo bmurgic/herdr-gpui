@@ -66,6 +66,35 @@ impl HerdrWindow {
             .map(|(index, agent)| (index, agent.pane_id.as_str()))
             .collect()
     }
+
+    /// The row a previous, next, or numbered shortcut lands on, or `None`
+    /// when `command` is not one of those or the step has no row. The window
+    /// runs it and the empty workspace screen lists it, so both read the same
+    /// destination.
+    pub(crate) fn sidebar_destination(&self, command: Command) -> Option<Row<'_>> {
+        let agents = matches!(
+            command,
+            Command::PreviousAgent | Command::NextAgent | Command::AgentNumber(_)
+        );
+        let rows = if agents {
+            self.sidebar_agents()
+        } else {
+            self.sidebar_workspaces()
+        };
+        let selected = self.selected_endpoint;
+        let focused = self.live.snapshot.as_ref().and_then(|snapshot| {
+            if agents {
+                snapshot.focused_pane_id.as_deref()
+            } else {
+                snapshot.focused_workspace_id.as_deref()
+            }
+        });
+        let current = rows
+            .iter()
+            .position(|&(host, id)| host == selected && Some(id) == focused);
+        let index = step(&rows, current, selected, command)?;
+        rows.get(index).copied()
+    }
 }
 
 /// Which row a sidebar step lands on. `current` is the focused row, if the

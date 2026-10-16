@@ -5,6 +5,7 @@ use crate::keymap::{Binding, DaemonKeys, Keymap};
 use herdr_client::Method;
 use std::collections::BTreeMap;
 
+mod agent_label;
 mod click_fence;
 mod create_rows;
 mod manage_rows;
@@ -67,5 +68,6 @@ fn context<'a>(
         snapshot,
         keymap,
         methods,
+        destinations: Vec::new(),
     }
 }
