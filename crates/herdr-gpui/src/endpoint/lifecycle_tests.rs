@@ -171,6 +171,29 @@ fn project_until(
     }
 }
 
+/// A window selecting `endpoint` once its snapshot is projected and input is ready.
+fn window_over(
+    cx: &mut gpui::TestAppContext,
+    endpoint: Endpoint,
+) -> (gpui::Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
+    let (fixture, cx) = cx.add_window_view(|window, cx| {
+        Fixture(cx.new(|cx| crate::sidebar::layout_tests::fixture_window(window, cx)))
+    });
+    let view = fixture.read_with(cx, |fixture, _| fixture.0.clone());
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            view.endpoints = vec![endpoint];
+            view.selected_endpoint = 0;
+            view.options = ConnectOptions::default();
+            view.reset_selected(cx);
+            project_until(view, cx, "the v2 snapshot", |view| {
+                view.live.snapshot.is_some() && view.input_ready()
+            });
+        });
+    });
+    (view, cx)
+}
+
 fn wait_until(mut ready: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(3);
     while !ready() {

@@ -10,21 +10,8 @@ fn window_over_v2_session(
     check: impl FnOnce(&mut HerdrWindow),
 ) {
     let (endpoint, _server) = connected_endpoint_v2("empty-workspaces", V2_METHODS, snapshot);
-    let (fixture, cx) = cx.add_window_view(|window, cx| {
-        Fixture(cx.new(|cx| crate::sidebar::layout_tests::fixture_window(window, cx)))
-    });
-    let view = fixture.read_with(cx, |fixture, _| fixture.0.clone());
-    cx.update(|_, cx| {
-        view.update(cx, |view, cx| {
-            view.endpoints = vec![endpoint];
-            view.options = ConnectOptions::default();
-            view.reset_selected(cx);
-            project_until(view, cx, "v2 snapshot", |view| {
-                view.live.snapshot.is_some() && view.input_ready()
-            });
-            check(view);
-        });
-    });
+    let (view, cx) = window_over(cx, endpoint);
+    cx.update(|_, cx| view.update(cx, |view, _| check(view)));
 }
 
 fn sidebar_labels(view: &HerdrWindow) -> Vec<String> {
