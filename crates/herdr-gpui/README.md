@@ -764,12 +764,24 @@ theme. A device theme file that cannot be read leaves that device on the app
 theme and is logged; one edited in place is read again when the config next
 changes.
 
+New Workspace opens the New Workspace page and sends nothing until you submit
+it. Every button, menu item, shortcut, palette entry, and `herdr-gpui run
+new_workspace` opens it. The page asks for the directory the workspace opens in,
+starting at `~/`. On this computer's Herdr it suggests the folders under the
+path you type, Up and Down pick one, and Tab completes it. Other hosts get no
+suggestions. Enter sends the text as typed. It refuses a path that does not
+start with `/` or `~/`, and on this computer a folder that does not exist. A
+remote host whose Herdr does not send v2 snapshots cannot expand `~`, so give it
+an absolute directory.
+
 New tab and New Workspace follow the shared `ui.prompt_new_tab_name` (default
-on) and `ui.prompt_new_workspace_name` (default off). When set, every button,
-menu item, shortcut, and palette entry first asks for a name, proposing the next
-tab number or the workspace's folder; Enter creates, Escape cancels, and an empty
-or unchanged name lets the daemon choose it, as in the TUI. Teleport, worktree
-creation, and browser tabs never prompt.
+on) and `ui.prompt_new_workspace_name` (default off). With the first set, New
+tab asks for a name and proposes the next tab number. With the second set, the
+New Workspace page asks for a name after the directory. On this computer it
+proposes the name of the nearest Git repository folder at or above that
+directory, and elsewhere the directory's own folder name. Enter creates, Escape
+cancels, and an empty or unchanged name lets the daemon choose it, as in the
+TUI. Teleport, worktree creation, and browser tabs never prompt.
 
 Sound uses the dedicated Rodio backend, shared global/per-agent settings and
 custom local paths, with Herdr's bundled sounds as fallbacks. The Sound tab sets
@@ -1778,10 +1790,11 @@ process details or agent sessions, which is why Teleport uses the CLI.
 ## Smart Dispatch
 
 When more than one host is connected, the New worktree dialog (its branch form)
-and the New workspace dialog for a Git checkout offer a host for the new
-checkout. The three hosts with the most room are tiles, best first; every other
-host, offline ones last, opens from the Other field below them. The host the
-window shows stays chosen until you pick another, so pressing Enter still
+and the New Workspace page's name step offer a host for the new checkout. The
+name step offers one only when the workspace focused as the page opened is a
+Git checkout. The three hosts with the most room are tiles, best first; every
+other host, offline ones last, opens from the Other field below them. The host
+the window shows stays chosen until you pick another, so pressing Enter still
 creates where it always did.
 
 Hosts rank by spare cores: cores less the 5 minute load average (or the CPU
@@ -3170,10 +3183,11 @@ Ctrl+Shift+U is left unbound for
   scrolling tab strip. Each tab has a 16px SVG close cross in a 24px hit target;
   it uses the same configurable confirmation without focusing an inactive tab.
   Both icons use the current theme's foreground tint.
-- Cmd-T creates and focuses a tab; Cmd-Shift-N creates and focuses
-  a workspace. Cmd-N opens the New worktree dialog for the focused workspace
-  (for a linked worktree, through its repository's main checkout, starting from
-  the linked worktree's branch). The dialog opens on
+- Cmd-T creates and focuses a tab; Cmd-Shift-N opens the New Workspace page,
+  which asks for a directory, then creates and focuses the workspace in it
+  (see [Configuration](#configuration)). Cmd-N opens the New worktree dialog
+  for the focused workspace (for a linked worktree, through its repository's
+  main checkout, starting from the linked worktree's branch). The dialog opens on
   its Branch field with the proposal selected, so typing replaces it; Tab
   back to the form returns there. The Name field is optional: left empty,
   the daemon picks the workspace name; anything
@@ -3191,6 +3205,14 @@ Ctrl+Shift+U is left unbound for
   Cmd-Shift-D splits horizontally (new pane below). Cmd-Shift-] / Cmd-Shift-[
   cycles next/previous tab within the current workspace, wrapping at the ends.
   These shortcuts are native actions, not bytes sent to a terminal.
+- On a Herdr that sends v2 snapshots, such as myherdr, the sidebar lists
+  workspaces that have no tabs. When the focused workspace has no tab, or the
+  host has no workspaces, the terminal area shows a screen headed **No terminal
+  tabs** or **No workspaces**. It lists, with their keys, the workspace commands
+  that have a key and can run now, such as Go To, New Workspace, Close
+  Workspace, the numbered workspace and agent commands, and New Tab. Clicking a
+  row runs its command as the key does, and the keys keep working while the
+  screen shows. A click on a row drawn from an older snapshot does nothing.
 - Cmd-Alt-N runs **Open Notification Target**, also available in Terminal and the
   command palette. It uses the visible card's safe click path; stale, targetless,
   queued, or menu-hidden cards do not navigate or change endpoint selection.
