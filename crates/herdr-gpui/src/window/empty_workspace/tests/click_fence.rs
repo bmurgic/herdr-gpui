@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 type Edit = fn(&mut HerdrWindow, &mut DrawnRow);
 
-/// A connected v2 window on the empty workspace `w2` and the row drawn for
-/// its New Tab, both from the same snapshot.
-fn drawn_window(view: &mut HerdrWindow) -> DrawnRow {
+/// Connects `view` as a v2 session focused on the empty workspace `w2`, and
+/// returns the New Tab row a draw of that state records.
+fn connect_on_scratch(view: &mut HerdrWindow) -> DrawnRow {
     let snapshot = scratch_focused();
     let row = DrawnRow {
         endpoint: view.endpoints[view.selected_endpoint].id.clone(),
@@ -56,12 +56,12 @@ fn a_drawn_row_is_current_only_while_everything_it_was_drawn_from_holds(
         }),
     ];
     view.update(cx, |view, _| {
-        let row = drawn_window(view);
+        let row = connect_on_scratch(view);
         assert!(view.drawn_row_is_current(&row), "nothing changed");
     });
     for (change, edit) in changes {
         view.update(cx, |view, _| {
-            let mut row = drawn_window(view);
+            let mut row = connect_on_scratch(view);
             edit(view, &mut row);
             assert!(!view.drawn_row_is_current(&row), "{change}");
         });
