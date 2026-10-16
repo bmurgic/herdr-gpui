@@ -388,7 +388,8 @@ enum ProjectOperation {
     Awaiting(String),
 }
 
-#[cfg(test)]
+// Only the Unix-only endpoint lifecycle tests read it.
+#[cfg(all(test, unix))]
 impl Palette {
     /// The filter the palette opened with, which the window tests read to tell
     /// Go To from the full palette.
