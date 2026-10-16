@@ -847,6 +847,8 @@ impl HerdrWindow {
                 *inbox = this.live.clone();
             }
             // The smoke tests measure the old agent row, not the session row.
+            // This covers the frames before their Settings phase loads the
+            // sandbox config, which says the same (tests/live_gui.rs).
             this.settings.shared =
                 crate::herdr_settings::Settings::parse_text("[ui]\nsession_sidebar = false\n").ok();
             return this;

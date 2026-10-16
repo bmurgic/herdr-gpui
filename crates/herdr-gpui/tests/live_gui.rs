@@ -131,6 +131,9 @@ fn native_fixture(fixture: Fixture) {
     if let Some(path) = std::env::var_os("HERDR_TEST_SETTINGS_CAPTURE") {
         command.env("HERDR_TEST_SETTINGS_CAPTURE", path);
     }
+    if matches!(fixture, Fixture::Sidebar | Fixture::InvalidChildWidth) {
+        keep_old_rows(&isolated.sandbox);
+    }
     match fixture {
         Fixture::Sidebar => {}
         #[cfg(target_os = "linux")]
@@ -195,6 +198,16 @@ fn native_fixture(fixture: Fixture) {
         Fixture::InputShutdown(_) => "INPUT shutdown ready:",
         _ => "SIDEBAR native PASS:",
     }));
+}
+
+/// These fixtures' glyph checks measure the old agent row. Their Settings
+/// phase reloads this file, which replaces the window's own override, so the
+/// file must turn session rows off too.
+fn keep_old_rows(sandbox: &Sandbox) {
+    let path = sandbox.dir.join("config.toml");
+    let mut config = fs::read_to_string(&path).unwrap();
+    config.push_str("[ui]\nsession_sidebar = false\n");
+    fs::write(path, config).unwrap();
 }
 
 impl Drop for Isolated {
