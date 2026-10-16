@@ -524,3 +524,101 @@ fn a_click_after_the_state_changed_is_dropped(cx: &mut gpui::TestAppContext) {
         assert_eq!(request_from_click_after(cx, change), None, "{name}");
     }
 }
+
+/// `scratch` focused beside `api`, whose tab holds the agent `reviewer`, on a
+/// host that can focus workspaces and panes, with `command` bound and drawn.
+fn navigation_row_drawn(
+    cx: &mut gpui::TestAppContext,
+    command: Command,
+) -> (Entity<HerdrWindow>, &mut VisualTestContext, Server) {
+    let mut snapshot = scratch_focused();
+    snapshot.agents = vec![agent(Some("reviewer"), "api")];
+    let methods = [
+        CREATE_METHODS,
+        &[Method::WorkspaceFocusV2, Method::PaneFocus],
+    ]
+    .concat();
+    let (endpoint, server) = connected_endpoint_v2("empty-workspaces", &methods, snapshot);
+    let (view, cx) = window_drawn_over(cx, endpoint);
+    bind_keys(&view, cx, &[(command, "cmd-alt-ctrl-n")]);
+    draw(cx);
+    assert!(screen_shown(&view, cx));
+    // The daemon's frame takes the size the window asked for, so navigation is
+    // not held back waiting for it.
+    view.update(cx, |view, _| {
+        let size = view.options.surface_size;
+        let surface = Arc::make_mut(view.live.surface.as_mut().unwrap());
+        surface.frame.width = size.cols;
+        surface.frame.height = size.rows;
+    });
+    (view, cx, server)
+}
+
+/// A navigation row's click focuses the workspace or agent the row names, as
+/// its key would.
+#[gpui::test]
+fn clicking_a_navigation_row_focuses_its_target(cx: &mut gpui::TestAppContext) {
+    for (command, expected) in [
+        (
+            Command::WorkspaceNumber(1),
+            (
+                "workspace.focus.v2",
+                serde_json::json!({"workspace_id": "api"}),
+            ),
+        ),
+        (
+            Command::AgentNumber(1),
+            ("pane.focus", serde_json::json!({"pane_id": "p1"})),
+        ),
+    ] {
+        let (view, cx, mut server) = navigation_row_drawn(cx, command);
+        let at = row_center(&view, cx, command);
+        click(cx, at);
+        assert_eq!(
+            first_request(&view, cx, &mut server, 1),
+            Some((expected.0.to_owned(), expected.1)),
+            "{command:?}"
+        );
+    }
+}
+
+/// A navigation row whose target is on another host selects that host first,
+/// and focuses the target there, not on the host the screen was drawn for.
+#[gpui::test]
+fn a_navigation_row_for_another_host_selects_it_first(cx: &mut gpui::TestAppContext) {
+    let focus_methods = [Method::ClientShellSurfaceSet, Method::WorkspaceFocusV2];
+    let mut scratch_alone = scratch_focused();
+    scratch_alone
+        .workspaces
+        .retain(|workspace| workspace.workspace_id == "scratch");
+    scratch_alone.tabs.clear();
+    scratch_alone.panes.clear();
+    let mut api_alone = api_and_scratch();
+    api_alone
+        .workspaces
+        .retain(|workspace| workspace.workspace_id == "api");
+    let (selected, mut selected_server) = connected_endpoint_v2(
+        "empty-workspaces",
+        &[CREATE_METHODS, &focus_methods].concat(),
+        scratch_alone,
+    );
+    let (other, _other_server) = connected_endpoint_v2("other-host", &focus_methods, api_alone);
+    let (view, cx) = window_drawn_over(cx, selected);
+    view.update(cx, |view, _| view.endpoints.push(other));
+    bind_keys(&view, cx, &[(Command::NextWorkspace, "cmd-alt-ctrl-n")]);
+    draw(cx);
+    assert!(screen_shown(&view, cx));
+    let at = row_center(&view, cx, Command::NextWorkspace);
+    click(cx, at);
+    let (host, pending) = view.read_with(cx, |view, _| {
+        (
+            view.endpoints[view.selected_endpoint].id.clone(),
+            view.pending_navigation.clone(),
+        )
+    });
+    assert_eq!(host, "other-host");
+    // The other host's surface is not yet sized for this window, so the
+    // focus waits for it, as a sidebar click on that workspace would.
+    assert_eq!(pending, Some(NavigationTarget::Workspace("api".to_owned())));
+    assert_eq!(first_request(&view, cx, &mut selected_server, 1), None);
+}

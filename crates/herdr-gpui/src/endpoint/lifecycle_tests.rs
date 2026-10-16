@@ -294,6 +294,18 @@ fn scratch_focused() -> ClientShellSnapshotV2 {
     snapshot
 }
 
+/// An agent named `name`, shown as `Claude`, in the pane `p1` of
+/// `workspace_id`'s tab `t1`.
+fn agent(name: Option<&str>, workspace_id: &str) -> ClientShellAgent {
+    serde_json::from_value(serde_json::json!({
+        "pane_id": "p1", "workspace_id": workspace_id, "tab_id": "t1",
+        "name": name, "display_agent": "Claude", "agent": "claude-code", "title": null,
+        "agent_status": "idle", "state_change_seq": 0, "state_labels": [],
+        "tokens": [], "focused": false
+    }))
+    .unwrap()
+}
+
 fn draw(cx: &mut gpui::VisualTestContext) {
     cx.update(|window, cx| crate::sidebar::layout_tests::full_draw(window, cx).clear(cx));
 }

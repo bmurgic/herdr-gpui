@@ -83,16 +83,6 @@ fn beside(name: &str, has_tab: bool) -> ClientShellSnapshotV2 {
     snapshot
 }
 
-fn agent(name: Option<&str>, workspace_id: &str) -> ClientShellAgent {
-    serde_json::from_value(serde_json::json!({
-        "pane_id": "p1", "workspace_id": workspace_id, "tab_id": "t1",
-        "name": name, "display_agent": "Claude", "agent": "claude-code", "title": null,
-        "agent_status": "idle", "state_change_seq": 0, "state_labels": [],
-        "tokens": [], "focused": false
-    }))
-    .unwrap()
-}
-
 /// Empty workspace screen 04: the rows come in the fixed order, and a screen
 /// with no other workspace lists no Previous or Next Workspace.
 #[gpui::test]
