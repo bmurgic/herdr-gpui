@@ -41,6 +41,6 @@ None. `openspec/specs/` holds no specs yet.
 
 - `crates/herdr-protocol`: a new `snapshot_v2.rs` module with the v2 types, the v2 codec constant, the `From` conversion, and fixture tests. `NOTICE.md` gains the myherdr source of the v2 declarations.
 - `crates/herdr-client`: the hello codec list, the welcome codec check, the snapshot decoder, `ClientEvent::Snapshot`, the `Error` enum, and five new `Method` variants.
-- `crates/herdr-gpui`: the stored snapshot type and its readers, the workspace focus, rename, and move send sites, the worktree open send sites, the activation fence after a refused focus, the content-area stand-in and its command rows, the New Workspace dialog in a new `menu/new_workspace` module, and the worktree target's repository record. The sidebar is unchanged, apart from listing empty workspaces.
+- `crates/herdr-gpui`: the stored snapshot type and its readers, the workspace focus, rename, and move send sites, the worktree open send sites, the activation fence after a refused focus, the content-area stand-in and its command rows, the New Workspace dialog in a new `menu/new_workspace` module, and the worktree target's repository record. The sidebar's agent label is unchanged.
 - Wire compatibility: stock Herdr keeps the v1 codec and v1 methods. The vendored bincode types are unchanged.
 - No new dependency, crate, or runtime.

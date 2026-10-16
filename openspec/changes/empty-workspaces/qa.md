@@ -147,17 +147,18 @@ Shared starting state for the desktop procedures:
 
 **Starting state**
 - herdr-gpui is connected to the myherdr daemon with two workspaces: `api` in `/tmp/ew-repo`, with one tab running an agent, and `scratch` in `/tmp/ew-repo`, whose only tab was closed.
+- The agent in `api` is named `reviewer` with `herdr agent rename <target> reviewer`, where `<target>` identifies it in `herdr agent list`, and it reports a display name other than `reviewer`, such as `Claude`.
 - herdr-gpui's keybindings bind Go To, New Workspace, Rename Workspace, Close Workspace, Previous Workspace, Next Workspace, Focus Workspace 1, Focus Workspace 2, Previous Agent, Next Agent, Focus Agent 1, New Worktree, Open Worktree, and New Tab each to a key.
 
 **Procedure**
 
 1. Click the `scratch` row in the sidebar.
-   - **Observe:** The content area shows `No terminal tabs`. The rows read, in order: `Go To`, `New Workspace`, `New Worktree`, `Open Worktree`, `Rename Workspace`, `Close Workspace`, `Previous Workspace`, `Next Workspace`, a `Switch to api` row, `Previous Agent`, `Next Agent`, a `Focus <agent name>` row, and `New Tab`. No row offers to switch to `scratch` itself. The `Focus` row shows the agent's name, such as `reviewer`, when the agent has one; the agent's sidebar row can show its display name instead, such as `Claude`.
+   - **Observe:** The content area shows `No terminal tabs`. The rows read, in order: `Go To`, `New Workspace`, `New Worktree`, `Open Worktree`, `Rename Workspace`, `Close Workspace`, `Previous Workspace`, `Next Workspace`, a `Switch to api` row, `Previous Agent`, `Next Agent`, `Focus reviewer`, and `New Tab`. No row offers to switch to `scratch` itself. The `Focus reviewer` row names the agent by its name, while the agent's row in the sidebar still shows its display name.
 2. Click the `Switch to api` row.
    - **Observe:** `api` is selected in the sidebar and its terminal shows.
 3. Click the `scratch` row in the sidebar again, then click `Rename Workspace`.
    - **Observe:** The rename dialog opens for `scratch`.
-4. Cancel the dialog and click the `Focus <agent name>` row.
+4. Cancel the dialog and click the `Focus reviewer` row.
    - **Observe:** The agent's pane in `api` is focused.
 5. Click the `scratch` row again and click `Close Workspace`.
    - **Observe:** The close confirmation, or the close itself, runs for `scratch` as it does from the workspace menu.
