@@ -12,6 +12,11 @@ mod config_diagnostic;
 mod copy_mode;
 mod device_themes;
 mod double_shift;
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "drawn by the terminal element in the next commit")
+)]
+mod empty_workspace;
 mod file_drop;
 mod file_links;
 mod find;
