@@ -77,7 +77,8 @@ pub(crate) struct DrawnRow {
     workspace_id: String,
     pub(crate) command: Command,
     /// The label the row drew, for the window tests that check what a numbered
-    /// row names.
+    /// row names. Only tests build it, so a draw clones no label.
+    #[cfg(test)]
     pub(crate) label: String,
 }
 
@@ -300,6 +301,7 @@ impl HerdrWindow {
                 revision: snapshot.revision,
                 workspace_id: workspace_id.to_owned(),
                 command: row.command,
+                #[cfg(test)]
                 label: row.label.clone(),
             })
             .collect();
