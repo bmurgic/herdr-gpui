@@ -297,35 +297,41 @@ impl HerdrWindow {
         let mut panel = div()
             .id("menu-panel")
             .debug_selector(|| "menu-panel".into())
-            .when(matches!(page, Page::Workspace | Page::Dialog(_)), |panel| {
-                panel
-                    .w(px(if page == Page::Workspace {
-                        340.
-                    } else if page == Page::Dialog(WorkspaceAction::DeleteWorktree) {
-                        480.
-                    } else if settled {
-                        // A listing needs room for a title and its branch.
-                        560.
-                    } else {
-                        420.
-                    })
-                    .min((viewport.width - px(24.)).max(px(0.))))
-                    // Every dialog may use the window's height: a captioned form
-                    // whose buttons need scrolling into view reads as clipped.
-                    .max_h((viewport.height - px(24.)).max(px(0.)))
-                    // A listing is a picker: it takes a settled height and
-                    // scrolls inside it, as the theme and command pickers do.
-                    .when(settled, |panel| {
-                        panel
-                            .flex()
-                            .flex_col()
-                            .h(px(560. * (font.size / 12.))
-                                .min((viewport.height - px(24.)).max(px(0.))))
-                            .overflow_hidden()
-                    })
-                    // Lift the popup off the terminal behind it, as the pickers do.
-                    .shadow_lg()
-            })
+            .when(
+                matches!(page, Page::Workspace | Page::Dialog(_) | Page::NewWorkspace),
+                |panel| {
+                    panel
+                        .w(px(if page == Page::Workspace {
+                            340.
+                        } else if page == Page::NewWorkspace {
+                            // Room for a path and the folders under it.
+                            520.
+                        } else if page == Page::Dialog(WorkspaceAction::DeleteWorktree) {
+                            480.
+                        } else if settled {
+                            // A listing needs room for a title and its branch.
+                            560.
+                        } else {
+                            420.
+                        })
+                        .min((viewport.width - px(24.)).max(px(0.))))
+                        // Every dialog may use the window's height: a captioned form
+                        // whose buttons need scrolling into view reads as clipped.
+                        .max_h((viewport.height - px(24.)).max(px(0.)))
+                        // A listing is a picker: it takes a settled height and
+                        // scrolls inside it, as the theme and command pickers do.
+                        .when(settled, |panel| {
+                            panel
+                                .flex()
+                                .flex_col()
+                                .h(px(560. * (font.size / 12.))
+                                    .min((viewport.height - px(24.)).max(px(0.))))
+                                .overflow_hidden()
+                        })
+                        // Lift the popup off the terminal behind it, as the pickers do.
+                        .shadow_lg()
+                },
+            )
             .when(footer_anchored, |panel| {
                 self.anchor_footer_panel(panel, viewport, page)
             })
@@ -424,7 +430,7 @@ impl HerdrWindow {
                 !footer_anchored
                     && !matches!(page, Page::Usage(_))
                     && !pointer_anchored
-                    && !matches!(page, Page::Dialog(_)),
+                    && !matches!(page, Page::Dialog(_) | Page::NewWorkspace),
                 |panel| {
                     panel
                         .w((viewport.width - px(32.))
@@ -470,7 +476,10 @@ impl HerdrWindow {
                     panel
                         .when(!settled && !lists, |panel| panel.overflow_y_scroll())
                         .when(lists, |panel| panel.overflow_hidden())
-                        .when(!matches!(page, Page::Dialog(_)), |panel| panel.p(px(6.)))
+                        .when(
+                            !matches!(page, Page::Dialog(_) | Page::NewWorkspace),
+                            |panel| panel.p(px(6.)),
+                        )
                 },
             )
             .when(
@@ -605,6 +614,8 @@ impl HerdrWindow {
             ));
         } else if let Page::Dialog(action) = page {
             panel = panel.child(self.render_workspace_dialog(action, cx));
+        } else if page == Page::NewWorkspace {
+            panel = panel.child(self.render_new_workspace(cx));
         } else if page == Page::CarryPane {
             panel = panel.child(self.render_carry(cx));
         } else if page == Page::Teleport {

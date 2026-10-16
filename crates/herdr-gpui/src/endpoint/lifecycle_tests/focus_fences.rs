@@ -112,7 +112,6 @@ fn every_focus_changing_command_fences_immediate_input_until_ack_and_surface(
         (Command::SplitRight, Method::PaneSplit),
         (Command::SplitDown, Method::PaneSplit),
         (Command::Tab, Method::TabCreate),
-        (Command::Workspace, Method::WorkspaceCreate),
         (Command::NextTab, Method::TabFocus),
         (Command::PreviousTab, Method::TabFocus),
         (Command::TabNumber(1), Method::TabFocus),

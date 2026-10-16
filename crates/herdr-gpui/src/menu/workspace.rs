@@ -436,10 +436,11 @@ impl HerdrWindow {
         }
     }
 
-    /// Asks for a name before `command` creates a tab or workspace, when the
-    /// local Herdr config's `ui.prompt_new_tab_name` or
-    /// `ui.prompt_new_workspace_name` says to. Returns whether the dialog
-    /// opened; otherwise the caller creates at once.
+    /// Asks for a name before `command` creates a tab, when the local Herdr
+    /// config's `ui.prompt_new_tab_name` says to. A new workspace asks for
+    /// its directory first and has its own page (`open_new_workspace`).
+    /// Returns whether the dialog opened; otherwise the caller creates at
+    /// once.
     pub(crate) fn open_name_prompt(
         &mut self,
         command: crate::controls::Command,
@@ -455,7 +456,6 @@ impl HerdrWindow {
             .unwrap_or_default();
         let action = match command {
             Command::Tab if prompts.tab => WorkspaceAction::NewTab,
-            Command::Workspace if prompts.workspace => WorkspaceAction::NewWorkspace,
             _ => return false,
         };
         // Only where creating at once would be allowed, so the prompt never

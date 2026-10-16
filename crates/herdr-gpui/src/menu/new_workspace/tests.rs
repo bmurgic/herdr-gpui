@@ -1,1 +1,149 @@
+//! Shared setup for the New Workspace page's window tests. Each topic file
+//! drives a real `HerdrWindow` connected to a mock daemon peer and reads what
+//! the peer receives.
+
+#![allow(clippy::unwrap_used)]
+
+use crate::{
+    HerdrWindow, controls::Command, menu::Page, sidebar::layout_tests::fixture_window,
+    window::MockPeer,
+};
+use gpui::{Context, Entity, EntityInputHandler, TestAppContext, VisualTestContext, Window};
+use herdr_client::protocol::ClientMessage;
+use std::path::Path;
+
+mod directory_prompt;
 mod suggestions;
+
+/// The method every scenario that expects the prompt advertises, because the
+/// fixture window's `LiveState.methods` starts empty.
+const CREATE: &str = "workspace.create";
+
+/// A window connected to a peer that advertises `methods`. `local` says
+/// whether the window treats its host as this computer.
+fn window<'a>(
+    cx: &'a mut TestAppContext,
+    methods: &[&str],
+    local: bool,
+) -> (MockPeer, Entity<HerdrWindow>, &'a mut VisualTestContext) {
+    let peer = MockPeer::advertising(methods);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        peer.prepare(&mut view, cx);
+        view.live.local_daemon_peer = local;
+        view
+    });
+    (peer, view, cx)
+}
+
+fn update<R>(
+    view: &Entity<HerdrWindow>,
+    cx: &mut VisualTestContext,
+    run: impl FnOnce(&mut HerdrWindow, &mut Window, &mut Context<HerdrWindow>) -> R,
+) -> R {
+    cx.update(|window, cx| view.update(cx, |view, cx| run(view, window, cx)))
+}
+
+/// Leaves the snapshot with no workspaces, as a daemon whose last workspace
+/// closed would.
+fn clear_workspaces(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
+    update(view, cx, |view, _, _| {
+        let snapshot = std::sync::Arc::make_mut(view.live.snapshot.as_mut().unwrap());
+        snapshot.workspaces.clear();
+        snapshot.tabs.clear();
+        snapshot.panes.clear();
+        snapshot.focused_workspace_id = None;
+        snapshot.focused_tab_id = None;
+        snapshot.focused_pane_id = None;
+    });
+}
+
+/// Runs the New Workspace command and says whether the page is showing.
+fn open(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool {
+    update(view, cx, |view, window, cx| {
+        view.command(Command::Workspace, window, cx);
+        view.menu.page == Some(Page::NewWorkspace)
+    })
+}
+
+/// Opens the page with `home` as what `~` expands to, and says whether it
+/// showed. The command reads the real home directory instead.
+fn open_at(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, home: &Path) -> bool {
+    update(view, cx, |view, window, cx| {
+        view.open_new_workspace_with_home(Some(home.to_path_buf()), window, cx)
+    })
+}
+
+/// Types `text` at the cursor, through the platform's text path.
+fn type_text(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, text: &str) {
+    update(view, cx, |view, window, cx| {
+        view.replace_text_in_range(None, text, window, cx);
+    });
+}
+
+/// Replaces the whole text, as pasting over a selection would.
+fn set_text(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, text: &str) {
+    update(view, cx, |view, _, _| {
+        let input = view.menu.input.as_mut().unwrap();
+        input.selection = 0..input.text.len();
+    });
+    type_text(view, cx, text);
+}
+
+fn text(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> String {
+    view.read_with(cx, |view, _| view.menu.input.as_ref().unwrap().text.clone())
+}
+
+fn matches(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Vec<String> {
+    view.read_with(cx, |view, _| {
+        view.menu.new_workspace.as_ref().unwrap().matches.clone()
+    })
+}
+
+fn error(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Option<String> {
+    view.read_with(cx, |view, _| {
+        view.menu.new_workspace.as_ref().unwrap().error.clone()
+    })
+}
+
+/// Draws the window and presses `keys` as the keyboard would, so they reach
+/// the menu's key handler.
+fn press(cx: &mut VisualTestContext, keys: &str) {
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    cx.simulate_keystrokes(keys);
+}
+
+/// Creates the named folders under `home`.
+fn make_folders(home: &Path, names: &[&str]) {
+    for name in names {
+        std::fs::create_dir_all(home.join(name)).unwrap();
+    }
+}
+
+fn names(listed: &[&str]) -> Vec<String> {
+    listed.iter().map(|name| (*name).to_owned()).collect()
+}
+
+/// Fails if the peer was sent an API request before a marker queued now,
+/// which orders after anything the window sent earlier.
+fn assert_no_request(peer: &mut MockPeer, view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
+    view.read_with(cx, |view, _| {
+        let boot = view.live.snapshot.as_ref().unwrap().boot_id.clone();
+        view.endpoints[view.selected_endpoint]
+            .connection
+            .handle
+            .as_ref()
+            .unwrap()
+            .set_focus(&boot, false)
+            .unwrap();
+    });
+    loop {
+        match peer.receive() {
+            ClientMessage::ClientShellEndpointRequest { request, .. } => {
+                panic!("unexpected request: {request}")
+            }
+            ClientMessage::ClientShellFocus { focused: false } => break,
+            _ => {}
+        }
+    }
+}

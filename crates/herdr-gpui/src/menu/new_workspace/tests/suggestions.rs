@@ -114,6 +114,18 @@ fn listing_skips_folders_whose_names_are_not_utf8() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn listing_skips_folders_whose_names_hold_a_control_character() {
+    let root = tempfile::tempdir().unwrap();
+    make_folders(root.path(), &["fine", "two\nlines", "tab\there"]);
+
+    assert_eq!(
+        list_folders(root.path(), MAX_FOLDER_ENTRIES).unwrap(),
+        ["fine"]
+    );
+}
+
 #[test]
 fn the_form_check_accepts_only_home_and_absolute_texts() {
     for accepted in ["~", "~/x", "/x", " ~/x "] {

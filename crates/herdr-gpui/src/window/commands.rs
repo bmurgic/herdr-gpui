@@ -358,9 +358,14 @@ impl HerdrWindow {
                 self.edit_focused_worktree_note(window, cx);
                 return;
             }
-            // Every interactive creation path ends here, so Herdr's name prompt
+            // Every interactive tab creation ends here, so Herdr's name prompt
             // covers buttons, menus, shortcuts, and the palette alike.
-            Command::Tab | Command::Workspace if self.open_name_prompt(command, window, cx) => {
+            Command::Tab if self.open_name_prompt(command, window, cx) => {
+                return;
+            }
+            // Asks for a directory first, and sends nothing until it is chosen.
+            Command::Workspace => {
+                self.open_new_workspace(window, cx);
                 return;
             }
             Command::Keybinds => {

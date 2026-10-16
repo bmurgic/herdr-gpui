@@ -74,8 +74,9 @@ pub(super) fn ranked_matches(children: &[String], query: &str) -> Vec<String> {
 }
 
 /// The folder names directly inside `parent`, following links, reading at
-/// most `limit` entries. Names that are not UTF-8 are left out, because the
-/// text field cannot hold them faithfully.
+/// most `limit` entries. Names that are not UTF-8 or hold a control character
+/// are left out, because the text field cannot hold them faithfully and
+/// completing one would name a different folder.
 pub(super) fn list_folders(parent: &Path, limit: usize) -> io::Result<Vec<String>> {
     let mut folders = Vec::new();
     for entry in fs::read_dir(parent)?.take(limit) {
@@ -83,7 +84,9 @@ pub(super) fn list_folders(parent: &Path, limit: usize) -> io::Result<Vec<String
         if !entry.path().is_dir() {
             continue;
         }
-        if let Ok(name) = entry.file_name().into_string() {
+        if let Ok(name) = entry.file_name().into_string()
+            && !name.chars().any(char::is_control)
+        {
             folders.push(name);
         }
     }

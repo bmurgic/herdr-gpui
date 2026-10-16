@@ -678,13 +678,6 @@ pub fn request(command: Command, snapshot: &ClientShellSnapshotV2) -> Option<(Me
         })
     });
     Some(match command {
-        Command::Workspace => {
-            let mut params = json!({"focus": true});
-            if snapshot.focused_workspace_id.is_some() {
-                params["source_workspace_id"] = json!(workspace?.workspace_id);
-            }
-            (Method::WorkspaceCreate, params)
-        }
         Command::Tab => (
             Method::TabCreate,
             json!({"workspace_id": workspace?.workspace_id, "focus": true}),
@@ -796,6 +789,7 @@ pub fn request(command: Command, snapshot: &ClientShellSnapshotV2) -> Option<(Me
         }
         Command::NewWindow
         | Command::NewWorktree
+        | Command::Workspace
         | Command::OpenWorktree
         | Command::RemoveWorktree
         | Command::WorktreeNotes
