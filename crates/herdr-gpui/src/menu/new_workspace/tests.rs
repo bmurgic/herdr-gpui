@@ -13,6 +13,7 @@ use herdr_client::protocol::ClientMessage;
 use std::path::Path;
 
 mod directory_prompt;
+mod submit;
 mod suggestions;
 
 /// The method every scenario that expects the prompt advertises, because the
@@ -102,7 +103,12 @@ fn matches(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Vec<String
 
 fn error(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Option<String> {
     view.read_with(cx, |view, _| {
-        view.menu.new_workspace.as_ref().unwrap().error.clone()
+        view.menu
+            .new_workspace
+            .as_ref()
+            .unwrap()
+            .error()
+            .map(str::to_owned)
     })
 }
 
@@ -111,6 +117,32 @@ fn error(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Option<Strin
 fn press(cx: &mut VisualTestContext, keys: &str) {
     cx.update(|window, cx| window.draw(cx).clear(cx));
     cx.simulate_keystrokes(keys);
+}
+
+/// Replaces the text with `text`, lets any listing finish, presses Enter, and
+/// lets the existence check finish.
+fn submit(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, text: &str) {
+    set_text(view, cx, text);
+    cx.run_until_parked();
+    press(cx, "enter");
+    cx.run_until_parked();
+}
+
+/// Says whether the session negotiated the v2 codec, as its welcome would.
+fn set_codec(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, snapshot_v2: bool) {
+    update(view, cx, |view, _, _| view.live.snapshot_v2 = snapshot_v2);
+}
+
+/// The workspace that is focused in the window's snapshot.
+fn focused_workspace(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Option<String> {
+    view.read_with(cx, |view, _| {
+        view.live
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .focused_workspace_id
+            .clone()
+    })
 }
 
 /// Creates the named folders under `home`.

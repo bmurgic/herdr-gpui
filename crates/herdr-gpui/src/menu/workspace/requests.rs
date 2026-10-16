@@ -97,6 +97,7 @@ impl HerdrWindow {
     /// Apply the daemon's answer to whichever worktree dialog is waiting for it,
     /// and to a removal whose dialog has already closed.
     pub(crate) fn update_workspace_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.update_new_workspace(window, cx);
         self.update_pending_removal(window, cx);
         if let Some(check) = &mut self.menu.close_check
             && check.poll()

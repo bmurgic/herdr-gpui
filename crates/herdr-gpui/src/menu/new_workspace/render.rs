@@ -78,16 +78,19 @@ impl HerdrWindow {
                             .flex_col()
                             .children(rows.into_iter().flatten()),
                     )
-                    .children(form.and_then(|form| form.error.clone()).map(|error| {
-                        div()
-                            .debug_selector(|| "new-workspace-error".into())
-                            .rounded(px(crate::config::corners::CONTROL))
-                            .bg(rgb(theme.active))
-                            .px(px(10.))
-                            .py(px(6.))
-                            .text_color(danger(theme))
-                            .child(error)
-                    })),
+                    .children(
+                        form.and_then(|form| form.error().map(str::to_owned))
+                            .map(|error| {
+                                div()
+                                    .debug_selector(|| "new-workspace-error".into())
+                                    .rounded(px(crate::config::corners::CONTROL))
+                                    .bg(rgb(theme.active))
+                                    .px(px(10.))
+                                    .py(px(6.))
+                                    .text_color(danger(theme))
+                                    .child(error)
+                            }),
+                    ),
             )
     }
 }

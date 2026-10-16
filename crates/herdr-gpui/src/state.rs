@@ -1,6 +1,6 @@
 use herdr_client::{
     ClientEvent, Method, SurfaceImages,
-    protocol::{ClientShellSnapshotV2, PaneSurfaceFrame, ServerMessage},
+    protocol::{ClientShellSnapshotV2, PaneSurfaceFrame, SNAPSHOT_CODEC_V2, ServerMessage},
 };
 use std::sync::Arc;
 
@@ -129,6 +129,9 @@ pub struct LiveState {
     /// it there. The next fence and a new session clear it too.
     pub(crate) focus_refused: bool,
     pub supports_surface: bool,
+    /// The session negotiated `shell.snapshot.v2`, whose daemon expands `~`
+    /// in a `workspace.create` path and checks the folder itself.
+    pub(crate) snapshot_v2: bool,
     // Bounded rename slots survive coalesced snapshots and do not overwrite a
     // worktree operation whose dialog has already closed.
     pub tab_rename: Option<RenameResult>,
@@ -234,6 +237,7 @@ impl Default for LiveState {
             activation: None,
             focus_refused: false,
             supports_surface: false,
+            snapshot_v2: false,
             tab_rename: None,
             pane_rename: None,
             drag_request: None,
@@ -293,6 +297,7 @@ impl LiveState {
             activation,
             focus_refused,
             supports_surface,
+            snapshot_v2,
             tab_rename,
             pane_rename,
             drag_request,
@@ -375,6 +380,7 @@ impl LiveState {
             }
             && *focus_refused == self.focus_refused
             && *supports_surface == self.supports_surface
+            && *snapshot_v2 == self.snapshot_v2
             && pending_rename(tab_rename, &self.tab_rename)
             && pending_rename(pane_rename, &self.pane_rename)
             && *drag_request == self.drag_request
@@ -514,6 +520,7 @@ impl LiveState {
                         .all(|capability| {
                             welcome.capabilities.iter().any(|value| value == capability)
                         });
+                self.snapshot_v2 = welcome.snapshot_codec == SNAPSHOT_CODEC_V2;
                 self.missing_installation = false;
                 self.version_mismatch = None;
                 // The daemon reports the mode to each new connection.
@@ -600,6 +607,7 @@ impl LiveState {
                 self.focus_refused = false;
                 self.methods = Arc::from([]);
                 self.supports_workspace_move = false;
+                self.snapshot_v2 = false;
                 self.error = Some(reason);
                 self.snapshot = None;
                 self.agent_recency = AgentRecency::default();

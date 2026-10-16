@@ -6,6 +6,10 @@
 //! refreshes the suggestions. Reading a folder blocks, so a listing runs on
 //! the background executor, only for a host on this computer, and its result
 //! is applied only if the text still points at the folder it listed.
+//!
+//! Enter submits the text as typed. The page belongs to the host, and the
+//! daemon boot, that were selected when it opened, and closes when either
+//! changes (`submit.rs`).
 
 use super::Page;
 use crate::{HerdrWindow, dialog_input::DialogInput};
@@ -15,9 +19,12 @@ use std::{
     io,
     path::{Path, PathBuf},
 };
-use suggestions::{MAX_FOLDER_ENTRIES, expand_tilde, list_folders, ranked_matches};
+use suggestions::{
+    DirectoryRefusal, MAX_FOLDER_ENTRIES, expand_tilde, list_folders, ranked_matches,
+};
 
 mod render;
+mod submit;
 // The directory step uses the listing and ranking. The form check, the send,
 // and the name step's proposal are wired in by the tasks that follow.
 #[cfg_attr(
@@ -52,10 +59,27 @@ pub(crate) struct NewWorkspaceForm {
     selected: usize,
     /// Why the folder could not be read.
     error: Option<String>,
+    /// The daemon boot the page opened on, which a creation is addressed to.
+    boot_id: String,
+    /// The workspace that was focused when the page opened. A creation names
+    /// it as its source if it still exists.
+    source_workspace_id: Option<String>,
+    /// Why the last Enter was refused. The next edit clears it.
+    refusal: Option<DirectoryRefusal>,
+    /// Why the last creation could not be queued. The next edit clears it.
+    send_error: Option<String>,
+    /// The trimmed text whose folder is being checked on the background
+    /// executor. Enter is ignored until the check ends.
+    checking: Option<String>,
 }
 
 impl NewWorkspaceForm {
-    fn new(local: bool, home: Option<PathBuf>) -> Self {
+    fn new(
+        local: bool,
+        home: Option<PathBuf>,
+        boot_id: String,
+        source_workspace_id: Option<String>,
+    ) -> Self {
         Self {
             local,
             home,
@@ -65,7 +89,31 @@ impl NewWorkspaceForm {
             matches: Vec::new(),
             selected: 0,
             error: None,
+            boot_id,
+            source_workspace_id,
+            refusal: None,
+            send_error: None,
+            checking: None,
         }
+    }
+
+    /// Forgets the listing, for a text with no parent folder to list.
+    fn clear_listing(&mut self) {
+        self.parent = None;
+        self.folder = None;
+        self.children.clear();
+        self.matches.clear();
+        self.selected = 0;
+        self.error = None;
+    }
+
+    /// The message under the field: why Enter was refused, why the creation
+    /// was not sent, else why the folder could not be read.
+    fn error(&self) -> Option<&str> {
+        self.refusal
+            .map(DirectoryRefusal::message)
+            .or(self.send_error.as_deref())
+            .or(self.error.as_deref())
     }
 
     /// Follows an edit of the text. A change of only the part after the last
@@ -75,7 +123,7 @@ impl NewWorkspaceForm {
     fn retarget(&mut self, text: &str) -> Option<PathBuf> {
         let text = if text.is_empty() { "~/" } else { text };
         let Some((parent, _)) = text.rsplit_once('/').filter(|_| self.local) else {
-            *self = Self::new(self.local, self.home.take());
+            self.clear_listing();
             return None;
         };
         let parent = format!("{parent}/");
@@ -177,6 +225,14 @@ impl HerdrWindow {
         {
             return false;
         }
+        // A creation is addressed to a daemon boot, which only a snapshot names.
+        let Some(snapshot) = self.live.snapshot.as_ref() else {
+            return false;
+        };
+        let (boot_id, source) = (
+            snapshot.boot_id.clone(),
+            snapshot.focused_workspace_id.clone(),
+        );
         self.hover = None;
         self.hover_menu = None;
         self.menu.reset();
@@ -188,7 +244,7 @@ impl HerdrWindow {
         // The cursor sits after the `~/`, as in myherdr, so typing adds to it.
         let mut input = DialogInput::new("~/".into());
         input.selection = input.text.len()..input.text.len();
-        let mut form = NewWorkspaceForm::new(local, home);
+        let mut form = NewWorkspaceForm::new(local, home, boot_id, source);
         let folder = form.retarget(&input.text);
         self.menu.input = Some(input);
         self.menu.new_workspace = Some(form);
@@ -224,6 +280,8 @@ impl HerdrWindow {
         if input.text == before {
             return;
         }
+        form.refusal = None;
+        form.send_error = None;
         let folder = form.retarget(&input.text);
         if let Some(folder) = folder {
             self.list_new_workspace_folder(folder, cx);
@@ -281,6 +339,12 @@ impl HerdrWindow {
                 None
             }
             "tab" => form.completion(),
+            "enter" => {
+                cx.stop_propagation();
+                window.prevent_default();
+                self.submit_new_workspace(window, cx);
+                return true;
+            }
             _ => return false,
         };
         cx.stop_propagation();
