@@ -43,6 +43,10 @@ fn client_selecting(codec: &str) -> (Client, Stream, thread::JoinHandle<Result<(
     (client, server, worker)
 }
 
+// A test that waits for the worker to end must close its end of the socket
+// first (`drop(server)`). A session that wrongly accepts the last message then
+// ends on the closed link, so the assertion fails instead of `join` hanging.
+
 /// What the worker delivered once it has ended.
 fn delivered_after_end(client: &Client) -> Vec<ClientEvent> {
     client.events.try_iter().collect()
@@ -105,7 +109,8 @@ fn welcome_selecting_a_known_codec_connects_and_decodes_its_snapshots() {
 /// Shell snapshot v2 03
 #[test]
 fn welcome_selecting_an_unknown_codec_is_refused() {
-    let (client, _server, worker) = client_selecting("shell.snapshot.v3");
+    let (client, server, worker) = client_selecting("shell.snapshot.v3");
+    drop(server);
 
     assert!(matches!(
         worker.join().unwrap().unwrap_err(),
@@ -147,6 +152,7 @@ fn snapshot_of_the_other_kind_ends_the_session() {
     for (selected, received, data) in rows {
         let (client, mut server, worker) = client_selecting(selected);
         send(&mut server, control(received, data));
+        drop(server);
 
         let error = worker.join().unwrap().unwrap_err();
         let Error::SnapshotKind {
@@ -179,6 +185,7 @@ fn malformed_v2_snapshot_json_ends_the_session_with_the_decoder_error() {
     for data in rows {
         let (client, mut server, worker) = client_selecting(V2);
         send(&mut server, control(V2, data.clone()));
+        drop(server);
 
         let error = worker.join().unwrap().unwrap_err();
         assert!(matches!(error, Error::Json(_)), "{data}: {error:?}");
@@ -234,6 +241,7 @@ fn v2_snapshot_identity_is_fenced_on_boot_and_revision() {
             &mut server,
             control(V2, snapshot_data(V2, boot_id, revision).to_string()),
         );
+        drop(server);
 
         assert!(
             matches!(worker.join().unwrap().unwrap_err(), Error::SnapshotIdentity),
@@ -252,6 +260,7 @@ fn v2_snapshot_identity_is_fenced_on_boot_and_revision() {
         &mut server,
         control(V2, snapshot_data(V2, "", 4).to_string()),
     );
+    drop(server);
     assert!(matches!(
         worker.join().unwrap().unwrap_err(),
         Error::SnapshotIdentity
