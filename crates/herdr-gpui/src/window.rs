@@ -12,7 +12,7 @@ mod config_diagnostic;
 mod copy_mode;
 mod device_themes;
 mod double_shift;
-mod empty_workspace;
+pub(crate) mod empty_workspace;
 mod file_drop;
 mod file_links;
 mod find;

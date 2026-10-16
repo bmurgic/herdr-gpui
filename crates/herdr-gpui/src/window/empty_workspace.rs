@@ -169,6 +169,8 @@ impl HerdrWindow {
                 .id("empty-workspace")
                 .debug_selector(|| "empty-workspace".into())
                 .absolute()
+                .top_0()
+                .left_0()
                 .size_full()
                 .overflow_y_scroll()
                 .p(px(24.))
@@ -218,14 +220,15 @@ impl HerdrWindow {
     fn click_empty_workspace_row(
         &mut self,
         index: usize,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
     ) {
         let Some(drawn) = self.empty_workspace_rows.get(index).cloned() else {
             return;
         };
-        // The command runs in the commit that adds the click tests.
-        let _is_current = self.drawn_row_is_current(&drawn);
+        if self.drawn_row_is_current(&drawn) {
+            self.command(drawn.command, window, cx);
+        }
     }
 
     fn drawn_row_is_current(&self, drawn: &DrawnRow) -> bool {

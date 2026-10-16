@@ -5,6 +5,7 @@ use crate::keymap::{Binding, DaemonKeys, Keymap};
 use herdr_client::Method;
 use std::collections::BTreeMap;
 
+mod click_fence;
 mod create_rows;
 
 /// Two workspaces, `api` with one tab and `scratch` with none, the shape
