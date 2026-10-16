@@ -140,7 +140,7 @@ Shared starting state for the desktop procedures:
 - `empty-workspace-screen / Each row is shown only while its command can run / Empty workspace screen 10 - worktree rows follow the workspace's repository`
 - `empty-workspace-screen / Each row is shown only while its command can run / Empty workspace screen 11 - workspace navigation rows need a different reachable target`
 - `empty-workspace-screen / Each row is shown only while its command can run / Empty workspace screen 12 - agent navigation rows need an agent and pane focus`
-- `empty-workspace-screen / The sidebar names an agent the way the screen does / Empty workspace screen 19 - the sidebar row shows the agent's name first`
+- `empty-workspace-screen / The screen names an agent by its name first / Empty workspace screen 19 - the numbered agent row names the agent by its name first`
 
 **User interface**
 - Desktop application (herdr-gpui window) with the myherdr daemon.
@@ -152,7 +152,7 @@ Shared starting state for the desktop procedures:
 **Procedure**
 
 1. Click the `scratch` row in the sidebar.
-   - **Observe:** The content area shows `No terminal tabs`. The rows read, in order: `Go To`, `New Workspace`, `New Worktree`, `Open Worktree`, `Rename Workspace`, `Close Workspace`, `Previous Workspace`, `Next Workspace`, a `Switch to api` row, `Previous Agent`, `Next Agent`, a `Focus <agent name>` row, and `New Tab`. No row offers to switch to `scratch` itself. The agent name on the `Focus` row is the same text as the agent's row in the sidebar.
+   - **Observe:** The content area shows `No terminal tabs`. The rows read, in order: `Go To`, `New Workspace`, `New Worktree`, `Open Worktree`, `Rename Workspace`, `Close Workspace`, `Previous Workspace`, `Next Workspace`, a `Switch to api` row, `Previous Agent`, `Next Agent`, a `Focus <agent name>` row, and `New Tab`. No row offers to switch to `scratch` itself. The `Focus` row shows the agent's name, such as `reviewer`, when the agent has one; the agent's sidebar row can show its display name instead, such as `Claude`.
 2. Click the `Switch to api` row.
    - **Observe:** `api` is selected in the sidebar and its terminal shows.
 3. Click the `scratch` row in the sidebar again, then click `Rename Workspace`.

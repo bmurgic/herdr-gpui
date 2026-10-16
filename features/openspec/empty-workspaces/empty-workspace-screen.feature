@@ -198,8 +198,14 @@ Feature: empty-workspace-screen
       | new-workspace |
       | focus-workspace |
 
-  # Covers: empty-workspace-screen / The sidebar names an agent the way the screen does / Empty workspace screen 19 - the sidebar row shows the agent's name first
-  Scenario: Empty workspace screen 19 - the sidebar row shows the agent's name first
-    Given a connected session with the workspace `api`, which holds an agent whose name is `reviewer`, whose display name is `Claude`, and whose agent kind is `claude-code`
-    When the sidebar draws its agent rows
-    Then that agent's row is labelled `reviewer`
+  # Covers: empty-workspace-screen / The screen names an agent by its name first / Empty workspace screen 19 - the numbered agent row names the agent by its name first
+  Scenario Outline: Empty workspace screen 19 - the numbered agent row names the agent by its name first
+    Given a connected v2 session focused on the empty workspace `scratch`, with the second workspace `api`, which holds one agent whose `name` is <name>, whose `display_agent` is <display_agent>, and whose `agent` is <agent_kind>, a daemon that advertises `pane.focus`, and a keymap that binds the numbered agent command 1 to one key
+    When the window draws
+    Then the row for the numbered agent command 1 is labelled <label>
+
+    Examples:
+      | name | display_agent | agent_kind | label |
+      | reviewer | Claude | claude-code | Focus reviewer |
+      | blank | Claude | claude-code | Focus Claude |
+      | blank | blank | blank | Focus agent |

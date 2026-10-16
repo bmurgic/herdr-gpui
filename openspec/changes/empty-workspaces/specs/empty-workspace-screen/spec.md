@@ -35,7 +35,7 @@ The content area SHALL show the empty-workspace screen in place of the terminal 
 
 ### Requirement: The screen lists one row per available workspace command
 
-The screen SHALL list one row per workspace command that is bound to at least one key and available under the availability rule, in this order: Go To, New Workspace, New Worktree, Open Worktree, Delete Worktree Checkout, Rename Workspace, Close Workspace, Previous Workspace, Next Workspace, the numbered workspace commands 1 to 9, Previous Agent, Next Agent, the numbered agent commands 1 to 9, and New Tab. Each row SHALL have two required fields: the key text, which is every key bound to the command, in the keymap's order, joined by ` / `, and the label. The label SHALL be the command's name as listed above, except that a numbered workspace row SHALL read `Switch to <workspace label>` and a numbered agent row SHALL read `Focus <agent name>`, where the agent name is the agent's first non-blank field in the order `name`, `display_agent`, `agent`, `title`, which is also the name the sidebar shows for that agent. A command with no bound key SHALL get no row. The tab-only commands Next Tab, Previous Tab, Move Tab Left, Move Tab Right, Rename Tab, Close Tab, and the numbered tab commands SHALL never get a row.
+The screen SHALL list one row per workspace command that is bound to at least one key and available under the availability rule, in this order: Go To, New Workspace, New Worktree, Open Worktree, Delete Worktree Checkout, Rename Workspace, Close Workspace, Previous Workspace, Next Workspace, the numbered workspace commands 1 to 9, Previous Agent, Next Agent, the numbered agent commands 1 to 9, and New Tab. Each row SHALL have two required fields: the key text, which is every key bound to the command, in the keymap's order, joined by ` / `, and the label. The label SHALL be the command's name as listed above, except that a numbered workspace row SHALL read `Switch to <workspace label>` and a numbered agent row SHALL read `Focus <agent name>`, where the agent name is the one the requirement "The screen names an agent by its name first" gives. A command with no bound key SHALL get no row. The tab-only commands Next Tab, Previous Tab, Move Tab Left, Move Tab Right, Rename Tab, Close Tab, and the numbered tab commands SHALL never get a row.
 
 #### Scenario: Empty workspace screen 04 - rows appear in the fixed order
 - **GIVEN** a connected v2 session focused on the only workspace, `scratch`, which has no tabs, no repository record, and no worktree, with no agents, a daemon that advertises `workspace.create`, `tab.create`, `workspace.rename.v2`, `workspace.close`, and `workspace.focus.v2`, and a keymap that binds Go To, New Workspace, Rename Workspace, Close Workspace, Previous Workspace, Next Workspace, and New Tab each to one key
@@ -230,11 +230,18 @@ This change SHALL NOT add a `herdr-gpui` command-line command, including for the
 | new-workspace |
 | focus-workspace |
 
-### Requirement: The sidebar names an agent the way the screen does
+### Requirement: The screen names an agent by its name first
 
-Every place that shows an agent's name through the sidebar's agent name, including the sidebar's agent rows, the rail's agent tooltip, the palette's Go To rows and preview, and the devices overview, SHALL use the agent's first non-blank field in the order `name`, `display_agent`, `agent`, `title`, and `agent` when all four are blank. The sidebar's `agent` row token SHALL take the first field that is present, in the same order.
+A numbered agent row SHALL name its agent by the agent's first non-blank field in the order `name`, `display_agent`, `agent`, `title`, and by `agent` when all four are blank, so the row reads `Focus <agent name>`. This is the order myherdr's empty-workspace screen uses. The sidebar, its `agent` row token, the rail, the palette, Go To, and the devices overview keep naming an agent as they do today, with the display name first, as myherdr's sidebar does. In scenario 19, `blank` stands for a field that holds only spaces, and the agent's `title` is blank in every row.
 
-#### Scenario: Empty workspace screen 19 - the sidebar row shows the agent's name first
-- **GIVEN** a connected session with the workspace `api`, which holds an agent whose name is `reviewer`, whose display name is `Claude`, and whose agent kind is `claude-code`
-- **WHEN** the sidebar draws its agent rows
-- **THEN** that agent's row is labelled `reviewer`
+#### Scenario: Empty workspace screen 19 - the numbered agent row names the agent by its name first
+- **GIVEN** a connected v2 session focused on the empty workspace `scratch`, with the second workspace `api`, which holds one agent whose `name` is <name>, whose `display_agent` is <display_agent>, and whose `agent` is <agent_kind>, a daemon that advertises `pane.focus`, and a keymap that binds the numbered agent command 1 to one key
+- **WHEN** the window draws
+- **THEN** the row for the numbered agent command 1 is labelled <label>
+
+##### Examples
+| name | display_agent | agent_kind | label |
+| --- | --- | --- | --- |
+| reviewer | Claude | claude-code | Focus reviewer |
+| blank | Claude | claude-code | Focus Claude |
+| blank | blank | blank | Focus agent |

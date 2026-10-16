@@ -439,7 +439,7 @@ Brandon ruled on the 20 items `design.md` listed for him. The fixes for items 1,
 - **Item 8** (workspace-v2-methods LEAD-6). The fix stands, and a lone drop now also follows myherdr's shape rule: a workspace with a `worktree` record moves as a one-id block. Requirement 1, scenarios 01 and 02, and D14 now say so.
 - **Item 11** (empty-workspace-screen LEAD-1), reversed. The worktree rows follow myherdr's `worktree_action_context`, which reads the v2 `repository` record, and the handlers accept a repository-only workspace. Requirement 3, scenario 10, D8, and D16 now say so.
 - **Item 12** (empty-workspace-screen LEAD-2), reversed. New Workspace follows myherdr's flow: a directory prompt first, then a name prompt when Herdr's setting asks for one, with no focused workspace needed. The new capability `new-workspace-directory` and D15 describe it.
-- **Item 19** (empty-workspace-screen LEAD-10), reversed. The screen and the sidebar's `agent_name` and `agent_names` use myherdr's screen order: name, display name, agent, title. Requirement 2, the new sidebar requirement, and D7 now say so.
+- **Item 19** (empty-workspace-screen LEAD-10), reversed. The screen and the sidebar's `agent_name` and `agent_names` use myherdr's screen order: name, display name, agent, title. Requirement 2, the new sidebar requirement, and D7 now say so. Brandon corrected this ruling in Round 2; see "Brandon's rulings on Round 2".
 
 ## Round 2
 
@@ -724,3 +724,15 @@ I checked each lead against the cited lines in the worktree, in myherdr, and in 
 | LEAD-12 (no refusal feedback after send) | Survives. | Requirement 3 says the daemon's refusal shows on the status line. Open for Brandon 13. |
 | LEAD-13 (guards and `run new_workspace`) | Survives. | Requirement 1 adds "no other menu or dialog is open". D10 already records that `run new_workspace` opens the prompt. Open for Brandon 14. |
 | LEAD-14 (tests the spec breaks) | Survives, except `text_width/menus.rs:227`, which runs with a rename dialog open, so `command()` returns at `window/commands.rs:209-211`. | Task 3.2 lists the four broken tests, drops the `menus.rs` change, and requires every prompt test to advertise `workspace.create`. Open for Brandon 15. |
+
+#### Brandon's rulings on Round 2
+
+Brandon ruled on the 15 items `design.md` listed for him after Round 2, following his standing rule that myherdr's behavior wins. Each proposal and fix stands as written, and `design.md` no longer has an `## Open for Brandon` section:
+
+- **Items 1, 11, and 12** match myherdr. Delete Worktree Checkout keeps needing a linked `worktree` record, as myherdr's Delete row does, and myherdr's daemon refuses `worktree.remove` without worktree membership. D8 and D16 record it.
+- **Items 3, 4, 5, 6, 8, 9, 13, 14, and 15** affect only herdr-gpui or stock Herdr. The fixes in the spec, D15, and the tasks stand.
+- **Items 2, 7, and 10** are accepted departures from myherdr. A host that is not local gets no listing, because a listing would come from the wrong computer. The listing has a bound, per AGENTS.md's bounded-resource rule. The name proposal expands `~`, because myherdr proposes different names for the same folder depending on how the path is written. D15 lists each as a departure with its reason.
+
+Brandon also corrected the Round 1 ruling on item 19. Only the empty-workspace screen's numbered agent rows use myherdr's screen order, `name`, `display_agent`, `agent`, `title` (myherdr `empty_workspace.rs:411-417`), through a label function private to the screen's module. The shared `agent_name` and `agent_names` (`sidebar/agents.rs:139-146`) keep the display name first, as myherdr's sidebar does (myherdr `src/client/shell/agent_sidebar.rs:557-562`), so the sidebar, its `agent` token, the rail, the palette, Go To, and the devices overview do not change. A blank field is skipped, and an agent with every field blank is named `agent`. The requirement "The screen names an agent by its name first", scenario 19, D7, and task 5.3 now say so, and the old task 5.4 and its sidebar test changes are gone.
+
+A refused tab focus keeps its activation fence. Brandon ruled that this is outside the change.

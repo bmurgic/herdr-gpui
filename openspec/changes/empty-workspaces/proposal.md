@@ -14,7 +14,7 @@ myherdr keeps a workspace alive after its last tab closes, and its TUI shows an 
 - A lone dragged workspace that has a worktree record moves with a one-id block move, as myherdr's drop does.
 - New Workspace opens a native directory dialog first, as myherdr's does, from its key, the menus, the palette, the command line's `run new_workspace`, and the empty-workspace screen. On this computer's own daemon it suggests folders and checks that the folder exists. A name prompt follows when Herdr's setting asks for workspace names. It needs no focused workspace.
 - The worktree rows follow myherdr's rule, which also reads the v2 repository record, and the worktree commands accept a workspace known only by that record where the daemon can serve it.
-- An agent's name is its `name` first, then its display name, agent kind, and title, on the empty-workspace screen and everywhere the sidebar names it.
+- The empty-workspace screen's `Focus` row names an agent by its `name` first, then its display name, agent kind, and title, as myherdr's screen does. The sidebar keeps its display-first label, as myherdr's sidebar does.
 
 ## Capabilities
 
@@ -22,7 +22,7 @@ myherdr keeps a workspace alive after its last tab closes, and its TUI shows an 
 
 - `shell-snapshot-v2`: snapshot codec negotiation, v2 snapshot decoding, the v1-to-v2 conversion, and the empty workspaces the sidebar then shows.
 - `workspace-v2-methods`: choosing the `.v2` method for workspace focus, rename, move, and block move and for worktree open when the daemon advertises it, with the v1 method as the fallback.
-- `empty-workspace-screen`: the content-area screen for an empty focused workspace or no workspaces, its command rows, the click fence, and the agent name order the screen and the sidebar share.
+- `empty-workspace-screen`: the content-area screen for an empty focused workspace or no workspaces, its command rows, the click fence, and the screen's agent name order.
 - `new-workspace-directory`: the New Workspace directory dialog, its folder suggestions and checks, the `cwd` it sends to each kind of daemon, and the name prompt that can follow it.
 
 ### Modified Capabilities
@@ -41,6 +41,6 @@ None. `openspec/specs/` holds no specs yet.
 
 - `crates/herdr-protocol`: a new `snapshot_v2.rs` module with the v2 types, the v2 codec constant, the `From` conversion, and fixture tests. `NOTICE.md` gains the myherdr source of the v2 declarations.
 - `crates/herdr-client`: the hello codec list, the welcome codec check, the snapshot decoder, `ClientEvent::Snapshot`, the `Error` enum, and five new `Method` variants.
-- `crates/herdr-gpui`: the stored snapshot type and its readers, the workspace focus, rename, and move send sites, the worktree open send sites, the activation fence after a refused focus, the content-area stand-in and its command rows, the New Workspace dialog in a new `menu/new_workspace` module, the worktree target's repository record, and the sidebar's agent name order.
+- `crates/herdr-gpui`: the stored snapshot type and its readers, the workspace focus, rename, and move send sites, the worktree open send sites, the activation fence after a refused focus, the content-area stand-in and its command rows, the New Workspace dialog in a new `menu/new_workspace` module, and the worktree target's repository record. The sidebar is unchanged, apart from listing empty workspaces.
 - Wire compatibility: stock Herdr keeps the v1 codec and v1 methods. The vendored bincode types are unchanged.
 - No new dependency, crate, or runtime.
