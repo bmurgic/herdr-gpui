@@ -143,3 +143,13 @@ fn a_changed_repository_record_refuses_the_target() {
         Err(crate::Error::WorkspaceRepositoryChanged)
     ));
 }
+
+/// The refusal a repository-only linked checkout gets when asked to remove
+/// itself says why, as the other refusals do.
+#[test]
+fn the_missing_worktree_record_refusal_says_why() {
+    assert_eq!(
+        Unavailable::NoWorktreeRecord.message(),
+        "Herdr has no worktree record for this checkout, so it cannot remove it"
+    );
+}
