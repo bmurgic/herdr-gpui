@@ -300,12 +300,27 @@ fn six_rows_show_and_the_list_scrolls_to_the_selection(cx: &mut TestAppContext) 
     assert_eq!(rows_drawn(cx), VISIBLE_ROWS);
     assert!(cx.debug_bounds("dialog-input").is_some());
 
+    let shown = |view: &Entity<HerdrWindow>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |view, _| {
+            let form = view.menu.new_workspace.as_ref().unwrap();
+            form.visible(VISIBLE_ROWS)
+                .map(|(index, name)| (index, name.to_owned()))
+                .collect::<Vec<_>>()
+        })
+    };
+    let rows = |first: usize, letters: &[&str]| {
+        (first..)
+            .zip(letters.iter().map(|l| (*l).to_owned()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(shown(&view, cx), rows(0, &["a", "b", "c", "d", "e", "f"]));
+
     press(cx, "down down down down down down down");
     assert_eq!(rows_drawn(cx), VISIBLE_ROWS);
+    // The selected row, `h`, is the last of the six rows drawn.
+    assert_eq!(shown(&view, cx), rows(2, &["c", "d", "e", "f", "g", "h"]));
     view.read_with(cx, |view, _| {
-        let form = view.menu.new_workspace.as_ref().unwrap();
-        assert_eq!(form.selected, 7);
-        assert_eq!(form.visible_start(VISIBLE_ROWS), 2);
+        assert_eq!(view.menu.new_workspace.as_ref().unwrap().selected, 7);
     });
 }
 

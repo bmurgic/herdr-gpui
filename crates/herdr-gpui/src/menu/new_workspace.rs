@@ -104,6 +104,17 @@ impl NewWorkspaceForm {
         }
     }
 
+    /// The suggestion rows shown, at most `rows`, scrolled so the selected one
+    /// is among them, each with its index in `matches`.
+    fn visible(&self, rows: usize) -> impl Iterator<Item = (usize, &str)> {
+        self.matches
+            .iter()
+            .enumerate()
+            .skip(self.visible_start(rows))
+            .take(rows)
+            .map(|(index, name)| (index, name.as_str()))
+    }
+
     /// Forgets the listing, for a text with no parent folder to list.
     fn clear_listing(&mut self) {
         self.parent = None;

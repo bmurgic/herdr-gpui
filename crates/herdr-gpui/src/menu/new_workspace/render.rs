@@ -75,13 +75,8 @@ impl HerdrWindow {
         cx: &mut Context<Self>,
     ) -> Div {
         let theme = &self.theme;
-        let start = form.map_or(0, |form| form.visible_start(VISIBLE_ROWS));
         let rows = form.map(|form| {
-            form.matches
-                .iter()
-                .enumerate()
-                .skip(start)
-                .take(VISIBLE_ROWS)
+            form.visible(VISIBLE_ROWS)
                 .zip(ROW_SELECTORS)
                 .map(|((index, name), selector)| {
                     div()
@@ -91,7 +86,7 @@ impl HerdrWindow {
                         .rounded(px(crate::config::corners::CONTROL))
                         .truncate()
                         .when(index == form.selected, |row| row.bg(rgb(theme.active)))
-                        .child(name.clone())
+                        .child(name.to_owned())
                 })
                 .collect::<Vec<_>>()
         });
