@@ -1,6 +1,8 @@
 use super::*;
 use crate::menu::new_workspace::Step;
-use gpui::{Modifiers, TestAppContext};
+#[cfg(unix)]
+use gpui::Modifiers;
+use gpui::TestAppContext;
 #[cfg(unix)]
 use serde_json::json;
 #[cfg(unix)]
