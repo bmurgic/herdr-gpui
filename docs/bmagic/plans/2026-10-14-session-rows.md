@@ -237,7 +237,7 @@ age texts: "now", "<n>m", "<n>h", "<n>d"
 
 ### Task 3: Repaint the age when its text changes
 
-- [ ] Task 3: Repaint the age when its text changes
+- [x] Task 3: Repaint the age when its text changes
 
 **Files:**
 - Modify: `crates/herdr-gpui/src/sidebar/session_age.rs` (`next_change`, `SessionAges`, `HerdrWindow::poll_session_ages`)
