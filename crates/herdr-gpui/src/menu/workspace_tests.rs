@@ -32,6 +32,18 @@ pub(crate) fn submit_dialog(
     view.submit_workspace_dialog(window, cx);
 }
 
+/// Hands `event` to the open New Workspace page's key handler, for
+/// `endpoint::lifecycle_tests`, and says whether the page used it.
+#[cfg(unix)]
+pub(crate) fn new_workspace_key(
+    view: &mut HerdrWindow,
+    event: &gpui::KeyDownEvent,
+    window: &mut gpui::Window,
+    cx: &mut gpui::Context<HerdrWindow>,
+) -> bool {
+    view.new_workspace_key(event, window, cx)
+}
+
 /// Whether the open workspace menu offers a note, for tests outside this module.
 pub(crate) fn offers_note(view: &HerdrWindow) -> bool {
     view.workspace_items()
