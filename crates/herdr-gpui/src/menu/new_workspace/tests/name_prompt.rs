@@ -1,7 +1,9 @@
 use super::*;
 use crate::menu::new_workspace::Step;
 use gpui::TestAppContext;
+#[cfg(unix)]
 use serde_json::json;
+#[cfg(unix)]
 use std::path::PathBuf;
 
 /// Turns on `ui.prompt_new_workspace_name`.
@@ -16,6 +18,7 @@ fn prompts_on(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
 
 /// A repository `herdr` under `home`, whose `.git` folder holds `HEAD`, with
 /// its folder `docs`. Returns the path of `docs`.
+#[cfg(unix)]
 fn repository_with_docs(home: &Path) -> PathBuf {
     std::fs::create_dir_all(home.join("herdr/.git")).unwrap();
     std::fs::write(home.join("herdr/.git/HEAD"), "ref: refs/heads/main\n").unwrap();
@@ -40,6 +43,7 @@ fn name_field(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> (String
     })
 }
 
+#[cfg(unix)]
 fn request_params(peer: &mut MockPeer) -> serde_json::Value {
     let request = peer.request();
     assert_eq!(request["method"], CREATE);
