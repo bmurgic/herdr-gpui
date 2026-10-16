@@ -277,3 +277,14 @@ fn every_layout_mode_draws_session_rows(cx: &mut gpui::TestAppContext) {
         assert!(painted(cx, "⎇ main"), "{mode:?}");
     }
 }
+
+#[gpui::test]
+fn a_collapsed_machine_keeps_its_agents_listed(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = two_endpoint_window(cx);
+    redraw(cx);
+    assert!(painted(cx, "Remote · herdr"));
+    cx.update(|_, cx| view.update(cx, |view, _| view.endpoints[1].collapsed = true));
+    redraw(cx);
+    assert!(painted(cx, "Remote · herdr"));
+    assert!(painted(cx, "Local · herdr"));
+}

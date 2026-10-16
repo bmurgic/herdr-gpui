@@ -351,14 +351,18 @@ fn a_plugin_agent_view_orders_and_filters_the_agents(cx: &mut gpui::TestAppConte
     });
 }
 
+/// Whether an agent's name is painted: whole, or as the first or last word
+/// of it when a narrow session row wraps the name over two lines.
+#[cfg(test)]
+fn name_painted(cx: &App, forms: &[&str]) -> bool {
+    let probes = &cx.global::<TextProbes>().0;
+    forms.iter().any(|form| probes.contains_key(*form))
+}
+
 #[cfg(test)]
 #[gpui::test]
 fn hiding_agents_reclaims_sidebar_height(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(|window, cx| {
-        let mut view = fixture_window(window, cx);
-        old_agent_rows(&mut view);
-        view
-    });
+    let (view, cx) = cx.add_window_view(fixture_window);
     for width in [800., 360.] {
         cx.simulate_resize(size(px(width), px(600.)));
         let mut visible_height = px(0.);
@@ -373,10 +377,7 @@ fn hiding_agents_reclaims_sidebar_height(cx: &mut gpui::TestAppContext) {
                 full_draw(window, cx).clear(cx);
             });
             cx.update(|_, cx| {
-                assert_eq!(
-                    cx.global::<TextProbes>().0.contains_key("Claude Code"),
-                    show_agents
-                );
+                assert_eq!(name_painted(cx, &["Claude Code", "Claude"]), show_agents);
             });
             let spaces = cx.debug_bounds("spaces-scroll").unwrap();
             if show_agents {
@@ -395,7 +396,6 @@ fn hiding_agents_reclaims_sidebar_height(cx: &mut gpui::TestAppContext) {
 fn hiding_agents_preserves_scrolled_multi_endpoint_lists(cx: &mut gpui::TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
-        old_agent_rows(&mut view);
         let snapshot = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
         snapshot.agents = (0..8)
             .map(|i| {
@@ -437,12 +437,8 @@ fn hiding_agents_preserves_scrolled_multi_endpoint_lists(cx: &mut gpui::TestAppC
                 cx.default_global::<TextProbes>().0.clear();
                 window.refresh();
                 full_draw(window, cx).clear(cx);
-                for label in ["Claude Code", "Remote Agent"] {
-                    assert_eq!(
-                        cx.global::<TextProbes>().0.contains_key(label),
-                        show_agents,
-                        "{label}"
-                    );
+                for name in [&["Claude Code", "Claude"], &["Remote Agent", "Agent"]] {
+                    assert_eq!(name_painted(cx, name), show_agents, "{name:?}");
                 }
                 let view = view.read(cx);
                 for scroll in &view.sidebar_scroll {
