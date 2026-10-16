@@ -388,6 +388,15 @@ enum ProjectOperation {
     Awaiting(String),
 }
 
+#[cfg(test)]
+impl Palette {
+    /// The filter the palette opened with, which the window tests read to tell
+    /// Go To from the full palette.
+    pub(crate) fn filter(&self) -> Filter {
+        self.filter
+    }
+}
+
 impl Palette {
     fn selected_identity(&self) -> Option<Identity> {
         self.filtered

@@ -622,3 +622,162 @@ fn a_navigation_row_for_another_host_selects_it_first(cx: &mut gpui::TestAppCont
     assert_eq!(pending, Some(NavigationTarget::Workspace("api".to_owned())));
     assert_eq!(first_request(&view, cx, &mut selected_server, 1), None);
 }
+
+/// Connects a v2 session advertising the create methods and `extra` on
+/// `snapshot`, binds `command`, draws the screen, and clicks the row for
+/// `command`.
+fn click_row<'a>(
+    cx: &'a mut gpui::TestAppContext,
+    snapshot: ClientShellSnapshotV2,
+    extra: &[Method],
+    command: Command,
+) -> (Entity<HerdrWindow>, &'a mut VisualTestContext, Server) {
+    let methods = [CREATE_METHODS, extra].concat();
+    let (endpoint, server) = connected_endpoint_v2("empty-workspaces", &methods, snapshot);
+    let (view, cx) = window_drawn_over(cx, endpoint);
+    bind_keys(&view, cx, &[(command, "cmd-alt-ctrl-n")]);
+    draw(cx);
+    assert!(screen_shown(&view, cx));
+    let at = row_center(&view, cx, command);
+    click(cx, at);
+    (view, cx, server)
+}
+
+fn page(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Option<crate::menu::Page> {
+    view.read_with(cx, |view, _| view.menu.page)
+}
+
+/// `scratch`, focused and tabless, as a main checkout or a linked worktree of
+/// the repository at `/src`.
+fn scratch_checkout(is_linked_worktree: bool) -> ClientShellSnapshotV2 {
+    let mut snapshot = scratch_focused();
+    let scratch = &mut snapshot.workspaces[1];
+    scratch.worktree = Some(ClientShellWorktree {
+        key: "/src/.git".into(),
+        label: "src".into(),
+        is_linked_worktree,
+    });
+    scratch.repository = Some(WorkspaceRepositoryInfo {
+        repo_root: "/src".into(),
+        is_linked_worktree,
+    });
+    snapshot
+}
+
+fn listing_scratch() -> (String, serde_json::Value) {
+    (
+        Method::WorktreeList.as_str().to_owned(),
+        serde_json::json!({"workspace_id": "scratch", "trust_repository": false}),
+    )
+}
+
+/// Empty workspace screen: Go To's click opens the palette on its navigation
+/// list, as its key does, and sends nothing.
+#[gpui::test]
+fn clicking_the_go_to_row_opens_the_navigation_palette(cx: &mut gpui::TestAppContext) {
+    use crate::{menu::Page, palette::Filter};
+    let (view, cx, mut server) = click_row(cx, scratch_focused(), &[], Command::WorkspacePicker);
+    assert_eq!(page(&view, cx), Some(Page::Palette));
+    let filter = view.read_with(cx, |view, _| view.menu.palette.as_ref().map(|p| p.filter()));
+    assert_eq!(filter, Some(Filter::Navigation));
+    assert_eq!(
+        requests(&messages_before_marker(&view, cx, &mut server, 1)),
+        []
+    );
+}
+
+/// Empty workspace screen: Rename Workspace's click opens the rename dialog
+/// for the focused workspace, and sends nothing until it is submitted.
+#[gpui::test]
+fn clicking_the_rename_row_opens_the_rename_dialog(cx: &mut gpui::TestAppContext) {
+    use crate::menu::{Page, WorkspaceAction};
+    let (view, cx, mut server) = click_row(
+        cx,
+        scratch_focused(),
+        &[Method::WorkspaceRenameV2],
+        Command::RenameWorkspace,
+    );
+    assert_eq!(page(&view, cx), Some(Page::Dialog(WorkspaceAction::Rename)));
+    assert_eq!(
+        requests(&messages_before_marker(&view, cx, &mut server, 1)),
+        []
+    );
+}
+
+/// Empty workspace screen: Close Workspace's click asks for confirmation
+/// before it closes the focused workspace, and sends nothing before then.
+#[gpui::test]
+fn clicking_the_close_row_asks_before_closing(cx: &mut gpui::TestAppContext) {
+    use crate::menu::{Page, WorkspaceAction};
+    let (view, cx, mut server) = click_row(
+        cx,
+        scratch_focused(),
+        &[Method::WorkspaceClose],
+        Command::CloseWorkspace,
+    );
+    assert_eq!(page(&view, cx), Some(Page::Dialog(WorkspaceAction::Close)));
+    assert_eq!(
+        requests(&messages_before_marker(&view, cx, &mut server, 1)),
+        []
+    );
+}
+
+/// Empty workspace screen: New Worktree's click opens its dialog on the
+/// focused repository's main checkout.
+#[gpui::test]
+fn clicking_the_new_worktree_row_opens_its_dialog(cx: &mut gpui::TestAppContext) {
+    use crate::menu::{Page, WorkspaceAction};
+    let (view, cx, _server) = click_row(
+        cx,
+        scratch_checkout(false),
+        &[Method::WorktreeList, Method::WorktreeCreate],
+        Command::NewWorktree,
+    );
+    assert_eq!(
+        page(&view, cx),
+        Some(Page::Dialog(WorkspaceAction::NewWorktree))
+    );
+    assert!(view.read_with(cx, |view, _| view.menu.worktree.is_some()));
+}
+
+/// Empty workspace screen: Open Worktree's click opens its picker and asks
+/// the daemon which worktrees the focused workspace's repository has.
+#[gpui::test]
+fn clicking_the_open_worktree_row_lists_the_worktrees(cx: &mut gpui::TestAppContext) {
+    use crate::menu::{Page, WorkspaceAction};
+    let (view, cx, mut server) = click_row(
+        cx,
+        scratch_checkout(false),
+        &[Method::WorktreeList, Method::WorktreeOpenV2],
+        Command::OpenWorktree,
+    );
+    assert_eq!(
+        page(&view, cx),
+        Some(Page::Dialog(WorkspaceAction::OpenWorktree))
+    );
+    assert_eq!(
+        first_request(&view, cx, &mut server, 1),
+        Some(listing_scratch())
+    );
+}
+
+/// Empty workspace screen: Delete Worktree Checkout's click opens its dialog
+/// on a linked worktree and asks the daemon what removing it would touch.
+#[gpui::test]
+fn clicking_the_delete_row_opens_the_removal_dialog(cx: &mut gpui::TestAppContext) {
+    use crate::menu::{Page, WorkspaceAction};
+    let (view, cx, mut server) = click_row(
+        cx,
+        scratch_checkout(true),
+        &[Method::WorktreeList, Method::WorktreeRemove],
+        Command::RemoveWorktree,
+    );
+    assert_eq!(
+        page(&view, cx),
+        Some(Page::Dialog(WorkspaceAction::DeleteWorktree))
+    );
+    assert_eq!(
+        first_request(&view, cx, &mut server, 1),
+        Some(listing_scratch())
+    );
+}
