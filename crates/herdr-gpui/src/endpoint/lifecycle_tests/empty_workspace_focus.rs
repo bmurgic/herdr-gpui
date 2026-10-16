@@ -450,3 +450,40 @@ fn a_refusal_does_not_disarm_a_later_activation(cx: &mut gpui::TestAppContext) {
         })
     });
 }
+
+/// A refusal the poll has not read yet, left in the inbox of a host the user
+/// switched away from, must not disarm the activation installed when they
+/// switch back.
+#[gpui::test]
+fn an_unread_refusal_does_not_disarm_a_later_activation(cx: &mut gpui::TestAppContext) {
+    let v2_methods = [SURFACE, Method::WorkspaceFocus, Method::WorkspaceFocusV2];
+    let (endpoint, server) =
+        connected_endpoint_v2("empty-workspaces", &v2_methods, api_and("scratch"));
+    let (view, cx, _server) = refused_focus(
+        cx,
+        endpoint,
+        server,
+        NavigationTarget::Workspace("scratch"),
+        "workspace.focus.v2",
+    );
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            view.endpoints[0].initial_surface = false;
+            view.endpoints[0]
+                .connection
+                .inbox
+                .lock()
+                .unwrap()
+                .focus_refused = true;
+            view.poll_endpoints(cx);
+            assert!(
+                view.live.activation.is_some(),
+                "no new activation installed"
+            );
+            assert!(
+                view.activation_deadline.is_some(),
+                "a stale refusal disarmed the new activation"
+            );
+        })
+    });
+}

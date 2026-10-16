@@ -111,6 +111,8 @@ impl Release {
                         active: false,
                         focus_request: None,
                     });
+                    // A refusal names the fence it ended, not this new one.
+                    state.focus_refused = false;
                     self.phase = ReleasePhase::Sent(request);
                 }
                 Err(_) => {
