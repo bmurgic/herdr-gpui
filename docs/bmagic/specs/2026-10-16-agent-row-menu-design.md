@@ -220,7 +220,7 @@ Daemon messages are untrusted text. `Notice::local_feedback` calls `Notice::new`
 | Rename page: prefill, trimmed label, empty label, Esc, composition | integration (headless GPUI) | `crates/herdr-gpui/src/pane_menu/tests/` new topic file |
 | Decision 8 end to end | live, opt-in | a new `crates/herdr-client/tests/live/mark_unread.rs` |
 
-Most tests need no socket. `route` returns the request a send would make, `LiveState::apply` takes reply events directly, and the headless sidebar tests (`two_endpoint_window`, which has no connection handle) check the menu, the page, and that no host switch happens. The send itself is checked against the fake daemon in `crates/herdr-gpui/src/endpoint/lifecycle_tests.rs` (`Server`, `window_over`), which receives the real request frames and replies to them.
+Most tests need no socket. `route` returns the request a send would make, `LiveState::apply` takes reply events directly, and the headless sidebar tests (`two_endpoint_window`, which has no connection handle) check the menu, the page, and that no host switch happens. The send itself is checked against the fake daemon in `crates/herdr-gpui/src/endpoint/lifecycle_tests.rs` (`Server`, `window_over`), which receives the real request frames and replies to them. That module is `cfg(all(test, unix))`, so the send path is tested on macOS and Linux only.
 
 **Live test.** `just test-live <binary>` runs every live test against one binary, so the new test must pass on a stock Herdr binary as well. When the welcome does not advertise `pane.mark_unread`, the test prints why it skips and returns. Against a myherdr binary it:
 
@@ -228,7 +228,7 @@ Most tests need no socket. `route` returns the request a send would make, `LiveS
 2. sends `pane.mark_unread` and waits for a snapshot with `done`, and sees no `ClientEvent::Message` carrying a `SemanticNotification` with a sound for that pane before that snapshot or during a bounded wait after it;
 3. sends `pane.focus` for the pane, which is what opening the row sends, and waits for a snapshot with `idle`;
 4. sends `pane.mark_unread` again for the same pane, which is now in the daemon's active tab, with only this client attached and no focus reported, and confirms the pane is still `done` after a bounded wait of 2 seconds;
-5. reports focus with `set_focus(boot, true)`, as herdr-gpui's window does, sends any API request to trigger a foreground sync, and confirms the pane turns `idle`. This pins the daemon behavior behind Open item 1, so a change in myherdr shows up here.
+5. reports focus with `set_focus(boot, true)`, as herdr-gpui's window does, and confirms the pane turns `idle`. The daemon runs the foreground sync when it promotes the focused client (`src/server/headless.rs:2232-2260`, `:847-859`). This pins the daemon behavior behind Open item 1, so a change in myherdr shows up here.
 
 ## Open for Brandon
 

@@ -17,7 +17,7 @@
 3. When myherdr's behavior conflicts with an existing herdr-gpui flow, port myherdr's behavior.
 4. Stacking: this branch sits on feat/session-rows, whose Tasks 2 and 3 land here by merge before this plan executes. Cite symbols, never line numbers, for the session-row code (`SessionRow`, `sidebar/session_row.rs`, `sidebar/render/session_row.rs`, `sidebar/session_age.rs`).
 5. Every Rust, Python, shell, or Swift file stays at or under 1,000 lines (`just check-file-size`). Split by responsibility instead.
-6. Gates: `just format` and `just ci`. Run `just lint-linux` as well only if a task touches a `cfg` gate. No task in this plan is expected to.
+6. Gates: `just format` and `just ci`, plus `just lint-linux` for Task 2. Task 2 edits `ConnectionBridge::take_update`, which holds a macOS and Linux `cfg` block, and adds tests under `endpoint/lifecycle_tests`, which is `cfg(all(test, unix))`. Those send tests do not run on Windows CI.
 7. Follow AGENTS.md: tests in new topic files under the module's `tests/` directory, no hard-coded totals for growing lists, `keep-sorted` markers on unordered lists, and no per-client acknowledgement.
 8. No herdr-gpui CLI command is added (brainstorm Decision 7). Renaming is in Herdr's own `herdr` CLI, and `pane.mark_unread` is a daemon API method.
 9. Conventional commit subjects of at most 80 characters, committed with `git commit -F`. No `Co-Authored-By`, AI attribution, or "Generated with" lines. Never `--no-verify`, never amend.
@@ -32,12 +32,12 @@
 - Coverage command. Per task, substitute `BASE` with the task's start commit and `HEAD_SHA` with its final commit. At closing, `BASE` is the comparison base, and the controller resolves `HEAD_SHA` with `git rev-parse HEAD` from the clean final checkout:
   `TEST_ENV /Users/bmurgic/.cargo/bin/cargo llvm-cov --workspace --locked --lcov --output-path ~/.herdr/evidence/feat-agent-row-menu/lcov-HEAD_SHA.info && /Users/bmurgic/.local/bin/diff-cover ~/.herdr/evidence/feat-agent-row-menu/lcov-HEAD_SHA.info --compare-branch=BASE --fail-under 80`
 - TDD order for a new item: add it with a wrong-valued stub body and its caller first, so the tests compile and fail on values. A missing-symbol compile error does not count as the failing step.
-- Live test command: `TEST_ENV just test-live /Users/bmurgic/Development/Personal/myherdr/target/release/herdr`. It runs every opt-in live test against that one binary, in the shared sandbox, never against the user's daemon. Running it against a stock Herdr binary must also pass.
+- Live test command for this plan's live test: `TEST_ENV HERDR_TEST_BINARY=/Users/bmurgic/Development/Personal/myherdr/target/release/herdr cargo test --locked -p herdr-client --test live mark_unread -- --ignored --nocapture`. It runs in the shared sandbox, never against the user's daemon. `just test-live` runs every live test against one binary, and the existing ones are not known to pass on myherdr, so the plan does not use it as a gate.
 - Native checks need an active desktop. Record them as not run when none is available.
 
 **E2E command:** none. The repo has no runnable e2e setup: its native GUI tests (`just test-gui`, `just test-sidebar`) are `#[ignore]`d and need a desktop, and no task selects `[e2e]`. The `## QA` section is the only trigger for this line.
 
-**Startup:** Start an isolated myherdr daemon in a fresh temporary directory, never the user's daemon: set `HERDR_SOCKET_PATH`, `HERDR_CLIENT_SOCKET_PATH`, and `HERDR_CONFIG_PATH` to paths inside it and run `/Users/bmurgic/Development/Personal/myherdr/target/release/herdr server`. Then run `cargo run --release --locked -p herdr-gpui -- --socket <the HERDR_CLIENT_SOCKET_PATH value>`.
+**Startup:** Start an isolated myherdr daemon in a fresh short temporary directory, never the user's daemon: export `HERDR_SOCKET_PATH`, `HERDR_CLIENT_SOCKET_PATH`, and `HERDR_CONFIG_PATH` set to paths inside it, and run `/Users/bmurgic/Development/Personal/myherdr/target/release/herdr server`. Every `herdr` command in the QA steps means that same binary, run in a shell with the same three variables exported, so it talks to the sandbox daemon. Then run `cargo run --release --locked -p herdr-gpui -- --socket <the HERDR_CLIENT_SOCKET_PATH value>`.
 
 **Auth:** No accounts or roles. herdr-gpui connects to the sandbox daemon's Unix socket as the current macOS user. No secret appears in this plan, and there is no saved authentication state.
 
@@ -79,7 +79,7 @@
 - `check_timeouts` returns `Error::RequestTimeout` carrying the pending request's id. The display text stays `endpoint request timed out; not replayed`.
 - `ending_events` returns, in order: `VersionMismatch` when the error is a version mismatch; `RequestTimedOut` when the error is a request timeout; then `Disconnected` with the same reason and `ssh` value as today. The worker's existing delivery code is replaced by a loop over this list.
 - herdr-gpui's `LiveState::apply` accepts `RequestTimedOut` and changes nothing yet.
-- The live test skips with a printed reason when the welcome methods lack `pane.mark_unread`, so a stock Herdr binary passes. Otherwise it runs the five steps in the design's "Testing" section. After each request it calls `Session::response(id)` for that request before it waits for anything else, then checks the current snapshot before calling `until`, as `Session::focused` does. Every wait for a status passes `ClientEvent::Message` events to a recorder, so a sound notification during any wait is seen. The steps: report `idle` through `pane.report_agent` on the JSON socket and send `pane.focus`, then wait for `idle`; send `pane.mark_unread` and wait for `done`, with no `ClientEvent::Message` carrying a `SemanticNotification` whose `sound` is set for that pane, from the mark request through `Session::watch` for 2 seconds after `done`; send `pane.focus` and wait for `idle`; send `pane.mark_unread` again and confirm with `Session::watch` for 2 seconds that the agent is still `done`, with no focus reported; then call `set_focus(boot, true)` on the handle, as herdr-gpui's window does, send one more API request to trigger the daemon's foreground sync, and wait for `idle`. Only this test's client is attached, and no TUI is.
+- The live test skips with a printed reason when the welcome methods lack `pane.mark_unread`, so a stock Herdr binary passes. Otherwise it runs the five steps in the design's "Testing" section. After each request it calls `Session::response(id)` for that request before it waits for anything else, then checks the current snapshot before calling `until`, as `Session::focused` does. Every wait for a status passes `ClientEvent::Message` events to a recorder, so a sound notification during any wait is seen. The steps: report `idle` through `pane.report_agent` on the JSON socket and send `pane.focus`, then wait for `idle`; send `pane.mark_unread` and wait for `done`, with no `ClientEvent::Message` carrying a `SemanticNotification` whose `sound` is set for that pane, from the mark request through `Session::watch` for 2 seconds after `done`; send `pane.focus` and wait for `idle`; send `pane.mark_unread` again and confirm with `Session::watch` for 2 seconds that the agent is still `done`, with no focus reported; then call `set_focus(boot, true)` on the handle, as herdr-gpui's window does, and wait for `idle`. The daemon promotes a focused active shell client to foreground and runs the foreground sync at once (myherdr `src/server/headless.rs:2232-2260`, `:847-859`). `Session::open` connects with an active surface (`connect` passes `surface_active = true`), so the test client is an active shell client. Only this test's client is attached, and no TUI is.
 
 **Exact values:**
 ```text
@@ -97,7 +97,7 @@ mark-unread params                 = {"pane_id": "<pane id>"}
 - `other_endings_send_only_the_disconnect` [unit]: `ending_events(&Ok(()))` → `[Disconnected { reason: "server disconnected", ssh: None }]`; `ending_events(&Err(Error::SshRefused(failure)))` → one `Disconnected` whose `ssh` is `Some(failure)`; the existing `connection_reports_the_mismatch_before_disconnecting` still passes unchanged.
 - `mark_unread_returns_a_read_idle_agent_to_done_live` [integration], opt-in live: the five steps above → each wait ends before the deadline, no sound notification arrives, the unfocused mark stays `done`, and the focused client's sync turns it `idle`. The daemon sends no sound for a mark today (myherdr `src/app/actions.rs:92-100` returns none when the state does not change), so the no-sound check guards against a daemon change rather than proving client code.
 
-**Verify:** `TEST_ENV cargo test --locked -p herdr-client && TEST_ENV cargo test --locked -p herdr-gpui state::tests && TEST_ENV just test-live /Users/bmurgic/Development/Personal/myherdr/target/release/herdr`
+**Verify:** `TEST_ENV cargo test --locked -p herdr-client && TEST_ENV cargo test --locked -p herdr-gpui state::tests && TEST_ENV HERDR_TEST_BINARY=/Users/bmurgic/Development/Personal/myherdr/target/release/herdr cargo test --locked -p herdr-client --test live mark_unread -- --ignored --nocapture`. The skip path for a stock Herdr binary is checked by review only, because no stock binary path is fixed for this plan.
 
 ### Task 2: Agent-row menu with Rename session on every host
 
@@ -125,11 +125,11 @@ mark-unread params                 = {"pane_id": "<pane id>"}
 - Create test: `crates/herdr-gpui/src/endpoint/lifecycle_tests/session_requests.rs`, declared in `crates/herdr-gpui/src/endpoint/lifecycle_tests.rs` next to `window_notices`. It uses that file's fake daemon (`Server`, `window_over`), which receives the real request frames.
 
 **Interfaces:**
-- Consumes: `Method::PaneMarkUnread`, `BACKGROUND_PANE_COMMANDS_CAPABILITY`, `ClientEvent::RequestTimedOut`.
+- Consumes: `BACKGROUND_PANE_COMMANDS_CAPABILITY`, `ClientEvent::RequestTimedOut`.
 - Produces:
   - `SessionOutcome` (closed enum), each value with the boot id recorded with its pending entry at send time: `Rejected { method: Method, code: String, message: String }`, `Unavailable { message: String }`, `TimedOut { method: Method }`, `Interrupted`, `Succeeded { method: Method }`.
-  - `SessionTarget { endpoint: String, boot: String, pane: String, can_mark_unread: bool }`, captured at open.
-  - `SessionItem` (closed enum): `Rename`, `MarkUnread`. `session_items(&SessionTarget) -> impl Iterator<Item = SessionItem>` is the only source of the menu's items.
+  - `SessionTarget { endpoint: String, boot: String, pane: String }`, captured at open.
+  - `SessionItem` (closed enum), with only `Rename` in this task. `session_items(&SessionTarget) -> impl Iterator<Item = SessionItem>` is the only source of the menu's items.
   - `route(...) -> Route` where `Route` is `Send { endpoint: String, method: Method, params: serde_json::Value }` or `Notice(SessionNotice)`. `SessionNotice` holds the title, the body, and the dedupe key (boot, kind, code). Inputs: the shown endpoint id and boot, the target, the target host's label, `Option<boot id>` of its connected snapshot, methods, background capability flag, the method, and the parameters.
   - `HerdrWindow::session_request(&mut self, target: &SessionTarget, method: Method, params: Value, cx)`, used by Task 3.
   - `LiveState.supports_background_pane_commands: bool`.
@@ -137,9 +137,9 @@ mark-unread params                 = {"pane_id": "<pane id>"}
 **TDD:** yes, selected new unit and integration behavior. The rewritten right-click test is corrected behavior and must fail against the current `open_agent_menu` before it changes.
 
 **Behavior:**
-- `open_agent_menu` keeps its signature. It no longer calls `navigate_endpoint` or `open_pane_menu`, and sends no `pane.focus`. It returns without opening anything when a menu page is already open, the endpoint id is unknown or disabled, or `endpoint_snapshot` for that host is `None` or lacks the pane's agent. Otherwise it captures `SessionTarget` with the snapshot's boot id (`can_mark_unread` is false in this task), opens the menu through `open_menu`, sets `Page::SessionMenu` with the pointer anchor, and sets `opening_right_click`. The sidebar rows and the collapsed rail's agent marks both call it on a right-click.
+- `open_agent_menu` keeps its signature. It no longer calls `navigate_endpoint` or `open_pane_menu`, and sends no `pane.focus`. It returns without opening anything when a menu page is already open, the endpoint id is unknown or disabled, or `endpoint_snapshot` for that host is `None` or lacks the pane's agent. Otherwise it captures `SessionTarget` with the snapshot's boot id, opens the menu through `open_menu`, sets `Page::SessionMenu` with the pointer anchor, and sets `opening_right_click`. The sidebar rows and the collapsed rail's agent marks both call it on a right-click.
 - The row whose target matches the open session menu is drawn highlighted, as `menu_open` does for the pane menu.
-- `session_items` yields `Rename` always and first. In this task it never yields `MarkUnread`.
+- `session_items` yields `Rename` always and first. `SessionItem::MarkUnread` and `SessionTarget.can_mark_unread` arrive in Task 3, with their first caller, so no item is unused here.
 - `Page::SessionMenu`: Up and Down move the selection with wrap, Enter chooses, Esc closes, hover selects, click chooses. Rows carry `session-menu-{index}`.
 - Choosing `Rename` reads the pane's `label` from the target host's current snapshot, prefills the input with it (empty when absent or the pane is gone), selects the text, and shows `Page::RenameSession`. Enter while not composing calls `session_request` with `pane.rename` and `{"pane_id", "label": trimmed text}`, then closes the menu without waiting. Esc or `Cancel` closes and sends nothing.
 - `route` applies the design's five rules in order: not ready, boot changed, other host unsupported, shown host unsupported, send.
@@ -191,20 +191,20 @@ Selectors:           session-menu-{index}, session-rename-submit, session-rename
 - `background_capability_follows_the_welcome` [integration]: `Connected` with `capabilities: ["background_pane_commands"]` → true; a later `Disconnected` → false; after another welcome with it (true), a welcome without it → false.
 - `session_outcomes_wait_for_a_connected_shown_host` [integration], in `session_menu.rs`, calling the drain function in `session.rs` that `tick` calls: an outcome in a non-shown endpoint's field while the shown endpoint is `Disconnected` → no toast; the shown endpoint `Connected`, two drains → exactly one toast titled `Action rejected`.
 
-**Verify:** `TEST_ENV cargo test --locked -p herdr-gpui session && TEST_ENV cargo test --locked -p herdr-gpui agent_menu && TEST_ENV cargo test --locked -p herdr-gpui an_open_menu_highlights_the_row`. Each filter must report at least one test run.
+**Verify:** `TEST_ENV cargo test --locked -p herdr-gpui session && TEST_ENV cargo test --locked -p herdr-gpui agent_menu && TEST_ENV cargo test --locked -p herdr-gpui an_open_menu_highlights_the_row && just lint-linux`. Each filter must report at least one test run.
 
 ### Task 3: Mark as unread
 
 - [ ] Task 3: Mark as unread
 
 **Files:**
-- Modify: `crates/herdr-gpui/src/pane_menu/session.rs` (`SessionTarget` capture of `can_mark_unread`, `session_items`, the `MarkUnread` choice)
+- Modify: `crates/herdr-gpui/src/pane_menu/session.rs` (new field `SessionTarget.can_mark_unread` and its capture in `open_agent_menu`'s target builder, new variant `SessionItem::MarkUnread`, `session_items`, the `MarkUnread` arm of the item choice)
 - Create test: `crates/herdr-gpui/src/pane_menu/tests/mark_unread.rs`, declared in `crates/herdr-gpui/src/pane_menu/tests.rs`
 - Test: `crates/herdr-gpui/src/endpoint/lifecycle_tests/session_requests.rs`
 
 **Interfaces:**
 - Consumes: `session_items`, `SessionTarget`, `route`, `HerdrWindow::session_request`, `Method::PaneMarkUnread`.
-- Produces: nothing later tasks use.
+- Produces: `SessionTarget.can_mark_unread: bool` and `SessionItem::MarkUnread`. Nothing later uses them.
 
 **TDD:** yes, selected new integration behavior.
 
@@ -230,7 +230,7 @@ Mark params:      {"pane_id": "<pane id>"}
 Native checks need an active desktop. Record each procedure as not run when none is available.
 
 ### Procedure 1: Rename a session from its row
-**Opens:** herdr-gpui started per **Startup**, with one agent pane reported idle by running `herdr pane report-agent <pane id> --source qa --agent claude --state idle` against the sandbox daemon's environment.
+**Opens:** herdr-gpui started per **Startup**, with one agent pane reported idle by running `/Users/bmurgic/Development/Personal/myherdr/target/release/herdr pane report-agent <pane id> --source qa --agent claude --state idle` in the sandbox shell from **Startup**. If the row shows `done`, click it once so it shows `idle`.
 1. Right-click the agent's row in the sidebar.
    Observe: a menu at the pointer listing `Rename session...` and `Mark as unread`. The window stays on the same host and pane.
 2. Choose `Rename session...`, type `qa rename`, and press Enter.
@@ -240,9 +240,9 @@ Native checks need an active desktop. Record each procedure as not run when none
 
 ### Procedure 2: Mark an idle agent as unread, then read it
 **Opens:** the same window, with the agent row showing `idle`.
-1. Create a second workspace from the sidebar so the window shows it, not the agent's tab. A mark on a pane in the shown tab turns back to `idle` at once (design Open item 1). Right-click the agent's row and choose `Mark as unread`.
+1. Click the sidebar's new-workspace button (debug id `new-workspace`) so the window shows the new workspace, not the agent's tab. A mark on a pane in the shown tab turns back to `idle` at once (design Open item 1). Right-click the agent's row and choose `Mark as unread`.
    Observe: the row's status turns `done`, and no sound plays.
 2. Click the row.
    Observe: the pane opens and the row's status returns to `idle`.
-3. Run `herdr pane report-agent <pane id> --source qa --agent claude --state working`, then right-click the row.
+3. In the sandbox shell, run `/Users/bmurgic/Development/Personal/myherdr/target/release/herdr pane report-agent <pane id> --source qa --agent claude --state working`, then right-click the row.
    Observe: the menu lists only `Rename session...`.
