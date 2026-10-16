@@ -1,6 +1,6 @@
 use super::*;
 use crate::menu::new_workspace::Step;
-use gpui::TestAppContext;
+use gpui::{Modifiers, TestAppContext};
 #[cfg(unix)]
 use serde_json::json;
 #[cfg(unix)]
@@ -33,6 +33,37 @@ fn on_name_step(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool 
             Some(Step::Name { .. })
         )
     })
+}
+
+/// Draws the window and clicks the element drawn under `selector`.
+#[cfg(unix)]
+fn click(cx: &mut VisualTestContext, selector: &'static str) {
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    let bounds = cx.debug_bounds(selector).unwrap();
+    cx.simulate_click(bounds.center(), Modifiers::default());
+}
+
+/// A local window on the name step for the directory `docs` of a repository,
+/// with the proposal `herdr`. The home is returned so it outlives the test.
+#[cfg(unix)]
+fn name_step(
+    cx: &mut TestAppContext,
+) -> (
+    MockPeer,
+    Entity<HerdrWindow>,
+    &mut VisualTestContext,
+    PathBuf,
+    tempfile::TempDir,
+) {
+    let home = tempfile::tempdir().unwrap();
+    let docs = repository_with_docs(home.path());
+    let (peer, view, cx) = window(cx, &[CREATE], true);
+    set_codec(&view, cx, true);
+    prompts_on(&view, cx);
+    assert!(open_at(&view, cx, home.path()));
+    submit(&view, cx, docs.to_str().unwrap());
+    assert!(on_name_step(&view, cx));
+    (peer, view, cx, docs, home)
 }
 
 /// The name field's text and whether all of it is selected.
@@ -103,6 +134,42 @@ fn the_name_sent_follows_the_proposal(cx: &mut TestAppContext) {
         assert_eq!(creation(&mut peer), params, "{typed:?}");
         view.read_with(cx, |view, _| assert!(view.menu.page.is_none()));
     }
+}
+
+/// The Create button sends what Enter would, with the name as typed.
+#[cfg(unix)]
+#[gpui::test]
+fn the_create_button_sends_the_workspace(cx: &mut TestAppContext) {
+    let (mut peer, view, cx, docs, _home) = name_step(cx);
+    let source = focused_workspace(&view, cx).unwrap();
+    set_text(&view, cx, "Docs");
+
+    click(cx, "new-workspace-create");
+
+    assert_eq!(
+        creation(&mut peer),
+        json!({
+            "cwd": docs.to_str().unwrap(),
+            "focus": true,
+            "source_workspace_id": source,
+            "label": "Docs",
+        })
+    );
+    view.read_with(cx, |view, _| assert!(view.menu.page.is_none()));
+}
+
+#[cfg(unix)]
+#[gpui::test]
+fn the_cancel_button_closes_the_page_and_sends_nothing(cx: &mut TestAppContext) {
+    let (mut peer, view, cx, _docs, _home) = name_step(cx);
+
+    click(cx, "new-workspace-cancel");
+
+    view.read_with(cx, |view, _| {
+        assert!(view.menu.page.is_none());
+        assert!(view.menu.new_workspace.is_none());
+    });
+    assert_no_request(&mut peer, &view, cx);
 }
 
 #[cfg(unix)]
@@ -216,6 +283,24 @@ mod host_picker {
             assert_eq!(view.menu.page, Some(Page::NewWorkspace));
         });
         assert_no_request(&mut peer, &view, cx);
+    }
+
+    /// The step draws the host picker when it has one, and only then.
+    #[gpui::test]
+    fn the_name_step_draws_the_host_picker_for_a_repository_workspace(cx: &mut TestAppContext) {
+        for (focused, drawn) in [("w3", true), ("w1", false)] {
+            let (_peer, view, cx, _home) = name_step_with_two_hosts(cx, focused);
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+            assert_eq!(
+                cx.debug_bounds("dispatch-picker").is_some(),
+                drawn,
+                "{focused}"
+            );
+            assert!(cx.debug_bounds("new-workspace-create").is_some());
+            view.read_with(cx, |view, _| {
+                assert_eq!(view.menu.dispatch.is_some(), drawn);
+            });
+        }
     }
 
     /// The Create button is disabled while a job runs, so Enter must not
