@@ -7,7 +7,7 @@ use crate::{
     HerdrWindow,
     menu::{
         danger,
-        workspace::render::{clone_note, create_label},
+        workspace::{clone_note, create_label},
     },
 };
 use gpui::{prelude::*, *};

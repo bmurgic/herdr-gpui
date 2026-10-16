@@ -4,9 +4,13 @@
 
 mod dispatch;
 pub(super) mod popover;
-pub(super) mod render;
+mod render;
 mod requests;
 mod scripts;
+
+// The New Workspace page's name step words its host picker as this module's
+// dialogs do.
+pub(super) use render::{clone_note, create_label};
 
 use super::{Page, WorkspaceAction, WorkspaceMenuAction, state::Deletion};
 use crate::{HerdrWindow, dialog_input::DialogInput};
