@@ -113,8 +113,7 @@ impl WorkspaceTarget {
 
     pub(super) fn can_create(&self) -> bool {
         // Like the TUI, accept Git branches before worktree metadata is available.
-        (self.worktree.is_some() || self.repository.is_some() || self.branch.is_some())
-            && !self.is_linked_checkout()
+        self.is_repository_parent() || (self.branch.is_some() && !self.is_linked_checkout())
     }
 
     pub(crate) fn can_delete(&self) -> bool {
@@ -125,7 +124,7 @@ impl WorkspaceTarget {
 
     /// Whether the `worktree` record or the `repository` record says this
     /// workspace is a linked checkout.
-    pub(crate) fn is_linked_checkout(&self) -> bool {
+    pub(super) fn is_linked_checkout(&self) -> bool {
         self.can_delete()
             || self
                 .repository

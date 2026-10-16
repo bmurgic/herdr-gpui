@@ -1,7 +1,7 @@
 //! Opening a worktree from a workspace the daemon knows only by its v2
 //! `repository` record: the daemon gives it a parent `worktree` record while
 //! the open is in flight, which must not dismiss the dialog.
-use super::{v2_reply::api_listing, *};
+use super::*;
 use crate::window::MockPeer;
 use herdr_client::protocol::{ClientShellWorktree, WorkspaceRepositoryInfo};
 

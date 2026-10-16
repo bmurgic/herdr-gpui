@@ -102,7 +102,7 @@ impl HerdrWindow {
 /// around, and start from an end when nothing listed is focused. A numbered
 /// workspace counts only the selected host's rows and a numbered agent every
 /// host's, as Herdr numbers them.
-pub(crate) fn step(
+fn step(
     rows: &[Row<'_>],
     current: Option<usize>,
     selected: usize,

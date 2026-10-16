@@ -1,12 +1,7 @@
 //! The empty-workspace screen's management and navigation rows inside the real
 //! window: which rows a draw lists, in what order, and what the numbered rows
 //! name.
-use super::{
-    empty_workspace_screen::{
-        CREATE_METHODS, bind_keys, draw, scratch_focused, screen_shown, window_drawn_over,
-    },
-    *,
-};
+use super::*;
 use gpui::{Entity, VisualTestContext};
 
 /// Each command gets its own key, so a bound command is never missing from a
@@ -34,11 +29,12 @@ fn rows_drawn(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Vec<(Co
     })
 }
 
+fn commands_in(rows: Vec<(Command, String)>) -> Vec<Command> {
+    rows.into_iter().map(|(command, _)| command).collect()
+}
+
 fn commands_drawn(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Vec<Command> {
-    rows_drawn(view, cx)
-        .into_iter()
-        .map(|(command, _)| command)
-        .collect()
+    commands_in(rows_drawn(view, cx))
 }
 
 /// Connects a v2 session advertising `methods` on `snapshot`, binds
@@ -107,7 +103,7 @@ fn the_rows_come_in_the_fixed_order(cx: &mut gpui::TestAppContext) {
         Method::WorkspaceFocusV2,
     ]);
     // Bound in an order other than the screen's, so only the screen orders them.
-    let commands = [
+    let bound = [
         Command::Tab,
         Command::NextWorkspace,
         Command::PreviousWorkspace,
@@ -116,8 +112,7 @@ fn the_rows_come_in_the_fixed_order(cx: &mut gpui::TestAppContext) {
         Command::Workspace,
         Command::WorkspacePicker,
     ];
-    let rows = drawn_rows(only_scratch(), &methods, &commands, cx);
-    let shown: Vec<Command> = rows.into_iter().map(|(command, _)| command).collect();
+    let shown = commands_in(drawn_rows(only_scratch(), &methods, &bound, cx));
     assert_eq!(
         shown,
         [
@@ -156,9 +151,11 @@ fn numbered_rows_name_their_target(cx: &mut gpui::TestAppContext) {
 /// The workspace navigation commands, bound for Empty workspace screen 11.
 const WORKSPACE_STEPS: [Command; 2] = [Command::PreviousWorkspace, Command::NextWorkspace];
 
-fn steps_shown(shown: &[Command]) -> bool {
-    let both = WORKSPACE_STEPS.iter().all(|step| shown.contains(step));
-    let neither = WORKSPACE_STEPS.iter().all(|step| !shown.contains(step));
+/// Whether `shown` lists both `steps`. A pair shows or hides together, so
+/// listing only one of them fails the test.
+fn steps_shown(steps: &[Command], shown: &[Command]) -> bool {
+    let both = steps.iter().all(|step| shown.contains(step));
+    let neither = steps.iter().all(|step| !shown.contains(step));
     assert!(both || neither, "{shown:?}");
     both
 }
@@ -169,8 +166,7 @@ fn workspace_steps_shown(
     cx: &mut gpui::TestAppContext,
 ) -> bool {
     let rows = drawn_rows(snapshot, &with_methods(focus_methods), &WORKSPACE_STEPS, cx);
-    let shown: Vec<Command> = rows.into_iter().map(|(command, _)| command).collect();
-    steps_shown(&shown)
+    steps_shown(&WORKSPACE_STEPS, &commands_in(rows))
 }
 
 /// Empty workspace screen 11: Previous and Next Workspace need another
@@ -241,7 +237,7 @@ fn a_target_on_another_host_is_judged_by_that_hosts_methods(cx: &mut gpui::TestA
         let landing = view.read_with(cx, |view, _| view.sidebar_workspaces().len());
         assert_eq!(landing, 2, "the other host's workspace is listed");
         assert_eq!(
-            steps_shown(&commands_drawn(&view, cx)),
+            steps_shown(&WORKSPACE_STEPS, &commands_drawn(&view, cx)),
             shown,
             "{other_methods:?}"
         );
@@ -269,16 +265,6 @@ fn agent_steps_need_an_agent_and_pane_focus(cx: &mut gpui::TestAppContext) {
             &[]
         };
         let rows = drawn_rows(snapshot, &with_methods(extra), &steps, cx);
-        let drawn: Vec<Command> = rows.into_iter().map(|(command, _)| command).collect();
-        assert_eq!(
-            steps.iter().all(|step| drawn.contains(step)),
-            shown,
-            "{case}"
-        );
-        assert_eq!(
-            steps.iter().any(|step| drawn.contains(step)),
-            shown,
-            "{case}"
-        );
+        assert_eq!(steps_shown(&steps, &commands_in(rows)), shown, "{case}");
     }
 }

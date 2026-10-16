@@ -1,7 +1,6 @@
 use super::*;
 use crate::window::MockPeer;
 
-const CHECKOUT: &str = "/src/api-fix";
 const REFUSAL: &str = "Unexpected daemon response. Review current workspace state before retrying.";
 
 /// What the window shows after the daemon's reply to an open request.
@@ -12,14 +11,6 @@ struct Outcome {
     creation_pending: bool,
     error: Option<String>,
     pending_navigation: Option<crate::OwnedNavigationTarget>,
-}
-
-/// The `worktree_list` reply that lists `CHECKOUT` for `api`.
-pub(super) fn api_listing() -> Value {
-    json!({"result": {"type": "worktree_list", "source": {
-        "repo_key": "/src/.git", "repo_name": "src", "source_workspace_id": "api"
-    }, "worktrees": [{"path": CHECKOUT, "branch": "api-fix", "label": "api-fix",
-        "is_bare": false, "is_prunable": false, "is_detached": false}]}})
 }
 
 /// A `worktree_opened*` reply of `kind` naming `workspace_id`, with no `tab`

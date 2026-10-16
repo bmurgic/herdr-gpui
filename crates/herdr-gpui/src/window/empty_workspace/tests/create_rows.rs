@@ -18,6 +18,9 @@ fn commands(rows: &[EmptyWorkspaceRow]) -> Vec<Command> {
     rows.iter().map(|row| row.command).collect()
 }
 
+/// Go To's binding removed, so these tests see only the create rows.
+const NO_GO_TO: (&str, &[&str]) = ("workspace_picker", &[]);
+
 /// Empty workspace screen 01: the heading follows whether any workspace
 /// exists, not whether one is focused.
 #[test]
@@ -55,15 +58,10 @@ fn an_unbound_command_gets_no_row_and_the_other_keeps_its() {
         (Command::Tab, "new_tab", Command::Workspace),
         (Command::Workspace, "new_workspace", Command::Tab),
     ] {
-        let keymap = keymap_with(&[(unbound_name, &[])]);
+        let keymap = keymap_with(&[(unbound_name, &[]), NO_GO_TO]);
         let rows = rows(&context(&snapshot, &keymap, &methods));
-        let shown = commands(&rows);
-        assert!(!shown.contains(&unbound), "{unbound:?} unbound");
-        assert_eq!(
-            row_for(&rows, other).map(|row| row.label.as_str()),
-            Some(label_of(other)),
-            "{unbound:?} unbound"
-        );
+        assert_eq!(commands(&rows), [other], "{unbound:?} unbound");
+        assert_eq!(rows[0].label, label_of(other));
     }
 }
 
@@ -82,12 +80,10 @@ fn a_tab_only_command_never_gets_a_row() {
         (Command::CloseTab, "close_tab"),
         (Command::TabNumber(1), "focus_tab_1"),
     ] {
-        let keymap = keymap_with(&[(name, &["cmd-alt-j"]), ("new_tab", &["cmd-t"])]);
+        let keymap = keymap_with(&[(name, &["cmd-alt-j"]), ("new_tab", &["cmd-t"]), NO_GO_TO]);
         assert!(keymap.shortcuts(tab_command).next().is_some(), "{name}");
         let rows = rows(&context(&snapshot, &keymap, &methods));
-        let shown = commands(&rows);
-        assert!(!shown.contains(&tab_command), "{name}");
-        assert!(shown.contains(&Command::Tab), "{name}");
+        assert_eq!(commands(&rows), [Command::Tab], "{name}");
     }
 }
 
@@ -95,7 +91,7 @@ fn a_tab_only_command_never_gets_a_row() {
 /// but none focused there is no workspace to open it in.
 #[test]
 fn new_tab_needs_the_focused_workspace_and_new_workspace_does_not() {
-    let keymap = Keymap::default();
+    let keymap = keymap_with(&[NO_GO_TO]);
     let methods = advertised(&[Method::WorkspaceCreate, Method::TabCreate]);
     let mut none_focused = snapshot_v2();
     none_focused.focused_workspace_id = None;
@@ -105,9 +101,7 @@ fn new_tab_needs_the_focused_workspace_and_new_workspace_does_not() {
         (none_focused, "none focused"),
     ] {
         let rows = rows(&context(&snapshot, &keymap, &methods));
-        let shown = commands(&rows);
-        assert!(shown.contains(&Command::Workspace), "{why}");
-        assert!(!shown.contains(&Command::Tab), "{why}");
+        assert_eq!(commands(&rows), [Command::Workspace], "{why}");
     }
 }
 

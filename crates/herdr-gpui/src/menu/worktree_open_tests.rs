@@ -32,6 +32,17 @@ fn listing() -> Value {
     ]}})
 }
 
+/// The checkout `api_listing` lists.
+const CHECKOUT: &str = "/src/api-fix";
+
+/// The `worktree_list` reply that lists `CHECKOUT` for `api`.
+fn api_listing() -> Value {
+    json!({"result": {"type": "worktree_list", "source": {
+        "repo_key": "/src/.git", "repo_name": "src", "source_workspace_id": "api"
+    }, "worktrees": [{"path": CHECKOUT, "branch": "api-fix", "label": "api-fix",
+        "is_bare": false, "is_prunable": false, "is_detached": false}]}})
+}
+
 fn pending(menu: &mut MenuState, cx: &mut gpui::App) {
     let picker = menu
         .worktree_open

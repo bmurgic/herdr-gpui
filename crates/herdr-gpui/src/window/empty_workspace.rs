@@ -96,8 +96,8 @@ enum Destination<'a> {
     },
 }
 
-/// Everything the row list is built from. Later rows read more of the window,
-/// so a field added here reaches every caller at once.
+/// Everything the row list is built from, all of it prepared state read
+/// during render.
 struct RowContext<'a> {
     snapshot: &'a ClientShellSnapshotV2,
     keymap: &'a Keymap,
@@ -266,10 +266,9 @@ impl HerdrWindow {
                     .workspaces
                     .iter()
                     .find(|workspace| workspace.workspace_id == id)?;
+                // On the selected host, `snapshot` is the selected snapshot.
                 let is_focused = host == self.selected_endpoint
-                    && self.live.snapshot.as_deref().is_some_and(|selected| {
-                        selected.focused_workspace_id.as_deref() == Some(id)
-                    });
+                    && snapshot.focused_workspace_id.as_deref() == Some(id);
                 Some(Destination::Workspace {
                     workspace,
                     methods,

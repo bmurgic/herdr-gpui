@@ -1,38 +1,7 @@
 //! The empty-workspace screen inside the real window: when the terminal slot
 //! shows it, that it keeps sizing the daemon's surface, and what its rows send.
 use super::*;
-use crate::sidebar::layout_tests::{fixture_window, full_draw};
 use gpui::{Entity, VisualTestContext};
-
-/// What a v2 session needs for the screen's create rows to be offered.
-pub(super) const CREATE_METHODS: &[Method] = &[
-    Method::ClientShellSurfaceSet,
-    Method::WorkspaceCreate,
-    Method::TabCreate,
-];
-
-/// `api`, which has the tab `t1`, and `scratch`, which has none. `api` is
-/// focused until a test focuses `scratch`.
-pub(super) fn api_and_scratch() -> ClientShellSnapshotV2 {
-    let mut snapshot = snapshot_v2();
-    snapshot.workspaces[0].workspace_id = "api".into();
-    snapshot.workspaces[1].workspace_id = "scratch".into();
-    snapshot.focused_workspace_id = Some("api".into());
-    snapshot.tabs[0].workspace_id = "api".into();
-    snapshot.panes[0].workspace_id = "api".into();
-    snapshot
-}
-
-/// `scratch` focused with no focused tab.
-pub(super) fn scratch_focused() -> ClientShellSnapshotV2 {
-    let mut snapshot = api_and_scratch();
-    snapshot.workspaces[0].focused = false;
-    snapshot.workspaces[1].focused = true;
-    snapshot.focused_workspace_id = Some("scratch".into());
-    snapshot.focused_tab_id = None;
-    snapshot.focused_pane_id = None;
-    snapshot
-}
 
 fn no_workspaces() -> ClientShellSnapshotV2 {
     let mut snapshot = scratch_focused();
@@ -41,51 +10,6 @@ fn no_workspaces() -> ClientShellSnapshotV2 {
     snapshot.panes.clear();
     snapshot.focused_workspace_id = None;
     snapshot
-}
-
-pub(super) fn draw(cx: &mut VisualTestContext) {
-    cx.update(|window, cx| full_draw(window, cx).clear(cx));
-}
-
-/// A drawn window selecting `endpoint`, as the render tests do: the real
-/// terminal element measures the window before the endpoint is selected, so
-/// the measurement is not what the server reads first.
-pub(super) fn window_drawn_over(
-    cx: &mut gpui::TestAppContext,
-    endpoint: Endpoint,
-) -> (Entity<HerdrWindow>, &mut VisualTestContext) {
-    let (view, cx) = cx.add_window_view(fixture_window);
-    cx.update(|window, _| window.activate_window());
-    cx.run_until_parked();
-    draw(cx);
-    view.update(cx, |view, cx| {
-        let measured = view.options;
-        view.endpoints.truncate(1);
-        view.endpoints.push(endpoint);
-        view.selected_endpoint = 1;
-        view.options = ConnectOptions::default();
-        view.reset_selected(cx);
-        view.activation_deadline = None;
-        view.options = measured;
-    });
-    cx.update(|window, cx| {
-        view.update(cx, |view, cx| window.focus(&view.focus, cx));
-    });
-    draw(cx);
-    (view, cx)
-}
-
-pub(super) fn screen_shown(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool {
-    let rows_drawn = view.read_with(cx, |view, _| !view.empty_workspace_rows.is_empty());
-    let screen = cx.debug_bounds("empty-workspace");
-    let drawn = screen.is_some();
-    assert_eq!(drawn, rows_drawn, "the screen and its rows come together");
-    // It covers the terminal element's box; laid out below it, it would be
-    // clipped away.
-    if let Some(screen) = screen {
-        assert_eq!(Some(screen), cx.debug_bounds("terminal"));
-    }
-    drawn
 }
 
 /// Empty workspace screen 01 (rows): a v2 session shows the screen for a
@@ -268,42 +192,6 @@ const TAB_PROMPT_ON: &str = "[ui]\nprompt_new_tab_name = true\n";
 fn use_prompt_settings(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, text: &str) {
     view.update(cx, |view, _| {
         view.settings.shared = Some(crate::herdr_settings::Settings::parse_text(text).unwrap());
-    });
-}
-
-/// Binds each command to the key a test presses, in the window's keymap and
-/// in the app's key bindings, which is where a keystroke becomes an action.
-pub(super) fn bind_keys(
-    view: &Entity<HerdrWindow>,
-    cx: &mut VisualTestContext,
-    bindings: &[(Command, &str)],
-) {
-    let overrides = bindings
-        .iter()
-        .map(|(command, key)| {
-            let name = crate::controls::COMMANDS
-                .iter()
-                .find(|info| info.command == *command)
-                .unwrap()
-                .name;
-            (
-                name.to_owned(),
-                crate::keymap::Binding::Many(vec![(*key).to_owned()]),
-            )
-        })
-        .collect();
-    view.update(cx, |view, _| {
-        view.config.keybindings = crate::keymap::Keymap::with_overrides(
-            &overrides,
-            &Default::default(),
-            &crate::keymap::DaemonKeys::default(),
-        )
-        .unwrap();
-    });
-    cx.update(|_, cx| {
-        cx.bind_keys(bindings.iter().map(|(command, key)| {
-            gpui::KeyBinding::new(key, crate::actions::RunCommand { command: *command }, None)
-        }));
     });
 }
 
