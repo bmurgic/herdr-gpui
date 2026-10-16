@@ -30,16 +30,25 @@ The behavior authority is myherdr: `openspec/specs/agent-row-context-menu/spec.m
 
 Today a right-click on an agent row switches to the row's host, focuses the pane, and opens the full pane menu (`open_agent_menu` in `crates/herdr-gpui/src/pane_menu.rs`, pinned by `agent_rows_open_their_panes_menu_on_any_host` in `crates/herdr-gpui/src/sidebar/layout_tests/agent_menu.rs`).
 
-After this change, a right-click on any agent row:
+After this change, what a right-click on an agent row does depends on the row's host. The signal is the one pieces 1 and 2 already use for myherdr-only behavior: `LiveState.snapshot_v2`, which `Connected` sets when the welcome's snapshot codec is v2 and `Disconnected` clears. The window reads `self.live.snapshot_v2` for the shown host and `endpoints[index].live.snapshot_v2` for the others. myherdr's spec names no narrower signal for this menu.
+
+On a row whose host is a myherdr daemon (`snapshot_v2` true), shown or not, a right-click:
 
 - opens the agent-row menu at the pointer, on every sidebar layout that draws agent rows (session rows and the older rows, in the Agents list and in the Devices tree) and on the collapsed rail's agent marks, as myherdr's R1 lists "collapsed sidebar status icons";
 - highlights the row while its menu is open, as a row with an open pane menu is highlighted today;
 - does not switch hosts, and sends no `pane.focus`;
 - lists `Rename session...` first and, when the row qualifies, `Mark as unread` second, and nothing else.
 
-The full pane menu stays where it is today: a right-click in the terminal area, and the rename-pane key binding. Neither changes.
+On a row whose host is a stock Herdr daemon (`snapshot_v2` false), nothing changes: a right-click switches to the row's host, focuses the pane, and opens the full pane menu, as `agent_rows_open_their_panes_menu_on_any_host` pins today. The collapsed rail's agent marks keep having no right-click on such a host.
 
-The menu holds only the two session items because myherdr's spec says the menu lists *exactly* those items (M2, scenarios 06 to 08), and Constraint 3 ports myherdr's behavior when it conflicts with a herdr-gpui flow. The brainstorm's Decision 3 kept the pane items after the session items on rows of the shown host. That conflict is listed under Open for Brandon.
+The full pane menu also stays where it is today on every host: a right-click in the terminal area, and the rename-pane key binding.
+
+Why the split:
+
+- The menu holds only the two session items on a myherdr host because myherdr's spec says the menu lists *exactly* those items (M2, scenarios 06 to 08), and Constraint 3 ports myherdr's behavior when it conflicts with a herdr-gpui flow.
+- No `pane.focus` is sent before that menu opens. `pane.focus` switches the daemon's active tab (myherdr `src/app/actions.rs`, `focus_pane_in_workspace` calls `switch_workspace_tab`), so a focus first would put every right-clicked pane in the shown tab, where a mark turns back to `idle` at once (Decision 8).
+- Constraint 2 means a stock daemon keeps today's behavior, not only today's protocol. Neither session item can work on a stock daemon, which advertises neither `pane.mark_unread` nor `background_pane_commands`, so the stock row keeps its full pane menu.
+- Judgment call: the stock row's right-click still switches hosts when the row is on another host. That goes against the wording of the brainstorm's Ruling 1 (a right-click on another host's row does not switch hosts). Ruling 1 was made for the session items, and on a stock host the only useful menu is the pane menu, which needs the host shown.
 
 A new name shows on session rows, which read the pane's label. The older agent rows show agent names (`agent_names` in `crates/herdr-gpui/src/sidebar/agents.rs`), not the pane label, so on those rows a rename is not visible in the row itself.
 
@@ -51,7 +60,7 @@ The brainstorm's decision numbers are kept so a reader can match them.
 
 1. **Gate on daemon support.** `Mark as unread` is listed only when the row's host advertises `pane.mark_unread`. For a host that is not shown, sending either item also needs the welcome capability `background_pane_commands`. Without it, nothing is sent and the toast `Action unavailable` appears. The capability gates only the send, never whether an item is listed (`src/client/shell/context_menu.rs:245-262` never reads it; `src/client/shell/endpoints.rs:293-305` checks it before a send).
 2. **Item order and eligibility follow myherdr.** See "Menu items".
-3. **Single agent-row menu.** Replaced by the session-only menu above (Constraint 3). Brandon's Ruling 1, option (a), still holds: a right-click on another host's row does not switch hosts, and its items are sent in the background.
+3. **Single agent-row menu.** Replaced, per row host (coordinator ruling for Brandon on 2026-10-16): a myherdr host's rows open the session-only menu (Constraint 3), and a stock host's rows keep today's navigate-then-pane-menu path (Constraint 2). See "What changes for the user". On a myherdr host, Brandon's Ruling 1, option (a), holds: a right-click on another host's row does not switch hosts, and its items are sent in the background.
 4. **Rename reuses herdr-gpui's inline rename page.** The page is titled `Rename session` and prefilled with the pane's label. Empty input clears the name (`label: ""` after trimming). Esc closes the page and sends nothing.
 5. **`Method::PaneMarkUnread`** with wire name `pane.mark_unread` and parameters `{"pane_id": <id>}`.
 6. **Reply handling** maps to herdr-gpui toasts with myherdr's text. See "Notices".
@@ -59,7 +68,9 @@ The brainstorm's decision numbers are kept so a reader can match them.
 8. **No client-side read hold.** herdr-gpui shows the daemon's `agent_status` as is and keeps no seen state (AGENTS.md: no per-client acknowledgement). Opening a row sends `pane.focus` (`dispatch_navigation` in `crates/herdr-gpui/src/window/commands.rs`), and the daemon marks the pane seen on that request (`src/app/api/panes.rs:487-495`). The next snapshot shows `idle`. The mark itself sends no focus.
    - Because the new right-click sends no `pane.focus`, right-clicking a `done` row to rename it no longer marks it read. The brainstorm's consequence note about today's right-click focus no longer applies.
    - **Spec-reality correction: a mark on a pane in the shown tab does not last.** The brainstorm verified Decision 8 from code and named only a myherdr TUI as the client that clears a mark. herdr-gpui's own window is such a client. `report_focus` (`crates/herdr-gpui/src/window/lifecycle.rs`) sends `ClientShellFocus { focused: true }` while the window is active. The daemon stores that as the foreground client's terminal focus (`src/server/headless.rs:2232-2273`), and every foreground sync, which runs on each API request and agent event, marks every pane of the daemon's active tab seen while that focus is true (`src/server/headless.rs:796`, `src/app/actions.rs:469-489`). So a mark on a pane in the tab the window shows turns back to `idle` at the next request or agent event. myherdr's M3 requires the row to keep showing `done` while its pane is visible on the marking client, which is what myherdr's client-side hold provides. A mark on a pane in any other tab, or on a host that is not shown, stays `done` until the pane is focused.
-   - This design keeps Decision 8 and AGENTS.md's rule against per-client acknowledgement, because only Brandon can lift that rule. It is listed under Open for Brandon.
+   - Coordinator ruling for Brandon on 2026-10-16: no hold. This design keeps Decision 8 and AGENTS.md's rule against per-client acknowledgement, because only Brandon can lift that rule. It records the revert as a known limitation, and the proposed hold is parked under Open for Brandon.
+   - Constraint 6's "stays `done`" applies to a pane outside the shown tab. For a pane in the shown tab, the live test pins the revert instead.
+   - Eligibility does not change: `Mark as unread` is still listed for a pane in the shown tab, as myherdr lists it.
    - The opt-in live test in "Testing" proves both halves against a real myherdr daemon.
 
 ## Architecture
@@ -119,7 +130,8 @@ A new module, `crates/herdr-gpui/src/pane_menu/session.rs`, holds the agent-row 
 - **`MenuState.session: Option<SessionMenu>`** holds the target, the keyboard selection, and the rename input. `MenuState::reset` clears it.
 - **Pages.** `Page::SessionMenu` lists the items, and `Page::RenameSession` is the rename page. Both are anchored at the pointer. Both go between the `keep-sorted` markers of `Page` in `crates/herdr-gpui/src/menu/page.rs`. `menu/chrome.rs` and `menu/chrome/keys.rs` hand both pages to `session.rs`, next to the existing `Page::Pane` branches.
 - **One item list.** A single function in `session.rs` returns the menu's items for a target. The render, the keys, and the tests all read it, so a later change to the menu's contents touches one function and its test.
-- **`open_agent_menu`** keeps its signature. It no longer calls `navigate_endpoint` or `open_pane_menu`. It returns without opening anything when another menu page is open, when the endpoint id is unknown or disabled, or when that host has no connected snapshot holding the pane. Otherwise it opens the menu (`open_menu`), sets `Page::SessionMenu`, stores the anchor, and sets `opening_right_click`.
+- **`open_agent_menu`** keeps its signature and branches on the row host's `snapshot_v2`. When it is false, it runs today's path unchanged: `navigate_endpoint`, then `open_pane_menu`. When it is true, it does not navigate. It returns without opening anything when another menu page is open, when the endpoint id is unknown or disabled, or when that host has no connected snapshot holding the pane. Otherwise it opens the menu (`open_menu`), sets `Page::SessionMenu`, stores the anchor, and sets `opening_right_click`.
+- **The collapsed rail's agent marks** gain a right-click that calls `open_agent_menu` only on a myherdr host. On a stock host the mark keeps having no right-click, so the rail stays as it is today.
 
 ### Menu items
 
@@ -216,7 +228,8 @@ Daemon messages are untrusted text. `Notice::local_feedback` calls `Notice::new`
 | `route`: every rule and its order, shown host and other host | unit | `crates/herdr-gpui/src/pane_menu/tests/` new topic file |
 | Notice deduplication: each kind's key, the rejected rule, the timeout reset, the boot clear | unit | the same file |
 | Menu items and eligibility: status `idle` with and without the method, each other status, a host that is not shown | integration (headless GPUI) | a new topic file under `crates/herdr-gpui/src/pane_menu/tests/` |
-| A right-click on any host's row opens the session menu, does not switch hosts, and sends no focus | integration (headless GPUI) | rewrite of `agent_rows_open_their_panes_menu_on_any_host` in `crates/herdr-gpui/src/sidebar/layout_tests/agent_menu.rs` |
+| A right-click on a stock host's row still navigates and opens the pane menu | integration (headless GPUI) | the existing `agent_rows_open_their_panes_menu_on_any_host` in `crates/herdr-gpui/src/sidebar/layout_tests/agent_menu.rs`, unchanged |
+| A right-click on a myherdr host's row, shown or not, opens the session menu, does not switch hosts, and sends no focus | integration (headless GPUI) | a new case beside it in the same file |
 | Rename page: prefill, trimmed label, empty label, Esc, composition | integration (headless GPUI) | `crates/herdr-gpui/src/pane_menu/tests/` new topic file |
 | Decision 8 end to end | live, opt-in | a new `crates/herdr-client/tests/live/mark_unread.rs` |
 
@@ -230,23 +243,28 @@ Most tests need no socket. `route` returns the request a send would make, `LiveS
 4. sends `pane.mark_unread` again for the same pane, which is now in the daemon's active tab, with only this client attached and no focus reported, and confirms the pane is still `done` after a bounded wait of 2 seconds;
 5. reports focus with `set_focus(boot, true)`, as herdr-gpui's window does, and confirms the pane turns `idle`. The daemon runs the foreground sync when it promotes the focused client (`src/server/headless.rs:2232-2260`, `:847-859`). This pins the daemon behavior behind Open item 1, so a change in myherdr shows up here.
 
+## Decisions from review
+
+The coordinator accepted these spec-reality fixes on 2026-10-16. Each follows myherdr or herdr-gpui's existing rules.
+
+- Request outcomes are kept until the shown host is connected, because its toasts are cleared on disconnect and reconnect.
+- `reset` turns the old inbox's pending requests into `Action interrupted`, because automatic reconnects also replace the inbox.
+- The target records the host's boot, and a changed boot gives `Action rejected` with the stale-pane text instead of acting on a reused pane id.
+- `server_unavailable` gets myherdr's `Server unavailable` notice.
+- Notice deduplication follows myherdr for every kind, not only not-ready, keyed by boot as myherdr keys it. The brainstorm's Decision 6 named only the not-ready notice.
+- The collapsed rail's agent marks on a myherdr host open the menu too (myherdr R1), and the row is highlighted while its menu is open.
+- On the older agent rows a rename is not visible in the row, because those rows show agent names, not the pane label.
+
+## Security candidates for the closing review
+
+The coordinator accepted both as written. The closing security reviewer checks them.
+
+- **Untrusted daemon text in a toast.** The `Action rejected` and `Server unavailable` bodies are a daemon's own error message, from the shown host or another host. They reuse the toast path, which strips control and direction characters and bounds the length with `safe_text`.
+- **Requests to a host that is not on screen.** A user action can now send `pane.rename` and `pane.mark_unread` to any connected myherdr host, without switching to it. The send needs the host's `background_pane_commands` capability and the method in its advertised list, and it uses that host's own connection and its boot id as captured when the menu opened.
+
 ## Open for Brandon
 
-1. **A mark on a pane in the shown tab turns back to `idle` almost at once.** This is a spec-reality finding against the brainstorm's Decision 8. herdr-gpui's window reports terminal focus, and the daemon then marks the whole active tab seen on its next foreground sync. myherdr's M3 requires the marked row to keep showing `done` while its pane is visible on the marking client, through a client-side hold. AGENTS.md forbids per-client acknowledgement without asking.
-   - Fix written: Decision 8 stays (no hold). The design states the limit, and the live test pins the daemon behavior in step 5.
-   - Proposed behavior if you lift the AGENTS.md rule for this case: port myherdr's hold, so the row shows `done` until this window focuses the pane. That is a client-local override of one status, on one window.
-   - Cost if wrong: `Mark as unread` looks broken on the pane you are looking at, which is the common case for an idle agent.
-2. **The agent-row menu keeps no pane items, on any host.** Constraint 3 conflicts with the brainstorm's Decision 3. myherdr's spec says the agent-row menu lists exactly `Rename session...` and `Mark as unread` (M2, scenarios 06 to 08). Decision 3 kept the full pane menu after them on rows of the shown host, and did not say whether its `Rename` item and `Rename session...` should both appear.
-   - Resolution in this design: Constraint 3 wins. Every agent row opens the session-only menu, without switching hosts or sending `pane.focus`. The pane menu stays available from a right-click in the terminal area.
-   - Tension with Constraint 2: on a stock Herdr daemon, the shown host's agent rows lose split, zoom, move, close, and the other pane items, and a right-click no longer focuses the pane. This design reads Constraint 2 as daemon compatibility, which it keeps, and not as an unchanged menu.
-   - Cost if wrong: the user must right-click the pane itself for pane actions. Restoring them on shown-host rows changes the one item-list function in `session.rs` and its test, plus a focus before the menu opens.
-3. **Spec-reality fixes written into this design.** Each follows myherdr or herdr-gpui's existing rules; listed so you can see them.
-   - Request outcomes are kept until the shown host is connected, because its toasts are cleared on disconnect and reconnect.
-   - `reset` turns the old inbox's pending requests into `Action interrupted`, because automatic reconnects also replace the inbox.
-   - The target records the host's boot, and a changed boot gives `Action rejected` with the stale-pane text instead of acting on a reused pane id.
-   - `server_unavailable` gets myherdr's `Server unavailable` notice.
-   - Notice deduplication follows myherdr for every kind, not only not-ready, keyed by boot as myherdr keys it. The brainstorm's Decision 6 named only the not-ready notice.
-   - The collapsed rail's agent marks open the menu too (myherdr R1), and the row is highlighted while its menu is open.
-   - On the older agent rows a rename is not visible in the row, because those rows show agent names, not the pane label.
-4. **Security candidate: untrusted daemon text in a toast.** The `Action rejected` and `Server unavailable` bodies are a daemon's own error message, from the shown host or another host. They reuse the toast path, which strips control and direction characters and bounds the length with `safe_text`.
-5. **Security candidate: requests to a host that is not on screen.** A user action can now send `pane.rename` and `pane.mark_unread` to any connected host, without switching to it. The send needs the host's `background_pane_commands` capability and the method in its advertised list, and it uses that host's own connection and its boot id as captured when the menu opened.
+1. **Parked, non-blocking: a client-side read hold.** A mark on a pane in the shown tab turns back to `idle` almost at once. herdr-gpui's window reports terminal focus, and the daemon then marks the whole active tab seen on its next foreground sync. myherdr's M3 keeps the marked row showing `done` while its pane is visible on the marking client, through a client-side hold. AGENTS.md forbids per-client acknowledgement without asking you.
+   - Ruled for now (coordinator, 2026-10-16): no hold. Decision 8 stands, the limit is recorded there, and live step 5 pins the revert.
+   - Proposed design if you lift the AGENTS.md rule for this case: port myherdr's hold, so the row shows `done` until this window focuses the pane. It is a client-local override of one status, on one window.
+   - Cost of no hold: `Mark as unread` looks broken on the pane you are looking at, which is the common case for an idle agent.
