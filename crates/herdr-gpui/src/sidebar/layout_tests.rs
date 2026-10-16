@@ -88,6 +88,8 @@ mod update_notes_scrollbar;
 #[cfg(test)]
 mod update_panel;
 #[cfg(test)]
+mod v2_drop;
+#[cfg(test)]
 mod workspace_menu;
 #[cfg(test)]
 mod worktree_notes;

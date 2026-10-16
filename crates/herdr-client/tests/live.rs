@@ -155,6 +155,8 @@ impl Daemon {
 struct Session {
     client: Client,
     snapshot: Option<Arc<ClientShellSnapshotV2>>,
+    /// What the daemon's welcome advertised, for requests with a `.v2` form.
+    methods: Vec<String>,
 }
 
 impl Session {
@@ -166,16 +168,20 @@ impl Session {
             )
             .unwrap(),
             snapshot: None,
+            methods: Vec::new(),
         };
+        let mut methods = Vec::new();
         session.until("stable welcome", |event| {
             if let ClientEvent::Connected(welcome) = event {
                 eprintln!("stable endpoint welcome: {welcome:?}");
                 assert_eq!(welcome.generation, 1);
+                methods = welcome.methods.clone();
                 true
             } else {
                 false
             }
         });
+        session.methods = methods;
         session.until("initial snapshot", |event| {
             matches!(event, ClientEvent::Snapshot(_))
         });
@@ -370,14 +376,14 @@ fn stable_endpoint_live() {
     let id = session
         .client
         .handle
-        .focus_workspace(&boot, &workspace)
+        .focus_workspace(&boot, &workspace, &session.methods)
         .unwrap();
     session.response(id);
     session.focused(&workspace, &second_tab);
     let id = session
         .client
         .handle
-        .focus_workspace(&boot, &second_workspace)
+        .focus_workspace(&boot, &second_workspace, &session.methods)
         .unwrap();
     session.response(id);
     session.focused(&second_workspace, &second_workspace_tab);

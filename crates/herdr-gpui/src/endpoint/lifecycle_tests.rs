@@ -19,6 +19,7 @@ use std::{
 mod close_pane;
 mod close_sequence;
 mod dead_keys;
+mod empty_workspace_focus;
 mod empty_workspace_sidebar;
 mod endpoint_switch;
 mod file_paste;

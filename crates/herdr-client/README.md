@@ -79,7 +79,7 @@ set_surface_active(&self, boot_id: &str, active: bool) -> Result<String>
 request(&self, boot_id: &str, method: &str, params: serde_json::Value) -> Result<String>
 focus_pane(&self, boot_id: &str, pane_id: &str) -> Result<String>
 focus_tab(&self, boot_id: &str, tab_id: &str) -> Result<String>
-focus_workspace(&self, boot_id: &str, workspace_id: &str) -> Result<String>
+focus_workspace(&self, boot_id: &str, workspace_id: &str, methods: &[String]) -> Result<String>
 disconnect(&self)
 is_disconnected(&self) -> bool
 ```
@@ -93,7 +93,9 @@ channel capacity; success means queued, not server acknowledgement. Request
 methods return a unique ID. The worker rejects stale boot IDs, requests before
 the first snapshot and unadvertised methods via
 `CommandRejected`. Navigation uses the real `pane.focus`, `tab.focus`, and
-`workspace.focus` API methods, not synthetic terminal keys.
+`workspace.focus` API methods, not synthetic terminal keys. `focus_workspace`
+takes the welcome's advertised `methods` and sends `workspace.focus.v2` when
+they hold it.
 
 `set_host_theme` reports the client's terminal colors and light/dark appearance
 as `ClientShellHostTheme` updates on the ordered command path. Herdr answers OSC

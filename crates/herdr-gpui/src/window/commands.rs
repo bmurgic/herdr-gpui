@@ -98,10 +98,11 @@ impl HerdrWindow {
         if !self.input_ready() {
             return false;
         }
+        let methods = self.live.methods.clone();
         let queued =
             self.request_focus_change("Navigate", Some((&target).into()), |handle, boot| {
                 match target {
-                    NavigationTarget::Workspace(id) => handle.focus_workspace(boot, id),
+                    NavigationTarget::Workspace(id) => handle.focus_workspace(boot, id, &methods),
                     NavigationTarget::Tab(id) => handle.focus_tab(boot, id),
                     NavigationTarget::Pane(id) => handle.focus_pane(boot, id),
                 }

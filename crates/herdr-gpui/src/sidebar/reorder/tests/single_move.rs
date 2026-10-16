@@ -30,26 +30,36 @@ fn apply(list: &[ClientShellWorkspaceV2], reorder: &WorkspaceReorder) -> Vec<Str
     ids
 }
 
-/// Every drop of a lone row, top-level or child, is a `workspace.move`
-/// where offered, and leaves the order the block move would have.
+/// A drop of a lone row is a `workspace.move` where offered, unless the row has
+/// a `worktree` record, linked or not: myherdr sends that as a one-id
+/// `workspace.move_block`. Either shape leaves the order the block move would.
 #[test]
 fn a_lone_workspace_moves_singly_to_the_same_place() {
     let list = list();
-    for pressed in ["b", "c", "a1", "a2"] {
+    // `a1` and `a2` are linked checkouts; `b` and `c` have no record.
+    for (pressed, has_record) in [("b", false), ("c", false), ("a1", true), ("a2", true)] {
         let plan = Plan::new(&list, pressed).unwrap();
         for slot in 0..=plan.len() {
             let Some(request) = plan.request(&list, slot) else {
                 continue;
             };
-            let single = request.reorder(&list, true);
-            let WorkspaceReorder::Move(params) = &single else {
-                panic!("{pressed} to {slot} sent {single:?}");
-            };
-            assert_eq!(params.workspace_id, pressed);
+            let sent = request.reorder(&list, true);
             let block = request.reorder(&list, false);
             assert!(matches!(block, WorkspaceReorder::MoveBlock(_)));
+            if has_record {
+                let WorkspaceReorder::MoveBlock(params) = &sent else {
+                    panic!("{pressed} to {slot} sent {sent:?}");
+                };
+                assert_eq!(params.workspace_ids, [pressed]);
+                assert_eq!(sent, block);
+            } else {
+                let WorkspaceReorder::Move(params) = &sent else {
+                    panic!("{pressed} to {slot} sent {sent:?}");
+                };
+                assert_eq!(params.workspace_id, pressed);
+            }
             assert_eq!(
-                apply(&list, &single),
+                apply(&list, &sent),
                 apply(&list, &block),
                 "{pressed} {slot}"
             );
