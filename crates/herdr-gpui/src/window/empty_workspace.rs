@@ -8,6 +8,7 @@ use super::HerdrWindow;
 use crate::{
     controls::{COMMANDS, Command},
     keymap::Keymap,
+    navigation::NavigationTarget,
     state::ConnectionStatus,
 };
 use gpui::{
@@ -248,7 +249,7 @@ impl HerdrWindow {
     /// Where `command`, a sidebar step, lands, with the live methods of the
     /// host it lands on. `None` for any other command or a step with no row.
     fn destination(&self, command: Command) -> Option<Destination<'_>> {
-        let (host, id) = self.sidebar_destination(command)?;
+        let (host, target) = self.sidebar_destination(command)?;
         let live = if host == self.selected_endpoint {
             &self.live
         } else {
@@ -256,12 +257,12 @@ impl HerdrWindow {
         };
         let snapshot = live.snapshot.as_deref()?;
         let methods: &[String] = &live.methods;
-        match command {
-            Command::PreviousAgent | Command::NextAgent | Command::AgentNumber(_) => {
+        match target {
+            NavigationTarget::Pane(id) => {
                 let agent = snapshot.agents.iter().find(|agent| agent.pane_id == id)?;
                 Some(Destination::Agent { agent, methods })
             }
-            _ => {
+            NavigationTarget::Workspace(id) => {
                 let workspace = snapshot
                     .workspaces
                     .iter()
@@ -275,6 +276,8 @@ impl HerdrWindow {
                     is_focused,
                 })
             }
+            // A sidebar step lands on a workspace or an agent, never a tab.
+            NavigationTarget::Tab(_) => None,
         }
     }
 

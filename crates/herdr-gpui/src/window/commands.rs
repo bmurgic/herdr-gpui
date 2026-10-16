@@ -574,25 +574,16 @@ impl HerdrWindow {
     /// Focuses the workspace or agent a sidebar step lands on, selecting its
     /// host first when that is another one.
     fn step_sidebar(&mut self, command: Command, cx: &mut Context<Self>) {
-        let agents = matches!(
-            command,
-            Command::PreviousAgent | Command::NextAgent | Command::AgentNumber(_)
-        );
-        let Some((host, id)) = self.sidebar_destination(command) else {
+        let Some((host, target)) = self.sidebar_destination(command) else {
             return;
         };
-        let selected = self.selected_endpoint;
-        let id = id.to_owned();
-        let target = if agents {
-            NavigationTarget::Pane(id.as_str())
-        } else {
-            NavigationTarget::Workspace(id.as_str())
-        };
-        if host == selected {
-            self.navigate(target, cx);
+        // Owned, because navigating borrows the window mutably.
+        let target = OwnedNavigationTarget::from(&target);
+        if host == self.selected_endpoint {
+            self.navigate(target.as_deref(), cx);
         } else {
             let endpoint = self.endpoints[host].id.clone();
-            self.navigate_endpoint(&endpoint, target, cx);
+            self.navigate_endpoint(&endpoint, target.as_deref(), cx);
         }
     }
 

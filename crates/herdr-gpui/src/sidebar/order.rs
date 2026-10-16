@@ -3,7 +3,7 @@
 //! its own sidebar: every listed host's rows, top to bottom.
 
 use super::{agents::panel_agents, visible_workspace_entries};
-use crate::{HerdrWindow, controls::Command, state::LiveState};
+use crate::{HerdrWindow, controls::Command, navigation::NavigationTarget, state::LiveState};
 use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshotV2};
 
 /// A listed row: its host, by endpoint index, and the workspace or agent
@@ -67,15 +67,21 @@ impl HerdrWindow {
             .collect()
     }
 
-    /// The row a previous, next, or numbered shortcut lands on, or `None`
-    /// when `command` is not one of those or the step has no row. The window
-    /// runs it and the empty workspace screen lists it, so both read the same
-    /// destination.
-    pub(crate) fn sidebar_destination(&self, command: Command) -> Option<Row<'_>> {
-        let agents = matches!(
-            command,
-            Command::PreviousAgent | Command::NextAgent | Command::AgentNumber(_)
-        );
+    /// The host and the workspace or agent pane a previous, next, or
+    /// numbered shortcut lands on, or `None` when `command` is not one of
+    /// those or the step has no row. The window runs it and the empty
+    /// workspace screen lists it, so both read the same destination.
+    pub(crate) fn sidebar_destination(
+        &self,
+        command: Command,
+    ) -> Option<(usize, NavigationTarget<&str>)> {
+        let agents = match command {
+            Command::PreviousAgent | Command::NextAgent | Command::AgentNumber(_) => true,
+            Command::PreviousWorkspace | Command::NextWorkspace | Command::WorkspaceNumber(_) => {
+                false
+            }
+            _ => return None,
+        };
         let rows = if agents {
             self.sidebar_agents()
         } else {
@@ -93,7 +99,13 @@ impl HerdrWindow {
             .iter()
             .position(|&(host, id)| host == selected && Some(id) == focused);
         let index = step(&rows, current, selected, command)?;
-        rows.get(index).copied()
+        let &(host, id) = rows.get(index)?;
+        let target = if agents {
+            NavigationTarget::Pane(id)
+        } else {
+            NavigationTarget::Workspace(id)
+        };
+        Some((host, target))
     }
 }
 
