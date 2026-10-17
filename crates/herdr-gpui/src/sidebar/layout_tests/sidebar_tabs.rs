@@ -221,13 +221,22 @@ fn selecting_spaces_swaps_the_list_without_moving_focus(cx: &mut gpui::TestAppCo
 
 #[gpui::test]
 fn each_tab_keeps_its_scroll_position(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = tabbed_window(cx, tall_lists);
+    // Agent 3 is focused, so the list reveals it, and stays one row down
+    // where the reveal finds it in view.
+    let (view, cx) = tabbed_window(cx, |view| {
+        tall_lists(view);
+        let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
+        for (index, agent) in listing.agents.iter_mut().enumerate() {
+            agent.focused = index == 3;
+        }
+    });
+    let row = view.read_with(cx, |view, _| four_line_height(view));
     view.update(cx, |view, _| {
-        view.sidebar_scroll[1].set_offset(point(px(0.), px(-50.)));
+        view.sidebar_scroll[1].set_offset(point(px(0.), px(-row)));
     });
     draw(cx);
     let before = view.read_with(cx, |view, _| view.sidebar_scroll[1].offset());
-    assert_eq!(before.y, px(-50.));
+    assert_eq!(before.y, px(-row));
     for tab in ["sidebar-tab-spaces", "sidebar-tab-agents"] {
         select(tab, cx);
         draw(cx);
@@ -236,6 +245,9 @@ fn each_tab_keeps_its_scroll_position(cx: &mut gpui::TestAppContext) {
     view.read_with(cx, |view, _| {
         assert_eq!(view.sidebar_scroll[1].offset(), before)
     });
+    let list = cx.debug_bounds("agents-scroll").unwrap();
+    let focused = cx.debug_bounds("row-agent-p3").unwrap();
+    assert!(inside(list, focused), "{focused:?} outside {list:?}");
 }
 
 #[gpui::test]

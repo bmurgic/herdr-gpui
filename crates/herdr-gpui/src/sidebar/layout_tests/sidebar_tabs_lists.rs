@@ -1,5 +1,5 @@
 use super::*;
-use crate::preferences::AgentSort;
+use crate::config::LayoutMode;
 use crate::sidebar::SidebarTab;
 
 fn draw(cx: &mut gpui::VisualTestContext) {
@@ -38,6 +38,10 @@ fn window_over(
     (view, cx)
 }
 
+/// The workspace the hidden-list tests focus: in view with Minimal rows, and
+/// below the viewport once the rows grow.
+const FAR_ROW: usize = 20;
+
 /// Forty agents, so the Agents list overflows its area.
 fn forty_agents(view: &mut HerdrWindow) {
     let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
@@ -69,29 +73,88 @@ fn spaces_reveals_a_workspace_focused_while_hidden(cx: &mut gpui::TestAppContext
     assert!(inside(list, row), "{row:?} outside {list:?}");
 }
 
+/// Scrolls the Agents list down one row, so the first row is just above it,
+/// and focuses the agent the list has revealed. Returns the offset set.
+fn scroll_agents_past_the_first_row(
+    view: &Entity<HerdrWindow>,
+    cx: &mut gpui::VisualTestContext,
+) -> gpui::Point<Pixels> {
+    let row = view.read_with(cx, |view, _| four_line_height(view));
+    edit(view, cx, |view| {
+        view.sidebar_scroll[1].set_offset(point(px(0.), px(-row)));
+    });
+    let offset = view.read_with(cx, |view, _| view.sidebar_scroll[1].offset());
+    assert_eq!(offset.y, px(-row));
+    offset
+}
+
+/// The first agent row lies wholly above the Agents list's top edge.
+fn first_agent_is_scrolled_away(cx: &mut gpui::VisualTestContext) {
+    let list = cx.debug_bounds("agents-scroll").unwrap();
+    let first = cx.debug_bounds("row-agent-p0").unwrap();
+    assert!(first.bottom() <= list.top(), "{first:?} reaches {list:?}");
+}
+
+/// Makes agent `focused` the only focused one.
+fn focus_agent(view: &mut HerdrWindow, focused: usize) {
+    let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
+    for (index, agent) in listing.agents.iter_mut().enumerate() {
+        agent.focused = index == focused;
+    }
+}
+
 #[gpui::test]
 fn agents_returns_at_its_offset_after_focus_moved_while_hidden(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = window_over(cx, forty_agents);
-    edit(&view, cx, |view| {
-        view.sidebar_scroll[1].set_offset(point(px(0.), px(-50.)));
+    // Agent 3 is focused and in view when the list is scrolled one row down.
+    let (view, cx) = window_over(cx, |view| {
+        forty_agents(view);
+        focus_agent(view, 3);
     });
-    let before = view.read_with(cx, |view, _| view.sidebar_scroll[1].offset());
-    assert_eq!(before.y, px(-50.));
+    let before = scroll_agents_past_the_first_row(&view, cx);
+    first_agent_is_scrolled_away(cx);
     select("sidebar-tab-spaces", cx);
     draw(cx);
-    // The focused agent is now one that sorts first, far above the offset.
-    edit(&view, cx, |view| {
-        let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
-        listing.agents[35].focused = true;
-        listing.agents[35].agent_status = AgentStatus::Blocked;
-    });
-    edit(&view, cx, |view| view.agent_sort = AgentSort::Priority);
+    // The focus moves to the first row, which the offset has scrolled away,
+    // so a reveal on the way back would scroll the list.
+    edit(&view, cx, |view| focus_agent(view, 0));
     select("sidebar-tab-agents", cx);
     draw(cx);
     draw(cx);
     view.read_with(cx, |view, _| {
         assert_eq!(view.sidebar_scroll[1].offset(), before)
     });
+    first_agent_is_scrolled_away(cx);
+}
+
+/// The Spaces list was shown before it hid, so its handle holds the row
+/// positions it had. The rows grow while it is hidden and the focus moves to a
+/// row that sat in view before they did, so the old positions say it is seen.
+#[gpui::test]
+fn spaces_returns_with_a_workspace_focused_while_hidden(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = window_over(cx, |view| {
+        show_spaces_tab(view);
+        view.config.layout.mode = LayoutMode::Minimal;
+        let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
+        listing.workspaces[FAR_ROW].label = "focused-while-hidden".into();
+    });
+    draw(cx);
+    let list = cx.debug_bounds("spaces-scroll").unwrap();
+    let row = cx.debug_bounds("row-focused-while-hidden").unwrap();
+    assert!(inside(list, row), "{row:?} starts outside {list:?}");
+    select("sidebar-tab-agents", cx);
+    draw(cx);
+    edit(&view, cx, |view| {
+        view.config.layout.mode = LayoutMode::default();
+        let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
+        listing.workspaces[0].focused = false;
+        listing.workspaces[FAR_ROW].focused = true;
+    });
+    select("sidebar-tab-spaces", cx);
+    draw(cx);
+    draw(cx);
+    let list = cx.debug_bounds("spaces-scroll").unwrap();
+    let row = cx.debug_bounds("row-focused-while-hidden").unwrap();
+    assert!(inside(list, row), "{row:?} outside {list:?}");
 }
 
 #[gpui::test]
