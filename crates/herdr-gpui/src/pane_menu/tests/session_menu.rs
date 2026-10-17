@@ -327,7 +327,7 @@ fn a_send_refused_locally_shows_one_rejected_notice(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("enter");
     view.read_with(cx, |view, _| {
         assert_eq!(view.menu.page, None);
-        assert_eq!(toast_texts(view), [refusal.clone()]);
+        assert_eq!(toast_texts(view), std::slice::from_ref(&refusal));
     });
 
     // The same refusal again, while its toast is still on screen.
