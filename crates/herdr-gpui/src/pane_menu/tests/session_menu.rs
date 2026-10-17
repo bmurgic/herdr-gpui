@@ -310,3 +310,31 @@ fn every_kind_of_outcome_shows_its_notice_and_a_success_shows_none(cx: &mut Test
     });
     assert_eq!(toast_titles(&view, cx).len(), 4);
 }
+
+#[gpui::test]
+fn a_send_refused_locally_shows_one_rejected_notice(cx: &mut TestAppContext) {
+    let (view, cx) = v2_window(cx);
+    // The shown host advertises the method but has no connection handle, so
+    // the send itself is refused.
+    view.update(cx, |view, _| {
+        view.live.methods = Arc::from([Method::PaneRename.as_str().to_owned()]);
+    });
+    let refusal = (
+        "Action rejected".to_owned(),
+        Some(crate::Error::NotConnected.to_string()),
+    );
+    open_rename(&view, cx, "local");
+    cx.simulate_keystrokes("enter");
+    view.read_with(cx, |view, _| {
+        assert_eq!(view.menu.page, None);
+        assert_eq!(toast_texts(view), [refusal.clone()]);
+    });
+
+    // The same refusal again, while its toast is still on screen.
+    open_rename(&view, cx, "local");
+    cx.simulate_keystrokes("enter");
+    view.read_with(cx, |view, _| {
+        assert!(view.endpoints[0].toasts.entries[0].1.visible);
+        assert_eq!(toast_texts(view), [refusal]);
+    });
+}
