@@ -26,6 +26,8 @@ const SPACES_ONLY: &str = "another workspace";
 /// The tabs' labels.
 const AGENTS_TAB: &str = "Agents";
 const SPACES_TAB: &str = "Spaces";
+/// How long a tab click may take to reach the window before the check fails.
+const CLICK_DEADLINE: Duration = Duration::from_secs(2);
 /// Drawn text and the row it sits in may differ by rounding to device pixels.
 const TOLERANCE: f32 = 0.5;
 
@@ -239,8 +241,28 @@ async fn switch_tabs(
     ] {
         let label = painted(handle, cx, label)?.center();
         target.click(label.x.to_f64(), label.y.to_f64())?;
-        timer.timer(Duration::from_millis(100)).await;
+        until_tab_shown(handle, timer, cx, tab).await?;
         list_shown(handle, cx, tab, shown, hidden)?;
+    }
+    Ok(())
+}
+
+/// Waits until the window shows `tab`, which it does once it has handled the
+/// click, or until `CLICK_DEADLINE` passes; `list_shown` then reports a tab
+/// that never came.
+async fn until_tab_shown(
+    handle: WindowHandle<HerdrWindow>,
+    timer: &BackgroundExecutor,
+    cx: &mut AsyncApp,
+    tab: SidebarTab,
+) -> Result<()> {
+    let deadline = Instant::now() + CLICK_DEADLINE;
+    while Instant::now() < deadline {
+        let shown = handle.read_with(cx, |view, _| view.shown_sidebar_tab())?;
+        if shown == tab {
+            break;
+        }
+        timer.timer(Duration::from_millis(10)).await;
     }
     Ok(())
 }
