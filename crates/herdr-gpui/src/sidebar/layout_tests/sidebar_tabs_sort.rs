@@ -296,6 +296,22 @@ fn an_empty_agents_list_shows_its_message_and_the_label(cx: &mut gpui::TestAppCo
     near(sort.center().y, f32::from(message.center().y), "one line");
 }
 
+/// The stacked layout's header carries the label, so its empty line, wide
+/// enough for one, draws none.
+#[gpui::test]
+fn the_stacked_empty_line_leaves_the_label_to_the_header(cx: &mut gpui::TestAppContext) {
+    let (_view, cx) = sort_window(cx, Line::Empty, 24, |view| {
+        old_agent_rows(view);
+        no_agents(view);
+    });
+    assert!(painted(cx, "no agents"));
+    // Debug bounds keep the last label drawn, which a second label on the
+    // empty line, below the header, would be.
+    let header = cx.debug_bounds("header-agents").unwrap();
+    let sort = cx.debug_bounds("agents-sort").unwrap();
+    assert!(inside(header, sort), "{sort:?} outside {header:?}");
+}
+
 #[gpui::test]
 fn the_empty_line_drops_the_label_below_twenty_columns(cx: &mut gpui::TestAppContext) {
     let (_view, cx) = sort_window(cx, Line::Empty, 19, |view| {
