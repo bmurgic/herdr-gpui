@@ -2,10 +2,12 @@
 //! a click on its blank third line, its right-click pane menu, and, on a
 //! host that accepts session actions, its right-click session menu. The
 //! headless tests reach the row through the test platform's hit testing;
-//! this one sends AppKit events to the fixture window.
+//! this one sends AppKit events to the fixture window. It ends by clicking the
+//! Spaces and Agents tabs over the same rows.
 use super::*;
 use anyhow::ensure;
 use sidebar::{
+    SidebarTab,
     layout_tests::{PaintedProbes, four_line_height, labeled_pane, session_line_height},
     native_tests::Target,
 };
@@ -18,6 +20,12 @@ const SECOND_NAME: &str = "Second probe";
 const MARK_UNREAD: &str = "Mark as unread";
 /// Line four of `p0`'s row, the only one in workspace `w0` (branch `main`).
 const FIRST_BRANCH: &str = "\u{2387} main";
+/// A workspace row's name, which only the Spaces list paints, in the fixture's
+/// seventh workspace.
+const SPACES_ONLY: &str = "another workspace";
+/// The tabs' labels.
+const AGENTS_TAB: &str = "Agents";
+const SPACES_TAB: &str = "Spaces";
 /// Drawn text and the row it sits in may differ by rounding to device pixels.
 const TOLERANCE: f32 = 0.5;
 
@@ -205,12 +213,61 @@ async fn session_rows(
         Ok(())
     })??;
 
+    switch_tabs(handle, timer, cx, &target).await?;
+
     Ok(format!(
         "{row}px four-line row ({}px expected), line-three click navigated to p0, \
-         right click opened p0's pane menu, and on a session host its session \
-         menu, whose {MARK_UNREAD:?} was refused once without a daemon",
+         right click opened p0's pane menu, on a session host its session \
+         menu, whose {MARK_UNREAD:?} was refused once without a daemon, and the \
+         Spaces and Agents tabs swapped the lists on click",
         drawn.row
     ))
+}
+
+/// Clicks the Spaces tab, then the Agents tab, and reads which list each
+/// click showed: the agent rows or the workspace rows, never both.
+async fn switch_tabs(
+    handle: WindowHandle<HerdrWindow>,
+    timer: &BackgroundExecutor,
+    cx: &mut AsyncApp,
+    target: &Target,
+) -> Result<()> {
+    list_shown(handle, cx, SidebarTab::Agents, FIRST_NAME, SPACES_ONLY)?;
+    for (tab, label, shown, hidden) in [
+        (SidebarTab::Spaces, SPACES_TAB, SPACES_ONLY, FIRST_NAME),
+        (SidebarTab::Agents, AGENTS_TAB, FIRST_NAME, SPACES_ONLY),
+    ] {
+        let label = painted(handle, cx, label)?.center();
+        target.click(label.x.to_f64(), label.y.to_f64())?;
+        timer.timer(Duration::from_millis(100)).await;
+        list_shown(handle, cx, tab, shown, hidden)?;
+    }
+    Ok(())
+}
+
+/// Checks that `tab` is the shown one and that `shown` is painted whole while
+/// `hidden` is not painted at all.
+fn list_shown(
+    handle: WindowHandle<HerdrWindow>,
+    cx: &mut AsyncApp,
+    tab: SidebarTab,
+    shown: &str,
+    hidden: &str,
+) -> Result<()> {
+    let selected = handle.read_with(cx, |view, _| view.shown_sidebar_tab())?;
+    ensure!(
+        selected == tab,
+        "the {selected:?} tab is shown, not {tab:?}"
+    );
+    painted(handle, cx, shown)?;
+    let leftover = AnyWindowHandle::from(handle).update(cx, |_, _, cx| {
+        cx.default_global::<PaintedProbes>().0.contains_key(hidden)
+    })?;
+    ensure!(
+        !leftover,
+        "{hidden:?} is painted with the {tab:?} tab shown"
+    );
+    Ok(())
 }
 
 /// Closes the pane menu and makes the shown host one that accepts session
