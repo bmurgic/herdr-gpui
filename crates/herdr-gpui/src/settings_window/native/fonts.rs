@@ -30,7 +30,7 @@ async fn font_click(
                 .map_err(|_| anyhow::anyhow!("unexpected Settings root"))?;
             let bounds = view
                 .read(cx)
-                .native_font_bounds(id, cx)
+                .native_control_bounds(id, cx)
                 .with_context(|| format!("missing native font paint: {id}"))?;
             let position = if row_label {
                 point(bounds.left() + px(20.), bounds.center().y)
@@ -97,10 +97,10 @@ pub(super) async fn verify_fonts(
             .map_err(|_| anyhow::anyhow!("unexpected Settings root"))?;
         let view = view.read(cx);
         ensure!(
-            view.native_font_bounds("settings-font-picker", cx)
+            view.native_control_bounds("settings-font-picker", cx)
                 .is_none()
                 && view
-                    .native_font_bounds("settings-font-results", cx)
+                    .native_control_bounds("settings-font-results", cx)
                     .is_none(),
             "closed font catalog was painted"
         );
@@ -108,13 +108,13 @@ pub(super) async fn verify_fonts(
         let mut bottom = body.top();
         for name in ["terminal", "sidebar", "tabs", "ui"] {
             let row = view
-                .native_font_bounds(&format!("settings-font-row-{name}"), cx)
+                .native_control_bounds(&format!("settings-font-row-{name}"), cx)
                 .context("font role row missing")?;
             let family = view
-                .native_font_bounds(&format!("settings-font-family-{name}"), cx)
+                .native_control_bounds(&format!("settings-font-family-{name}"), cx)
                 .context("font family missing")?;
             let size = view
-                .native_font_bounds(&format!("settings-size-{name}"), cx)
+                .native_control_bounds(&format!("settings-size-{name}"), cx)
                 .context("font stepper missing")?;
             inside(row, body)?;
             inside(family, row)?;
@@ -192,7 +192,7 @@ pub(super) async fn verify_fonts(
                 .map_err(|_| anyhow::anyhow!("unexpected Settings root"))?;
             let view = view.read(cx);
             let picker = view
-                .native_font_bounds("settings-font-picker", cx)
+                .native_control_bounds("settings-font-picker", cx)
                 .context("picker not painted")?;
             inside(picker, view.body_scroll.bounds())?;
             for id in [
@@ -202,7 +202,7 @@ pub(super) async fn verify_fonts(
                 "settings-font-result-0",
             ] {
                 inside(
-                    view.native_font_bounds(id, cx)
+                    view.native_control_bounds(id, cx)
                         .with_context(|| format!("missing {id}"))?,
                     picker,
                 )?;

@@ -4,6 +4,8 @@
 //! `session_titles` ignores that section, so the three title rows show only
 //! on one that does.
 use super::{Edit, SettingsWindow};
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+use super::{clear_native_bounds, native_probe};
 use crate::{
     config::{FontConfig, Theme},
     herdr_settings::{SessionTitles, TitleAgent},
@@ -104,6 +106,8 @@ impl SettingsWindow {
         &self,
         cx: &mut Context<Self>,
     ) -> Div {
+        #[cfg(all(feature = "integration-test", target_os = "macos"))]
+        clear_native_bounds(cx);
         let ready = self.controls_shared_ready();
         let gate = self.titles_gate(cx);
         self.controls.session_titles.drawn_gate.set(gate);
@@ -126,6 +130,11 @@ impl SettingsWindow {
                     row.on_click(cx.listener(move |this, _, _, cx| {
                         this.save_shared(Edit::SessionSidebar(!sidebar), cx);
                     }))
+                })
+                .map(|row| {
+                    #[cfg(all(feature = "integration-test", target_os = "macos"))]
+                    let row = row.child(native_probe("settings-session-sidebar"));
+                    row
                 }),
             )
             .child(self.control_note("Agents and Spaces tabs, one list at a time"));
@@ -146,6 +155,11 @@ impl SettingsWindow {
                         choice.on_click(cx.listener(move |this, _, _, cx| {
                             this.save_shared(Edit::TitleAgent(agent), cx);
                         }))
+                    })
+                    .map(|choice| {
+                        #[cfg(all(feature = "integration-test", target_os = "macos"))]
+                        let choice = choice.child(native_probe(id));
+                        choice
                     }),
             );
         }
@@ -160,6 +174,11 @@ impl SettingsWindow {
                 row.on_click(cx.listener(move |this, _, _, cx| {
                     this.save_shared(Edit::SessionTitlesEnabled(!titles.enabled), cx);
                 }))
+            })
+            .map(|row| {
+                #[cfg(all(feature = "integration-test", target_os = "macos"))]
+                let row = row.child(native_probe("settings-session-titles"));
+                row
             }),
         )
         .child(self.control_note("Name Claude and Codex panes from their first prompt"))

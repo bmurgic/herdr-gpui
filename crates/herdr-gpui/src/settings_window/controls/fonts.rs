@@ -3,38 +3,7 @@ use super::*;
 use crate::{config::FontConfig, fonts::StyledFont};
 
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
-#[derive(Default)]
-struct NativeBounds(std::collections::HashMap<String, Bounds<Pixels>>);
-#[cfg(all(feature = "integration-test", target_os = "macos"))]
-impl Global for NativeBounds {}
-
-#[cfg(all(feature = "integration-test", target_os = "macos"))]
-fn native_probe(id: impl Into<String>) -> impl IntoElement {
-    let id = id.into();
-    canvas(
-        |_, _, _| (),
-        move |bounds, _, _, cx| {
-            cx.default_global::<NativeBounds>()
-                .0
-                .insert(id.clone(), bounds);
-        },
-    )
-    .absolute()
-    .top_0()
-    .left_0()
-    .size_full()
-}
-
-#[cfg(all(feature = "integration-test", target_os = "macos"))]
 impl SettingsWindow {
-    pub(in crate::settings_window) fn native_font_bounds(
-        &self,
-        id: &str,
-        cx: &App,
-    ) -> Option<Bounds<Pixels>> {
-        cx.try_global::<NativeBounds>()?.0.get(id).copied()
-    }
-
     pub(in crate::settings_window) fn native_font_search(
         &self,
         cx: &App,
@@ -318,7 +287,7 @@ impl SettingsWindow {
 
     pub(super) fn render_font_controls(&self, cx: &mut Context<Self>) -> Div {
         #[cfg(all(feature = "integration-test", target_os = "macos"))]
-        cx.default_global::<NativeBounds>().0.clear();
+        clear_native_bounds(cx);
         let mut rows = div()
             .debug_selector(|| "settings-font-rows".into())
             .flex()

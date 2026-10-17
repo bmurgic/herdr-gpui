@@ -3,6 +3,8 @@ mod backdrop;
 pub(super) mod code;
 mod fonts;
 mod indicators;
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+mod native_bounds;
 pub(super) mod plugins;
 mod preferences;
 mod session_titles;
@@ -19,6 +21,8 @@ use crate::{
     search_input::{Changed, SearchInput},
 };
 use gpui::{prelude::*, *};
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+use native_bounds::{clear_native_bounds, native_probe};
 
 const FACES: [(FontFace, &str); 4] = [
     (FontFace::Terminal, "Terminal"),
