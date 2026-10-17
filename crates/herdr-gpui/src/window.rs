@@ -306,6 +306,8 @@ pub(crate) struct HerdrWindow {
     /// stored session. Until then the daemon's `ui.agent_panel_sort` decides,
     /// including after a config reload, as upstream's manual override does.
     pub(crate) agent_sort_modified: bool,
+    /// When the sidebar next repaints for an age whose text changes.
+    pub(crate) session_ages: sidebar::SessionAges,
     pub(crate) avatars: Option<avatars::Avatars>,
     #[cfg(feature = "integration-test")]
     pub(crate) input_probe: smoke::InputProbe,
@@ -474,7 +476,10 @@ impl HerdrWindow {
                 .map(|s| (s.focused_workspace_id.clone(), s.focused_tab_id.clone()))
         };
         let old_tab = focused_tab(&self.live);
-        self.poll_endpoints(cx);
+        let snapshots_changed = self.poll_endpoints(cx);
+        if self.poll_session_ages(sidebar::now_ms(), snapshots_changed) {
+            cx.notify();
+        }
         if self
             .icon_font_notice
             .observe(self.config.icon_font_missing, self.live.surface.as_deref())
@@ -777,6 +782,7 @@ impl HerdrWindow {
             sidebar_modified: false,
             agent_sort: preferences::AgentSort::default(),
             agent_sort_modified: false,
+            session_ages: Default::default(),
             avatars: None,
             #[cfg(feature = "integration-test")]
             input_probe: smoke::InputProbe::default(),
@@ -841,6 +847,8 @@ impl HerdrWindow {
                 *inbox = this.live.clone();
             }
             // The smoke tests measure the old agent row, not the session row.
+            // This covers the frames before their Settings phase loads the
+            // sandbox config, which says the same (tests/live_gui.rs).
             this.settings.shared =
                 crate::herdr_settings::Settings::parse_text("[ui]\nsession_sidebar = false\n").ok();
             return this;
