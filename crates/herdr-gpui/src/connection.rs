@@ -124,12 +124,10 @@ impl ConnectionBridge {
         // Computed once, from the old inbox alone: the old reader keeps only
         // that inbox and must never hold a handle to the new one. A result
         // is carried over, not an event, so isolation holds. A locked old
-        // inbox loses its pending requests' notices, the same trade-off as
-        // the sound cancellation above.
+        // inbox loses the notices of its recorded outcomes and pending
+        // requests, the same trade-off as the sound cancellation above.
         if let Ok(mut old) = self.inbox.try_lock() {
-            state
-                .session_actions
-                .interrupted(old.session_actions.take_pending());
+            state.session_actions.inherit(&mut old.session_actions);
             state.dirty = true;
         }
         self.sound_cancel = state.sound_connection_cancel.clone();

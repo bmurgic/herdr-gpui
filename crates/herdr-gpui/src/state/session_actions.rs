@@ -147,6 +147,15 @@ impl SessionActions {
         );
     }
 
+    /// Takes over from the actions of a connection that ended: the outcomes it
+    /// recorded but no poll took, then an interruption for each request it was
+    /// still waiting on. The old inbox held at most `SESSION_ACTION_LIMIT`
+    /// outcomes and pending requests together, so the sum stays within it.
+    pub(crate) fn inherit(&mut self, old: &mut Self) {
+        self.outcomes.extend(old.take_outcomes());
+        self.interrupted(old.take_pending());
+    }
+
     /// Restores outcomes taken from a state whose clone is being handed on.
     pub(crate) fn put_outcomes(&mut self, outcomes: Vec<SessionOutcome>) {
         self.outcomes = outcomes;

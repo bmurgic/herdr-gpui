@@ -218,6 +218,62 @@ fn reset_interrupts_pending_session_requests() {
 }
 
 #[test]
+fn reset_keeps_the_outcomes_no_poll_took_yet() {
+    let mut bridge = bridge();
+    {
+        let mut old = bridge.inbox.lock().unwrap();
+        old.session_actions
+            .track("gpui-1".into(), Method::PaneRename, "b1".into());
+        old.session_actions
+            .track("gpui-2".into(), Method::PaneRename, "b1".into());
+        reply(
+            &mut old,
+            "gpui-1",
+            json!({"error": {"code": "pane_not_found", "message": "pane w1:p2 not found"}}),
+        );
+    }
+    bridge.detach(false);
+    let mut state = bridge.inbox.lock().unwrap();
+    // The reply came first, so its outcome precedes the interruption.
+    assert_eq!(
+        state.session_actions.take_outcomes(),
+        [
+            SessionOutcome::Rejected {
+                boot: "b1".into(),
+                method: Method::PaneRename,
+                code: "pane_not_found".into(),
+                message: "pane w1:p2 not found".into(),
+            },
+            SessionOutcome::Interrupted { boot: "b1".into() },
+        ]
+    );
+}
+
+#[test]
+fn reset_carries_no_more_than_the_inbox_could_hold() {
+    let mut bridge = bridge();
+    {
+        let mut old = bridge.inbox.lock().unwrap();
+        let mut index = 0;
+        while old.session_actions.has_room() {
+            index += 1;
+            old.session_actions
+                .track(format!("gpui-{index}"), Method::PaneRename, "b1".into());
+            if index % 2 == 0 {
+                reply(&mut old, &format!("gpui-{index}"), json!({"result": {}}));
+            }
+        }
+    }
+    bridge.detach(false);
+    let mut state = bridge.inbox.lock().unwrap();
+    assert!(!state.session_actions.has_room());
+    assert_eq!(
+        state.session_actions.take_outcomes().len(),
+        SESSION_ACTION_LIMIT
+    );
+}
+
+#[test]
 fn take_update_hands_outcomes_over_once_and_keeps_pending_requests() {
     let bridge = bridge();
     {
