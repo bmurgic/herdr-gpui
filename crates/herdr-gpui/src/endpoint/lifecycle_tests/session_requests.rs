@@ -23,6 +23,27 @@ fn session_request(server: &mut Server, method: &str) -> serde_json::Value {
     }
 }
 
+/// Fails if the server reads another `method` request before the client
+/// goes quiet. Reply to the earlier one first: the client holds a second
+/// request back until the first is answered.
+fn assert_no_further_request(server: &mut Server, method: &str) {
+    server
+        .stream
+        .set_read_timeout(Some(Duration::from_millis(200)))
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < deadline {
+        let Ok(message) = read_message(&mut server.stream, MAX_FRAME_SIZE) else {
+            return;
+        };
+        if let ClientMessage::ClientShellEndpointRequest { request, .. } = message {
+            let request: serde_json::Value = serde_json::from_str(&request).unwrap();
+            assert_ne!(request["method"], method, "a second {method} was sent");
+        }
+    }
+    panic!("the client never went quiet");
+}
+
 /// Polls the endpoints and drains their outcomes, as the window's tick does,
 /// until `ready`.
 fn drain_until(
@@ -159,4 +180,26 @@ fn mark_unread_sends_to_the_daemon(cx: &mut gpui::TestAppContext) {
 
     let request = session_request(&mut server, "pane.mark_unread");
     assert_eq!(request["params"], serde_json::json!({"pane_id": "p1"}));
+}
+
+#[gpui::test]
+fn the_rename_button_sends_the_trimmed_name_and_closes_the_menu(cx: &mut gpui::TestAppContext) {
+    let (endpoint, mut server) =
+        connected_endpoint_v2("ssh:remote", RENAME_METHODS, snapshot_with_agent());
+    let (view, cx) = agent_menu_over(cx, endpoint);
+    cx.simulate_keystrokes("down enter");
+    draw(cx);
+    cx.simulate_input("  ci  ");
+    draw(cx);
+    let button = cx.debug_bounds("session-rename-submit").unwrap().center();
+    cx.simulate_click(button, gpui::Modifiers::default());
+    view.read_with(cx, |view, _| assert_eq!(view.menu.page, None));
+
+    let request = session_request(&mut server, "pane.rename");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({"pane_id": "p1", "label": "ci"})
+    );
+    server.respond(&request);
+    assert_no_further_request(&mut server, "pane.rename");
 }
