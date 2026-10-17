@@ -46,7 +46,7 @@
 
 | File | Task | Responsibility |
 |---|---|---|
-| `crates/herdr-gpui/src/sidebar/tabs.rs` (create) | 1, 2, 3 | `SidebarTab`, tab geometry and label helpers, sort-label helpers, the tab bar, the tabbed assembly, `sidebar_tabbed`, `shown_sidebar_tab` |
+| `crates/herdr-gpui/src/sidebar/tabs.rs` (create) | 1, 2, 3 | `SidebarTab`, tab geometry and label helpers, sort-label helpers, the tab bar, the tabbed assembly, `sidebar_tabbed`, `shown_sidebar_tab`, `TabBounds` |
 | `crates/herdr-gpui/src/sidebar/render/stacked.rs` (create) | 1 | Today's stacked assembly and the shared `new`/`menu` footer line, moved out of `render.rs` |
 | `crates/herdr-gpui/src/sidebar/render.rs` | 1, 2 | List building and the choice of assembly; the reveal loop's hidden and returning list rules; `filtered` for the devices Agents list |
 | `crates/herdr-gpui/src/sidebar.rs` | 1 | `mod tabs;` and the `SidebarTab` re-export |
@@ -56,7 +56,9 @@
 | `crates/herdr-gpui/src/sidebar/render/session_row.rs` | 2 | `session_cell` line-one reserve and the label slot |
 | `crates/herdr-gpui/src/sidebar/render/agent_rows.rs` | 2 | `agent_row` passes the reserve to the first row |
 | `crates/herdr-gpui/src/palette.rs` | 3 | `Palette::forces_spaces` |
+| `crates/herdr-gpui/src/menu/chrome.rs` | 3 | The `menu-overlay` left-click handler selects a clicked tab while the picker forces Spaces |
 | `crates/herdr-gpui/src/window/commands.rs` | 3 | The `Command::WorkspacePicker` branch sets the force |
+| `crates/herdr-gpui/src/window.rs` | 3 | `HerdrWindow::sidebar_tab_bounds` and its initializer |
 | `crates/herdr-gpui/src/sidebar/layout_tests.rs` | 1 | Fixture literal fields, `show_spaces_tab` helper, `old_agent_rows` doc comment, session-row helpers hoisted from `layout_tests/session_rows.rs`, new `mod` lines |
 | `crates/herdr-gpui/src/sidebar/tests/tabs.rs` (create) | 1, 2 | Pure helper tests |
 | `crates/herdr-gpui/src/sidebar/layout_tests/sidebar_tabs.rs` (create) | 1 | Layout, selection, input, footer, split |
@@ -185,7 +187,7 @@
 - [ ] Task 2: The sort label moves into the Agents list
 
 **Files:**
-- Modify: `crates/herdr-gpui/src/sidebar/tabs.rs` (new `sort_label_fits`, `empty_agents_message`; the tabbed Agents list places `agents_sort`)
+- Modify: `crates/herdr-gpui/src/sidebar/tabs.rs` (new `sort_label_fits`, `empty_label_fits`, `empty_agents_message`; the tabbed Agents list places `agents_sort`)
 - Modify: `crates/herdr-gpui/src/sidebar/render/session_row.rs` (`session_cell`: new `line_one_reserve` parameter and the label slot on line one)
 - Modify: `crates/herdr-gpui/src/sidebar/render/agent_rows.rs` (`agent_row`: passes the reserve for the first row only)
 - Modify: `crates/herdr-gpui/src/sidebar/render.rs` (the empty-agents line under Agents)
@@ -198,32 +200,34 @@
 **Interfaces:**
 - Consumes: `SidebarTab`, `HerdrWindow::shown_sidebar_tab`, `HerdrWindow::sidebar_tabbed`, `agents_sort`, `session_cell`, `fit_line_one`, `truncate_end`.
 - Produces:
-  - `pub(super) fn sort_label_fits(columns: usize) -> bool`.
+  - `pub(super) fn sort_label_fits(columns: usize) -> bool`, for a row's text columns.
+  - `pub(super) fn empty_label_fits(columns: usize) -> bool`, for the empty line's columns.
   - `pub(super) fn empty_agents_message(message: &str, label: &str, columns: usize) -> String`.
   - `session_cell` gains `line_one_reserve: usize`, the columns line one leaves free at its right end.
 
 **TDD:** yes, selected new unit and layout behavior; confirm the meaningful failing tests before production changes
 
-**Behavior:** Under Agents in the tabbed layout, the first agent row's line one ends with the existing `agents_sort` element, and only that row's line one gives up `label width + 1` columns, capped at the row's text columns, so `fit_line_one` fits the title and age into `columns.saturating_sub(line_one_reserve)`; the label element is cut with `…` when it is wider than its slot. The label shows only when `sort_label_fits(columns)` holds for the session row's text columns; below that, no label is drawn and line one keeps its full width. The label's width counts the current text: `grouped`, `priority`, or the agent view label. With no agent rows, the first line shows `empty_agents_message` of `no agents`, or `no matching agents` when an agent view hides every agent, followed by the label at the right end, cut against the empty line's own columns `floor(look.content_width(width) / glyph_width(font))`. Whether the label shows on the empty line uses the same session-row text columns as a row would have, so `sort_label_fits` decides for rows and the empty line alike; when it does not fit, the line is drawn as today. `agents_sort` keeps its click, its `save_chrome` call, its muted color for `grouped` and `priority`, and no target while a view is active. Under the Agents tab an agent view label is drawn in `theme.primary()`; the stacked layout keeps it muted. Every subtraction in the helpers saturates. Under Spaces, in the stacked layout, and with the setting off, nothing changes. Every caller of `session_cell` other than the tabbed Agents list's first row passes 0, including the stacked fallback beside the reconnect card. The integration cases below set widths with `view.sidebar_width = Some(w)`, deriving `w` from the session row's `room = content_width - mark_width - column_gap - nest` and `columns = floor(room / glyph_width)` in `session_cell`, and use the helpers Task 1 hoisted.
+**Behavior:** Under Agents in the tabbed layout, the first agent row's line one ends with the existing `agents_sort` element, and only that row's line one gives up `label width + 1` columns, capped at the row's text columns, so `fit_line_one` fits the title and age into `columns.saturating_sub(line_one_reserve)`; the label element is cut with `…` when it is wider than its slot. The label shows only when `sort_label_fits(columns)` holds for the session row's text columns; below that, no label is drawn and line one keeps its full width. The label's width counts the current text: `grouped`, `priority`, or the agent view label. With no agent rows, the first line shows `empty_agents_message` of `no agents`, or `no matching agents` when an agent view hides every agent, followed by the label at the right end, cut against the empty line's columns `E = floor(look.content_width(width) / glyph_width(font))`. The label shows on the empty line when `empty_label_fits(E)` holds; when it does not, the line is drawn as today. Both thresholds translate myherdr's single rule, a list at least 22 columns wide (`sort_toggle_fits`): a myherdr list `W` columns wide has row text columns `R = W - 5` and empty-line columns `E = W - 2` (design, Sort label), so 22 becomes `R >= 17` and `E >= 20`. `agents_sort` keeps its click, its `save_chrome` call, its muted color for `grouped` and `priority`, and no target while a view is active. Under the Agents tab an agent view label is drawn in `theme.primary()`; the stacked layout keeps it muted. Every subtraction in the helpers saturates. Under Spaces, in the stacked layout, and with the setting off, nothing changes. Every caller of `session_cell` other than the tabbed Agents list's first row passes 0, including the stacked fallback beside the reconnect card. The integration cases below set widths with `view.sidebar_width = Some(w)`, choosing the smallest `w` that gives the named column count: for a row, `R = floor((look.content_width(w) - mark_width - column_gap - nest) / glyph_width(font))` as `session_cell` computes it; for the empty line, `E = floor(look.content_width(w) / glyph_width(font))`. They use the helpers Task 1 hoisted. The myherdr examples translate as: scenario 30's 18 columns → `R = 13`; myherdr's threshold 22 → `R = 17` and `E = 20`; scenario 19's 26 → `E = 24`; scenario 32's 23, 26, 27 → `E = 21, 24, 25`; one column below the threshold, 21 → `E = 19`. Each `E` equals the length of scenario 32's expected line (14 + 1 + 6 = 21, 17 + 1 + 6 = 24, 18 + 1 + 6 = 25).
 
 **Exact values:**
-- Fit threshold: 17 text columns (`columns >= 17`).
+- Fit thresholds: a row's text columns `>= 17`; the empty line's columns `>= 20`.
 - Empty messages: `no agents`, `no matching agents`.
 - Agent view label color under the Agents tab: `theme.primary()`, with debug selector `agents-sort-accent` on the label when drawn in it.
 - `empty_agents_message`: `message` when `width(message) + 1 + width(label) <= columns`, otherwise `truncate_end(message, columns.saturating_sub(width(label) + 1))`.
 
 **Test cases:**
 - `the_sort_label_fits_from_seventeen_columns` [unit]: `sort_label_fits(16)` → false; `sort_label_fits(17)` → true
-- `an_empty_message_stays_whole_when_both_fit` [unit]: `("no agents", "grouped", 30)` → `no agents`; `("no matching agents", "review", 25)` → `no matching agents`
-- `an_empty_message_is_cut_so_one_space_separates_the_label` [unit]: `("no matching agents", "review", 24)` → `no matching agen…`; `("no matching agents", "review", 21)` → `no matching a…`
+- `the_empty_line_label_fits_from_twenty_columns` [unit]: `empty_label_fits(19)` → false; `empty_label_fits(20)` → true
+- `an_empty_message_stays_whole_when_both_fit` [unit]: `("no agents", "grouped", 24)` → `no agents` (scenario 19); `("no matching agents", "review", 25)` → `no matching agents` (scenario 32 at 27)
+- `an_empty_message_is_cut_so_one_space_separates_the_label` [unit]: `("no matching agents", "review", 24)` → `no matching agen…` (scenario 32 at 26); `("no matching agents", "review", 21)` → `no matching a…` (scenario 32 at 23)
 - `a_label_as_wide_as_the_line_leaves_no_message` [unit]: `("no agents", "a-very-long-view-label", 20)` → empty string, with no panic
-- `the_label_ends_the_first_agent_rows_first_line` [integration]: tabbed, Agents, 24 text columns, first agent's title 30 characters long with an age, sort `grouped` and then `priority` → `agents-sort` lies inside the first `row-agent-*` row's line one at its right content edge; the first row's title and age end left of `agents-sort`; the second row's title uses the full width
+- `the_label_ends_the_first_agent_rows_first_line` [integration]: tabbed, Agents, first agent's title 30 characters long with an age; at `R = 24` and at `R = 17` (myherdr's 22), sort `grouped` and then `priority` → `agents-sort` lies inside the first `row-agent-*` row's line one at its right content edge; the first row's title and age end left of `agents-sort`; the second row's title uses the full width
 - `clicking_the_label_switches_the_sort` [integration]: the seed of `the_agents_header_toggles_between_grouped_and_priority` (a Blocked agent and distinct `state_change_seq`, so the two orders differ), tabbed; click `agents-sort` → `view.agent_sort` is priority, the label reads `priority` and still sits in the first row's line one
 - `spaces_draws_no_sort_label` [integration]: Spaces selected → no `agents-sort`; a click at the right end of the first list line → `view.agent_sort` unchanged
-- `a_narrow_list_drops_the_label_and_keeps_the_age_whole` [integration]: width giving 16 text columns and a first row with an age → no `agents-sort`; the age text is whole; a click at the right end of the first line → `view.agent_sort` unchanged
-- `an_empty_agents_list_shows_its_message_and_the_label` [integration]: no agents, no view, 17 or more columns → the first line reads `no agents` and `agents-sort` sits at its right end
-- `the_empty_line_uses_the_row_columns_to_decide` [integration]: no agents, view `review` hiding every agent, width giving 16 session-row text columns and 17 or more empty-line columns → no `agents-sort`, and the line reads `no matching agents` whole
-- `an_agent_view_label_replaces_the_toggle_without_a_target` [integration]: view `review` active, no matching agent, empty-line columns 24 → the first line reads `no matching agen…` then `review`, and `agents-sort-accent` exists; clicking `agents-sort` → `view.agent_sort` unchanged
+- `a_narrow_list_drops_the_label_and_keeps_the_age_whole` [integration]: scenario 30 at `R = 13`, the first row's activity 12 minutes before the `AgeClock` now so its age reads `12m` → no `agents-sort`; the text `12m` is drawn whole; a click at the right end of the first line → `view.agent_sort` unchanged
+- `an_empty_agents_list_shows_its_message_and_the_label` [integration]: scenario 19, no agents, no view, `E = 24` → the first line reads `no agents` and `agents-sort` sits at its right end
+- `the_empty_line_drops_the_label_below_twenty_columns` [integration]: no agents, view `review` hiding every agent, `E = 19` (myherdr 21) → no `agents-sort`, and the line reads `no matching agents` whole
+- `an_agent_view_label_replaces_the_toggle_without_a_target` [integration]: scenario 32, view `review` active, no matching agent; at `E = 21`, `24`, `25` → the first line's message, one column, and the label read `no matching a… review`, `no matching agen… review`, `no matching agents review`, with `review` ending at the line's right content edge and `agents-sort-accent` present; clicking `agents-sort` → `view.agent_sort` unchanged
 - `a_long_view_label_fits_its_row` [integration]: view label of 40 characters, one matching agent, text columns 20 → the first row draws without panic, `agents-sort` lies inside the row's line one, and its text ends in `…`
 - `the_stacked_fallback_reserves_no_room` [integration] in `endpoint/lifecycle_tests/sidebar_tabs_fallback.rs`: the reconnect outage of Task 1's fallback test with the setting on, so the stacked layout draws session rows, first agent's title 30 characters long → the first row's title text ends at the row's right content edge less its age, as wide as the second row allows, and no `agents-sort` lies inside that row
 - `the_sort_toggle_keeps_the_saved_split` [integration]: `sidebar_split = Some(0.3)`, tabbed, click `agents-sort` → `sidebar_split == Some(0.3)` and `sidebar_split_modified` false (the fixture has no preferences store, so `save_chrome` writes nothing)
@@ -238,17 +242,23 @@
 **Files:**
 - Modify: `crates/herdr-gpui/src/palette.rs` (`Palette` field `forces_spaces`, false where `open_palette` builds the palette)
 - Modify: `crates/herdr-gpui/src/window/commands.rs` (`HerdrWindow::command`, the `Command::WorkspacePicker` branch)
-- Modify: `crates/herdr-gpui/src/sidebar/tabs.rs` (`HerdrWindow::shown_sidebar_tab` reads the force)
+- Modify: `crates/herdr-gpui/src/sidebar/tabs.rs` (`HerdrWindow::shown_sidebar_tab` reads the force; new `TabBounds`; the tab bar records each tab's bounds at prepaint)
+- Modify: `crates/herdr-gpui/src/menu/chrome.rs` (the `menu-overlay` left `on_mouse_down` handler)
+- Modify: `crates/herdr-gpui/src/window.rs` (`HerdrWindow` field `sidebar_tab_bounds`, its initializer in the constructor)
+- Modify: `crates/herdr-gpui/src/sidebar/layout_tests.rs` (the `sidebar_tab_bounds` field in the `fixture_window` literal)
 - Modify: `crates/herdr-gpui/src/sidebar/layout_tests.rs` (`mod sidebar_tabs_navigate;`)
 - Test: `crates/herdr-gpui/src/sidebar/layout_tests/sidebar_tabs_navigate.rs`
 
 **Interfaces:**
-- Consumes: `SidebarTab`, `HerdrWindow::shown_sidebar_tab`, `HerdrWindow::open_palette`, `MenuState::reset`, `Command::WorkspacePicker`.
-- Produces: `Palette::forces_spaces: bool`, a `pub(crate)` field (the other `Palette` fields stay private), written from `window/commands.rs` and read by `shown_sidebar_tab` through `self.menu.palette`.
+- Consumes: `SidebarTab`, `HerdrWindow::shown_sidebar_tab`, `HerdrWindow::open_palette`, `HerdrWindow::dismiss_menu`, `MenuState::reset`, `Command::WorkspacePicker`, `show_spaces_tab`.
+- Produces:
+  - `Palette::forces_spaces: bool`, a `pub(crate)` field (the other `Palette` fields stay private), written from `window/commands.rs` and read by `shown_sidebar_tab` and the overlay handler through `self.menu.palette`.
+  - `pub(crate) struct TabBounds { agents: Option<Bounds<Pixels>>, spaces: Option<Bounds<Pixels>> }`, deriving `Clone, Copy, Debug, Default, PartialEq`, with `pub(crate) fn hit(&self, point: Point<Pixels>) -> Option<SidebarTab>`.
+  - `HerdrWindow::sidebar_tab_bounds: Rc<Cell<TabBounds>>`, written by the tab bar at prepaint and reset to `TabBounds::default()` by `render_sidebar` when it draws no tab bar.
 
 **TDD:** yes, selected new layout behavior; confirm the meaningful failing tests before production changes
 
-**Behavior:** In the `Command::WorkspacePicker` branch, after `open_palette` has opened the palette, set its `forces_spaces` to true. `open_palette` calls `open_menu`, which calls `MenuState::reset`, so setting it before would be lost. `shown_sidebar_tab` returns `Spaces` while `self.menu.palette` holds a palette with `forces_spaces`, otherwise `sidebar_tab`. The selected tab never changes. Every close goes through `MenuState::reset`, which takes the palette, so the force ends with it. `Command::Palette`, the menu's `workspaces` item, a resumed palette, and an in-place filter change do not set the force. The palette overlay is unchanged: a click on a tab while the picker is open only closes the picker (design Open item 1).
+**Behavior:** In the `Command::WorkspacePicker` branch, after `open_palette` has opened the palette, set its `forces_spaces` to true. `open_palette` calls `open_menu`, which calls `MenuState::reset`, so setting it before would be lost. `shown_sidebar_tab` returns `Spaces` while `self.menu.palette` holds a palette with `forces_spaces`, otherwise `sidebar_tab`. Opening or closing the picker never changes the selected tab; only a tab click does. Every close goes through `MenuState::reset`, which takes the palette, so the force ends with it. `Command::Palette`, the menu's `workspaces` item, a resumed palette, and an in-place filter change do not set the force. In the `menu-overlay` left `on_mouse_down` handler, read the event position before dismissing. When the open palette has `forces_spaces` and `sidebar_tab_bounds.get().hit(position)` is a tab, call `dismiss_menu`, then set `sidebar_tab` to that tab and notify. In every other case the handler dismisses only, as today. It always stops propagation, so the overlay keeps occluding every row and the terminal. The rail and the stacked layout draw no tab bar, so they leave no bounds to hit.
 
 **Test cases:**
 - `the_workspace_picker_shows_spaces_until_it_closes` [integration]: Agents selected, run `Command::WorkspacePicker` → `spaces-scroll` shown, `agents-scroll` absent, `view.sidebar_tab == SidebarTab::Agents`; press Escape → `agents-scroll` shown
@@ -257,7 +267,10 @@
 - `the_workspaces_menu_item_does_not_force_spaces` [integration]: Agents selected, open the global menu and choose its `workspaces` item (`open_palette` with the Navigation filter) → the palette is open and `agents-scroll` shown
 - `the_workspace_picker_forces_spaces_in_the_devices_layout` [integration]: `devices_window`, Agents selected, run `Command::WorkspacePicker` → the device tree's `host-*` rows show and `agents-scroll` is absent
 - `choosing_a_workspace_in_the_picker_restores_agents` [integration]: `two_endpoint_window`, Agents selected, picker open, choose with Enter a Go row on the endpoint that is not selected (the fixture's selected endpoint has no ready connection, so a row on it keeps the picker open with `PaletteConnectionNotReady`; `palette/tests/notes.rs` chooses a row the same way) → the palette is closed and `agents-scroll` shown
-- `a_tab_click_during_the_picker_closes_it_and_keeps_the_selection` [integration]: Agents selected, picker open, click `sidebar-tab-spaces`'s center → `view.menu.page` is `None`, `view.sidebar_tab == SidebarTab::Agents`, `agents-scroll` shown; then reopen the picker and click `sidebar-tab-agents`'s center → the palette is closed, Agents shown and selected
+- `clicking_spaces_during_the_picker_selects_spaces` [integration]: Agents selected, picker open, click `sidebar-tab-spaces`'s center → `view.menu.page` is `None`, `view.sidebar_tab == SidebarTab::Spaces`, `spaces-scroll` shown after the palette closes
+- `clicking_agents_during_the_picker_selects_agents` [integration]: Spaces selected with `show_spaces_tab`, picker open, click `sidebar-tab-agents`'s center → the palette is closed, `view.sidebar_tab == SidebarTab::Agents`, `agents-scroll` shown (scenario 35's result, here from the other tab)
+- `a_tab_click_during_another_palette_only_dismisses` [integration]: Agents selected, `Command::Palette` open, click `sidebar-tab-spaces`'s center → the palette is closed, `view.sidebar_tab == SidebarTab::Agents`, `agents-scroll` shown
+- `a_click_on_a_hidden_row_during_the_picker_does_nothing_else` [integration]: Agents selected; record the first `row-agent-*` center and a Spaces workspace row's center from draws before the picker opens; picker open, click the agent row's position → palette closed, `view.pending_navigation.is_none()`, `view.menu.page` is `None` with no pane menu open, `view.sidebar_tab == SidebarTab::Agents`; reopen the picker and click the workspace row's position → the same, and the focused workspace in `view.live.snapshot` unchanged
 
 **Verify:** `TEST_ENV cargo test --locked -p herdr-gpui sidebar_tabs_navigate`, then `TEST_ENV just ci` and the coverage command.
 
@@ -293,3 +306,7 @@ Native checks need an active desktop. Record each procedure as not run when none
    Observe: the Go To palette opens, and the sidebar shows the workspace list.
 2. Press Escape.
    Observe: the palette closes and the sidebar shows the agent list again, with `Agents` selected.
+3. Open `Go To` again, then click the `Spaces` tab in the sidebar.
+   Observe: the palette closes, and the sidebar shows the workspace list with `Spaces` selected.
+4. Click `Agents`.
+   Observe: the agent list returns with `Agents` selected.
