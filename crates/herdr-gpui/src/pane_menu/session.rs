@@ -16,7 +16,7 @@ use crate::{
     state::{LiveState, SessionOutcome},
 };
 use gpui::{prelude::*, *};
-use herdr_client::Method;
+use herdr_client::{Method, protocol::AgentStatus};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
@@ -37,6 +37,9 @@ pub(crate) struct SessionTarget {
     pub(crate) endpoint: String,
     pub(crate) boot: String,
     pub(crate) pane: String,
+    /// Whether the row's agent was idle when the menu opened and its host
+    /// accepts `pane.mark_unread`.
+    pub(crate) can_mark_unread: bool,
 }
 
 pub(crate) struct SessionMenu {
@@ -48,20 +51,27 @@ pub(crate) struct SessionMenu {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SessionItem {
     Rename,
+    MarkUnread,
 }
 
 impl SessionItem {
     pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Rename => "Rename session...",
+            Self::MarkUnread => "Mark as unread",
         }
     }
 }
 
 /// The items the menu lists for `target`, in order. The render, the keys, and
 /// the tests all read this one list.
-pub(crate) fn session_items(_target: &SessionTarget) -> impl Iterator<Item = SessionItem> {
-    [SessionItem::Rename].into_iter()
+pub(crate) fn session_items(target: &SessionTarget) -> impl Iterator<Item = SessionItem> {
+    [
+        Some(SessionItem::Rename),
+        target.can_mark_unread.then_some(SessionItem::MarkUnread),
+    ]
+    .into_iter()
+    .flatten()
 }
 
 /// How a problem is told apart from an earlier one of the same sort.
@@ -317,10 +327,16 @@ impl HerdrWindow {
         else {
             return;
         };
+        let is_idle = snapshot
+            .agents
+            .iter()
+            .any(|agent| agent.pane_id == pane && agent.agent_status == AgentStatus::Idle);
         let target = SessionTarget {
             endpoint: self.endpoints[index].id.clone(),
             boot: snapshot.boot_id.clone(),
             pane: pane.into(),
+            can_mark_unread: is_idle
+                && Method::PaneMarkUnread.advertised_in(&self.endpoint_state(index).methods),
         };
         if !self.open_menu(window, cx) {
             return;
@@ -386,6 +402,13 @@ impl HerdrWindow {
                 }
                 self.menu.page = Some(Page::RenameSession);
                 cx.notify();
+            }
+            SessionItem::MarkUnread => {
+                // Closed first, so the notice a refusal shows is not held back
+                // by the open menu.
+                self.dismiss_menu(window, cx);
+                let params = json!({"pane_id": target.pane});
+                self.session_request(&target, Method::PaneMarkUnread, params, cx);
             }
         }
     }

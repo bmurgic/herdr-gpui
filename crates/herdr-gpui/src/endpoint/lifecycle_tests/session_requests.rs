@@ -1,4 +1,4 @@
-//! The agent-row menu's Rename session over a real connection: the request the
+//! The agent-row menu's session actions over a real connection: the request the
 //! daemon reads, the notice its reply becomes, and what a reconnect keeps.
 use super::*;
 use crate::state::SessionOutcome;
@@ -11,12 +11,12 @@ fn snapshot_with_agent() -> ClientShellSnapshotV2 {
     snapshot
 }
 
-/// The next `pane.rename` request the server reads.
-fn rename_request(server: &mut Server) -> serde_json::Value {
+/// The next `method` request the server reads.
+fn session_request(server: &mut Server, method: &str) -> serde_json::Value {
     loop {
         if let ClientMessage::ClientShellEndpointRequest { request, .. } = server.receive() {
             let request: serde_json::Value = serde_json::from_str(&request).unwrap();
-            if request["method"] == "pane.rename" {
+            if request["method"] == method {
                 return request;
             }
         }
@@ -80,7 +80,7 @@ fn rename_enter_sends_to_the_daemon_and_a_late_refusal_shows_one_notice(
         assert!(view.endpoints.iter().all(|e| e.toasts.entries.is_empty()));
     });
 
-    let request = rename_request(&mut server);
+    let request = session_request(&mut server, "pane.rename");
     assert_eq!(
         request["params"],
         serde_json::json!({"pane_id": "p1", "label": "ci"})
@@ -141,4 +141,32 @@ fn a_reconnect_keeps_the_interrupted_request_for_the_window(cx: &mut gpui::TestA
             .collect();
         assert_eq!(titles, ["Action interrupted"]);
     });
+}
+
+#[gpui::test]
+fn mark_unread_sends_to_the_daemon(cx: &mut gpui::TestAppContext) {
+    let (endpoint, mut server) = connected_endpoint_v2(
+        "ssh:remote",
+        &[Method::ClientShellSurfaceSet, Method::PaneMarkUnread],
+        snapshot_with_agent(),
+    );
+    let (view, cx) = window_drawn_over(cx, endpoint);
+    cx.update(|_, cx| crate::bind_keys(cx));
+    view.update(cx, |view, cx| {
+        project_until(view, cx, "the agent", |view| {
+            view.live.snapshot_v2 && view.live.snapshot.is_some()
+        });
+    });
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            view.open_agent_menu("ssh:remote", "p1", point(px(40.), px(40.)), window, cx)
+        });
+    });
+    draw(cx);
+    let item = cx.debug_bounds("session-menu-1").unwrap().center();
+    cx.simulate_click(item, gpui::Modifiers::default());
+    view.read_with(cx, |view, _| assert_eq!(view.menu.page, None));
+
+    let request = session_request(&mut server, "pane.mark_unread");
+    assert_eq!(request["params"], serde_json::json!({"pane_id": "p1"}));
 }

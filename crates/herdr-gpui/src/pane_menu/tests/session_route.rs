@@ -12,6 +12,7 @@ fn target(endpoint: &str, boot: &str) -> SessionTarget {
         endpoint: endpoint.into(),
         boot: boot.into(),
         pane: "p0".into(),
+        can_mark_unread: false,
     }
 }
 

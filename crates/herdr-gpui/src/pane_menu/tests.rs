@@ -5,6 +5,7 @@ use herdr_client::ClientEvent;
 use std::sync::Arc;
 
 pub(crate) mod close_option;
+mod mark_unread;
 mod menu_width;
 mod session_menu;
 mod session_route;

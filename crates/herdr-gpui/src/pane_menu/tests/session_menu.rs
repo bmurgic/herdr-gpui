@@ -10,7 +10,7 @@ use gpui::VisualTestContext;
 
 /// Two connected hosts that accept session actions, `local` shown and
 /// `ssh:test` not. Neither has a connection handle or advertises a method.
-fn v2_window(cx: &mut TestAppContext) -> (Entity<HerdrWindow>, &mut VisualTestContext) {
+pub(super) fn v2_window(cx: &mut TestAppContext) -> (Entity<HerdrWindow>, &mut VisualTestContext) {
     let (view, cx) = two_endpoint_window(cx);
     cx.update(|_, cx| crate::bind_keys(cx));
     view.update(cx, |view, _| {
@@ -22,11 +22,11 @@ fn v2_window(cx: &mut TestAppContext) -> (Entity<HerdrWindow>, &mut VisualTestCo
     (view, cx)
 }
 
-fn redraw(cx: &mut VisualTestContext) {
+pub(super) fn redraw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| full_draw(window, cx).clear(cx));
 }
 
-fn open(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, endpoint: &str) {
+pub(super) fn open(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, endpoint: &str) {
     cx.update(|window, cx| {
         view.update(cx, |view, cx| {
             view.open_agent_menu(endpoint, "p0", point(px(40.), px(40.)), window, cx)
@@ -234,6 +234,7 @@ fn a_request_for_a_changed_boot_or_a_dropped_host_is_refused(cx: &mut TestAppCon
         endpoint: endpoint.into(),
         boot: boot.into(),
         pane: "p0".into(),
+        can_mark_unread: false,
     };
     let send = |view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, target: SessionTarget| {
         view.update(cx, |view, cx| {

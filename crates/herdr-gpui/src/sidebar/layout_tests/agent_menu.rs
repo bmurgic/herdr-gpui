@@ -70,6 +70,7 @@ fn agent_rows_on_v2_hosts_open_the_session_menu_without_switching_hosts(
                     endpoint: endpoint.into(),
                     boot: "layout-test".into(),
                     pane: "p0".into(),
+                    can_mark_unread: false,
                 }),
                 "{row}"
             );
