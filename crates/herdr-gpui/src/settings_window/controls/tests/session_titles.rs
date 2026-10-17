@@ -181,6 +181,33 @@ fn session_rows_save_their_edits(cx: &mut TestAppContext) {
     ));
 }
 
+/// Every row starts away from its default, so a card that drew the defaults
+/// instead of the loaded config would save the same value the file holds and
+/// leave the user unable to switch it back.
+#[cfg(unix)]
+#[gpui::test]
+fn session_rows_save_the_opposite_of_the_loaded_values(cx: &mut TestAppContext) {
+    let config =
+        "[ui]\nsession_sidebar = false\n[session_titles]\nenabled = false\nagent = \"codex\"\n";
+    let (_, view, cx) = sessions_fixture(cx, Some(config), &[Host::Local { titles: true }]);
+    let (io, edits) = recording_shared(config, false);
+    view.update(cx, |view, _| view.shared_io = Some(io));
+    draw(cx);
+    click(cx, "settings-session-sidebar");
+    click(cx, "settings-session-titles");
+    // The selected agent saves nothing, even with the other saves finished.
+    click(cx, "settings-title-agent-codex");
+    click(cx, "settings-title-agent-claude");
+    assert!(matches!(
+        edits.lock().unwrap().as_slice(),
+        [
+            Edit::SessionSidebar(true),
+            Edit::SessionTitlesEnabled(true),
+            Edit::TitleAgent(TitleAgent::Claude)
+        ]
+    ));
+}
+
 #[cfg(unix)]
 #[gpui::test]
 fn failed_session_save_reports_in_the_footer(cx: &mut TestAppContext) {
