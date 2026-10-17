@@ -271,6 +271,7 @@ Response { request_id: String, response: serde_json::Value }
 CommandRejected { request_id: Option<String>, reason: Error }
 Message(ServerMessage)
 VersionMismatch(VersionMismatch)
+RequestTimedOut { request_id: String }
 Disconnected { reason: String }
 ```
 
@@ -284,6 +285,10 @@ capability, or, over SSH or WSL, has no installed Herdr able to serve this clien
 version, stripped of controls and capped at 64 characters, when it gave one.
 `Error::version_mismatch` applies the same classification to an error. Other
 failures, including an SSH host with no Herdr at all, are not mismatches.
+
+`RequestTimedOut` precedes the `Disconnected` of a connection whose in-flight
+request went unanswered past its deadline. It names the request, which is not
+replayed.
 
 The receiver is `crossbeam_channel::Receiver`, re-exported as `Receiver`.
 Responses preserve either the endpoint's `{id,result}` or `{id,error}` object;

@@ -27,6 +27,7 @@ use std::{
 };
 
 mod commands;
+mod ending_events;
 mod errors;
 mod framing;
 mod handshake;

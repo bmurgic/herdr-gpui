@@ -38,6 +38,12 @@ pub enum ClientEvent {
     /// The handshake was refused because one side must be updated. Sent
     /// just before the `Disconnected` that ends the connection.
     VersionMismatch(VersionMismatch),
+    /// The in-flight request got no answer in time and is not replayed. Sent
+    /// just before the `Disconnected` that ends the connection, so the owner
+    /// can tell which request never finished.
+    RequestTimedOut {
+        request_id: String,
+    },
     Disconnected {
         reason: String,
         /// Why `ssh` refused the bridge, when the connection never got past it.

@@ -595,6 +595,9 @@ impl LiveState {
             ClientEvent::SurfaceImages(images) => self.surface_images = images,
             // The `Disconnected` that follows carries the reason text.
             ClientEvent::VersionMismatch(mismatch) => self.version_mismatch = Some(mismatch),
+            // Recorded by the agent-row menu; the `Disconnected` that follows
+            // already ends the connection.
+            ClientEvent::RequestTimedOut { .. } => {}
             ClientEvent::Disconnected { reason, ssh } => {
                 self.ssh_failure = ssh;
                 self.settings_reload = false;

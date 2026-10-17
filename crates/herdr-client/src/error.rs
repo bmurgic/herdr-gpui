@@ -101,8 +101,10 @@ pub enum Error {
     HealthTimeout,
     #[error("handshake/snapshot timed out")]
     HandshakeTimeout,
+    /// A request went unanswered past its deadline. `request_id` names it, so
+    /// the owner can tell which in-flight command was not replayed.
     #[error("endpoint request timed out; not replayed")]
-    RequestTimeout,
+    RequestTimeout { request_id: String },
     #[error("expected stable endpoint welcome")]
     ExpectedWelcome,
     /// The daemon answered the endpoint hello with a pre-endpoint welcome.
