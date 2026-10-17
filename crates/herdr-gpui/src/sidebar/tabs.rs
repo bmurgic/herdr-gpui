@@ -132,11 +132,16 @@ impl HerdrWindow {
                         .debug_selector(|| format!("sidebar-tab-label-{key}"))
                         .child(label_text(&tab_label(label, columns))),
                 );
-            if selected {
-                selected_marker(element, key)
-            } else {
-                element
-            }
+            // The fill is invisible to debug bounds, so the selected tab
+            // carries a layer that tests can find.
+            element.when(selected, |tab| {
+                tab.child(
+                    div()
+                        .absolute()
+                        .size_full()
+                        .debug_selector(|| format!("sidebar-tab-selected-{key}")),
+                )
+            })
         };
         div()
             .debug_selector(|| "sidebar-tabs".into())
@@ -158,21 +163,4 @@ impl HerdrWindow {
         }
         cx.notify();
     }
-}
-
-/// Marks the selected tab, whose fill debug bounds cannot see. The marker is
-/// a separate layer because a div keeps only one debug selector.
-#[cfg(test)]
-fn selected_marker(tab: Stateful<Div>, key: &'static str) -> Stateful<Div> {
-    tab.child(
-        div()
-            .absolute()
-            .size_full()
-            .debug_selector(|| format!("sidebar-tab-selected-{key}")),
-    )
-}
-
-#[cfg(not(test))]
-fn selected_marker(tab: Stateful<Div>, _key: &'static str) -> Stateful<Div> {
-    tab
 }

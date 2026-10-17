@@ -105,19 +105,9 @@ impl HerdrWindow {
         // A plugin view hid every agent, rather than there being none. Only a
         // host the panel lists can make the view a filtered one.
         let filtered = self.config.show_agents
-            && self.endpoints.iter().enumerate().any(|(index, endpoint)| {
-                let live = if index == self.selected_endpoint {
-                    &self.live
-                } else {
-                    &endpoint.live
-                };
-                endpoint.enabled
-                    && self.device_visible(&endpoint.id)
-                    && live
-                        .snapshot
-                        .as_ref()
-                        .is_some_and(|snapshot| snapshot.agent_view_label.is_some())
-            });
+            && self
+                .listed_hosts()
+                .any(|(_, snapshot)| snapshot.agent_view_label.is_some());
         // Child positions of the highlighted rows, for the one-time reveal below.
         // Agent rows are counted by `agent_count`, which indexes that list.
         let mut space_rows = 0usize;
@@ -561,7 +551,11 @@ impl HerdrWindow {
                 };
             }
         }
-        if agents_panel {
+        if tabbed && spaces_shown {
+            // The Agents list is out of the tree; only its highlighted row
+            // is needed, for the reveal when the list returns.
+            highlighted[1] = self.focused_agent_row();
+        } else if agents_panel {
             (agents, agent_count, highlighted[1]) =
                 self.append_agent_rows(agents, indicators, look, width, cx);
         }

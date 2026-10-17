@@ -74,13 +74,29 @@ impl HerdrWindow {
             else {
                 continue;
             };
-            if selected && agent.focused {
+            if self.is_focused_agent(index, agent) {
                 focused = Some(count);
             }
             count += 1;
             list = list.child(row);
         }
         (list, count, focused)
+    }
+
+    /// Whether `agent`, listed for host `index`, is the selected host's focused
+    /// agent, the one the list highlights and reveals.
+    fn is_focused_agent(&self, index: usize, agent: &ClientShellAgent) -> bool {
+        index == self.selected_endpoint && agent.focused
+    }
+
+    /// Where the highlighted agent sits in the list `append_agent_rows` builds,
+    /// found without building it. Every row of a session sidebar is built, so
+    /// the position among `panel_agents` is the row's position; the tabbed
+    /// layout, which needs this, is a session sidebar.
+    pub(super) fn focused_agent_row(&self) -> Option<usize> {
+        self.panel_agents()
+            .iter()
+            .rposition(|(index, agent)| self.is_focused_agent(*index, agent))
     }
 
     /// Whether the agents' rows follow a configured `[sidebar_layout.agents]`.
