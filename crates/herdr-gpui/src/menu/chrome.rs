@@ -783,12 +783,11 @@ impl HerdrWindow {
                     // The picker shows Spaces over the selected tab, and the
                     // overlay occludes the tab bar, so a press on a tab picks
                     // that tab as the picker closes.
-                    let tab = this
-                        .menu
-                        .palette
-                        .as_ref()
-                        .filter(|palette| palette.forces_spaces)
-                        .and_then(|_| this.sidebar_tab_bounds.get().hit(event.position));
+                    let tab = if this.picker_forces_spaces() {
+                        this.sidebar_tab_bounds.get().hit(event.position)
+                    } else {
+                        None
+                    };
                     this.dismiss_menu(window, cx);
                     if let Some(tab) = tab {
                         this.select_sidebar_tab(tab, window, cx);

@@ -35,19 +35,33 @@ impl HerdrWindow {
     }
 }
 
-/// The agents list's label. It is cut with an ellipsis to `max_columns`
-/// when given, and an agent view label is drawn in `view_color` when given
-/// (muted otherwise), with `agents-sort-accent` marking that it was.
+/// Where the agents list's label is drawn, which decides how wide it may be
+/// and whether an agent view label stands out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SortLabelPlace {
+    /// The stacked layout's agents header: whole and muted.
+    Header,
+    /// The end of the tabbed Agents list's first line: cut with an ellipsis
+    /// to `columns`, and an agent view label is drawn in the primary color.
+    FirstLine { columns: usize },
+}
+
+/// The agents list's label, drawn for `place`. `agents-sort-accent` marks
+/// an agent view label drawn in the primary color.
 pub(super) fn agents_sort(
     window: &HerdrWindow,
     cx: &mut Context<HerdrWindow>,
-    max_columns: Option<usize>,
-    view_color: Option<u32>,
+    place: SortLabelPlace,
 ) -> Stateful<Div> {
     let theme = &window.theme;
     let SortLabel { text, is_view } = window.sort_label();
-    let accent = view_color.filter(|_| is_view);
-    let shown = max_columns.map_or_else(|| text.clone(), |columns| truncate_end(&text, columns));
+    let (shown, accent) = match place {
+        SortLabelPlace::Header => (text, None),
+        SortLabelPlace::FirstLine { columns } => (
+            truncate_end(&text, columns),
+            is_view.then(|| theme.primary()),
+        ),
+    };
     div()
         .id("agents-sort")
         .debug_selector(|| "agents-sort".into())

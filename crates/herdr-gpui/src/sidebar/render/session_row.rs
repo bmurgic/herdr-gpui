@@ -4,7 +4,7 @@
 use crate::{
     HerdrWindow,
     sidebar::{
-        agents::{agents_sort, status_indicator},
+        agents::{SortLabelPlace, agents_sort, status_indicator},
         cell::{RowContext, RowState},
         glyph_width, label_text, line_height,
         row::{RowKind, row_text},
@@ -64,8 +64,7 @@ impl HerdrWindow {
         };
         let session = SessionRow::new(snapshot, agent, machine, age.carries_activity);
 
-        // The text column starts past the status mark, as Herdr's own row's
-        // does, and every line fits the room it leaves.
+        // Every line fits the text column `text_room` measures.
         let column_gap = look.density.gap();
         let (room, columns) = text_room(row_cx);
         let line = line_height(font);
@@ -109,7 +108,14 @@ impl HerdrWindow {
                 .flex()
                 .child(line_one)
                 .child(
-                    agents_sort(self, cx, Some(line_one_reserve), Some(theme.primary())).ml_auto(),
+                    agents_sort(
+                        self,
+                        cx,
+                        SortLabelPlace::FirstLine {
+                            columns: line_one_reserve,
+                        },
+                    )
+                    .ml_auto(),
                 )
         };
         let column = div()

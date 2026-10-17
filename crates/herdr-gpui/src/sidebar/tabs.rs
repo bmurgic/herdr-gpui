@@ -1,14 +1,17 @@
 //! The sidebar's Agents and Spaces tabs.
 
 use super::{
-    agents::agents_sort,
+    agents::{SortLabelPlace, agents_sort},
     glyph_width, label_text,
     layout::SidebarLook,
     line_height,
     render::{Lists, spaces_body},
     session_text::truncate_end,
 };
-use crate::{HerdrWindow, config::Theme};
+use crate::{
+    HerdrWindow,
+    config::{FontConfig, Theme},
+};
 use gpui::{prelude::*, *};
 use unicode_width::UnicodeWidthStr;
 
@@ -91,6 +94,13 @@ pub(super) fn empty_agents_message(message: &str, label: &str, columns: usize) -
     truncate_end(message, columns.saturating_sub(beside_label))
 }
 
+/// The whole glyph columns of the sidebar's content, `width` wide, in `font`.
+fn content_columns(look: SidebarLook, width: f32, font: &FontConfig) -> usize {
+    (look.content_width(width) / glyph_width(font))
+        .floor()
+        .max(0.) as usize
+}
+
 /// Background, text color, and weight of a tab. They are the terminal tab
 /// strip's focused and unselected colors; `HerdrWindow::tab_colors` also
 /// depends on a split group, which means nothing in the sidebar.
@@ -137,9 +147,7 @@ impl HerdrWindow {
         } else {
             "no agents"
         };
-        let columns = (look.content_width(width) / glyph_width(&self.config.sidebar))
-            .floor()
-            .max(0.) as usize;
+        let columns = content_columns(look, width, &self.config.sidebar);
         if !tabbed || !empty_label_fits(columns) {
             return div()
                 .px(px(look.content_x()))
@@ -159,18 +167,22 @@ impl HerdrWindow {
                     .truncate()
                     .when(!message.is_empty(), |line| line.child(label_text(&message))),
             )
-            .child(agents_sort(self, cx, Some(columns), Some(self.theme.primary())).ml_auto())
+            .child(agents_sort(self, cx, SortLabelPlace::FirstLine { columns }).ml_auto())
+    }
+
+    /// Whether the workspace picker is open, which shows Spaces whichever
+    /// tab is selected.
+    pub(crate) fn picker_forces_spaces(&self) -> bool {
+        self.menu
+            .palette
+            .as_ref()
+            .is_some_and(|palette| palette.forces_spaces)
     }
 
     /// The list the sidebar builds: the selected tab, or Spaces while the
     /// workspace picker is open.
     pub(crate) fn shown_sidebar_tab(&self) -> SidebarTab {
-        if self
-            .menu
-            .palette
-            .as_ref()
-            .is_some_and(|palette| palette.forces_spaces)
-        {
+        if self.picker_forces_spaces() {
             return SidebarTab::Spaces;
         }
         self.sidebar_tab
@@ -228,7 +240,7 @@ impl HerdrWindow {
     ) -> Div {
         let font = &self.config.sidebar;
         let glyph = glyph_width(font);
-        let bar_columns = (look.content_width(width) / glyph).floor().max(0.) as usize;
+        let bar_columns = content_columns(look, width, font);
         let columns = tab_columns(bar_columns);
         let tab = |tab: SidebarTab, label: &'static str, key: &'static str| {
             let selected = shown == tab;

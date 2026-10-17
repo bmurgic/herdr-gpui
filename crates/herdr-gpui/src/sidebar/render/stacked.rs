@@ -5,7 +5,7 @@
 use super::{Lists, header, spaces_body};
 use crate::{
     HerdrWindow,
-    sidebar::{SidebarDrag, agents_sort, search::Heading},
+    sidebar::{SidebarDrag, SortLabelPlace, agents_sort},
 };
 use gpui::{prelude::*, *};
 
@@ -49,9 +49,7 @@ impl HerdrWindow {
                     // With search on, the heading is its field.
                     .child(
                         heading
-                            .and_then(|heading: Heading| {
-                                self.search_heading(heading, look, window, cx)
-                            })
+                            .and_then(|heading| self.search_heading(heading, look, window, cx))
                             .unwrap_or_else(|| {
                                 header(
                                     if devices { "devices" } else { "spaces" },
@@ -107,7 +105,7 @@ impl HerdrWindow {
                             .child(
                                 header("agents", font, theme, look)
                                     .justify_between()
-                                    .child(agents_sort(self, cx, None, None)),
+                                    .child(agents_sort(self, cx, SortLabelPlace::Header)),
                             )
                             .child(agents),
                     )
