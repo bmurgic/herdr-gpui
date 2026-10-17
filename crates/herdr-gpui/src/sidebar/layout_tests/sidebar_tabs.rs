@@ -11,43 +11,6 @@ const TAB_SELECTORS: [&str; 5] = [
     "sidebar-tab-label-spaces",
 ];
 
-/// The fixture window, 800 by 600, with `edit` applied before the first frame.
-fn tabbed_window(
-    cx: &mut gpui::TestAppContext,
-    edit: impl FnOnce(&mut HerdrWindow) + 'static,
-) -> (Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
-    let (view, cx) = cx.add_window_view(|window, cx| {
-        let mut view = fixture_window(window, cx);
-        edit(&mut view);
-        view
-    });
-    cx.simulate_resize(size(px(800.), px(600.)));
-    cx.run_until_parked();
-    draw(cx);
-    (view, cx)
-}
-
-fn draw(cx: &mut gpui::VisualTestContext) {
-    cx.update(|window, cx| full_draw(window, cx).clear(cx));
-}
-
-fn select(selector: &'static str, cx: &mut gpui::VisualTestContext) {
-    let tab = cx.debug_bounds(selector).unwrap();
-    cx.simulate_click(tab.center(), Modifiers::default());
-}
-
-/// A snapshot whose agents and workspaces both overflow the list area.
-fn tall_lists(view: &mut HerdrWindow) {
-    let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
-    listing.agents = (0..40)
-        .map(|i| {
-            let mut agent = listing.agents[0].clone();
-            agent.pane_id = format!("p{i}");
-            agent
-        })
-        .collect();
-}
-
 fn set_session_sidebar(view: &Entity<HerdrWindow>, on: bool, cx: &mut gpui::VisualTestContext) {
     view.update(cx, |view, cx| {
         view.settings.shared =
@@ -129,7 +92,7 @@ fn a_reloaded_setting_switches_layout_without_a_restart(cx: &mut gpui::TestAppCo
     assert!(cx.debug_bounds("sidebar-split-resize").is_some());
 
     set_session_sidebar(&view, true, cx);
-    select("sidebar-tab-spaces", cx);
+    select_tab("sidebar-tab-spaces", cx);
     draw(cx);
     set_session_sidebar(&view, false, cx);
     set_session_sidebar(&view, true, cx);
@@ -198,7 +161,7 @@ fn the_painted_tabs_match_the_column_geometry(cx: &mut gpui::TestAppContext) {
 fn selecting_spaces_swaps_the_list_without_moving_focus(cx: &mut gpui::TestAppContext) {
     let (view, cx) = tabbed_window(cx, |_| {});
     let before = view.read_with(cx, |view, _| focus_of(view));
-    select("sidebar-tab-spaces", cx);
+    select_tab("sidebar-tab-spaces", cx);
     draw(cx);
     assert!(cx.debug_bounds("spaces-scroll").is_some());
     assert!(cx.debug_bounds("sidebar-tab-selected-spaces").is_some());
@@ -224,7 +187,7 @@ fn each_tab_keeps_its_scroll_position(cx: &mut gpui::TestAppContext) {
     // Agent 3 is focused, so the list reveals it, and stays one row down
     // where the reveal finds it in view.
     let (view, cx) = tabbed_window(cx, |view| {
-        tall_lists(view);
+        forty_agents(view);
         let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
         for (index, agent) in listing.agents.iter_mut().enumerate() {
             agent.focused = index == 3;
@@ -238,7 +201,7 @@ fn each_tab_keeps_its_scroll_position(cx: &mut gpui::TestAppContext) {
     let before = view.read_with(cx, |view, _| view.sidebar_scroll[1].offset());
     assert_eq!(before.y, px(-row));
     for tab in ["sidebar-tab-spaces", "sidebar-tab-agents"] {
-        select(tab, cx);
+        select_tab(tab, cx);
         draw(cx);
         draw(cx);
     }
@@ -264,7 +227,7 @@ fn a_click_where_a_hidden_workspace_row_would_be_does_nothing(cx: &mut gpui::Tes
         .unwrap()
         .center();
     let before = view.read_with(cx, |view, _| focus_of(view));
-    select("sidebar-tab-agents", cx);
+    select_tab("sidebar-tab-agents", cx);
     draw(cx);
     assert!(
         cx.debug_bounds("row-herdr-gpui-sidebar-rendering-regression-investigation")
@@ -276,7 +239,7 @@ fn a_click_where_a_hidden_workspace_row_would_be_does_nothing(cx: &mut gpui::Tes
         assert_eq!(focus_of(view), before);
     });
     // The same point under Spaces is a workspace row.
-    select("sidebar-tab-spaces", cx);
+    select_tab("sidebar-tab-spaces", cx);
     draw(cx);
     draw(cx);
     cx.simulate_click(row, Modifiers::default());
@@ -285,12 +248,12 @@ fn a_click_where_a_hidden_workspace_row_would_be_does_nothing(cx: &mut gpui::Tes
 
 #[gpui::test]
 fn the_wheel_scrolls_only_the_visible_list(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = tabbed_window(cx, tall_lists);
+    let (view, cx) = tabbed_window(cx, forty_agents);
     for (shown, selector, index) in [
         ("sidebar-tab-agents", "agents-scroll", 1),
         ("sidebar-tab-spaces", "spaces-scroll", 0),
     ] {
-        select(shown, cx);
+        select_tab(shown, cx);
         draw(cx);
         draw(cx);
         let before = view.read_with(cx, |view, _| {

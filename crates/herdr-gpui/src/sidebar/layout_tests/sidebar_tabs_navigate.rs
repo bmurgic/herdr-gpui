@@ -6,10 +6,6 @@ use crate::controls::Command;
 use crate::sidebar::SidebarTab;
 use gpui::MouseButton;
 
-fn draw(cx: &mut gpui::VisualTestContext) {
-    cx.update(|window, cx| full_draw(window, cx).clear(cx));
-}
-
 /// The fixture window with Escape bound, after its first frame. It is wide
 /// enough that the palette's panel leaves the sidebar's tab bar uncovered.
 fn picker_window(
@@ -36,8 +32,7 @@ fn run(command: Command, view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestCo
 }
 
 fn click_tab(selector: &'static str, cx: &mut gpui::VisualTestContext) {
-    let tab = cx.debug_bounds(selector).unwrap();
-    cx.simulate_click(tab.center(), Modifiers::default());
+    select_tab(selector, cx);
     draw(cx);
 }
 
