@@ -504,6 +504,39 @@ pub(crate) fn two_endpoint_window(
     (view, cx)
 }
 
+/// Marks every host of `view` as one that accepts session actions, which is
+/// what opens the session menu instead of the pane menu.
+#[cfg(test)]
+pub(crate) fn make_hosts_v2(view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext) {
+    view.update(cx, |view, _| {
+        view.live.snapshot_v2 = true;
+        for endpoint in &mut view.endpoints {
+            endpoint.live.snapshot_v2 = true;
+        }
+    });
+}
+
+/// Every agent status, for tests that check each one.
+#[cfg(test)]
+pub(crate) const AGENT_STATUSES: &[AgentStatus] = &[
+    AgentStatus::Idle,
+    AgentStatus::Working,
+    AgentStatus::Blocked,
+    AgentStatus::Done,
+    AgentStatus::Unknown,
+];
+
+// Stops compiling when `AgentStatus` gains a variant, so `AGENT_STATUSES`
+// cannot silently miss it: add the new variant to both.
+#[cfg(test)]
+const _: fn(AgentStatus) = |status| match status {
+    AgentStatus::Idle
+    | AgentStatus::Working
+    | AgentStatus::Blocked
+    | AgentStatus::Done
+    | AgentStatus::Unknown => {}
+};
+
 /// This machine with the fixture's two working agents, and a remote host
 /// with one blocked agent, both connected, in the Devices layout.
 #[cfg(test)]

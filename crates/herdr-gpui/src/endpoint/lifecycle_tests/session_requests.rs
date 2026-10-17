@@ -1,7 +1,7 @@
 //! The agent-row menu's session actions over a real connection: the request the
 //! daemon reads, the notice its reply becomes, and what a reconnect keeps.
 use super::*;
-use crate::state::SessionOutcome;
+use crate::{pane_menu::tests::toast_texts, state::SessionOutcome};
 
 const RENAME_METHODS: &[Method] = &[Method::ClientShellSurfaceSet, Method::PaneRename];
 
@@ -43,20 +43,12 @@ fn drain_until(
     }
 }
 
-fn toast_texts(view: &HerdrWindow) -> Vec<(String, Option<String>)> {
-    view.endpoints
-        .iter()
-        .flat_map(|endpoint| endpoint.toasts.entries.iter())
-        .map(|(_, toast)| (toast.title.clone(), toast.body.clone()))
-        .collect()
-}
-
-#[gpui::test]
-fn rename_enter_sends_to_the_daemon_and_a_late_refusal_shows_one_notice(
+/// A drawn window over `endpoint`, with keys bound, once its agent is
+/// projected, and with the menu of the agent `p1`'s row open.
+fn agent_menu_over(
     cx: &mut gpui::TestAppContext,
-) {
-    let (endpoint, mut server) =
-        connected_endpoint_v2("ssh:remote", RENAME_METHODS, snapshot_with_agent());
+    endpoint: Endpoint,
+) -> (gpui::Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
     let (view, cx) = window_drawn_over(cx, endpoint);
     cx.update(|_, cx| crate::bind_keys(cx));
     view.update(cx, |view, cx| {
@@ -70,6 +62,16 @@ fn rename_enter_sends_to_the_daemon_and_a_late_refusal_shows_one_notice(
         });
     });
     draw(cx);
+    (view, cx)
+}
+
+#[gpui::test]
+fn rename_enter_sends_to_the_daemon_and_a_late_refusal_shows_one_notice(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (endpoint, mut server) =
+        connected_endpoint_v2("ssh:remote", RENAME_METHODS, snapshot_with_agent());
+    let (view, cx) = agent_menu_over(cx, endpoint);
     cx.simulate_keystrokes("down enter");
     draw(cx);
     cx.simulate_input("  ci  ");
@@ -150,19 +152,7 @@ fn mark_unread_sends_to_the_daemon(cx: &mut gpui::TestAppContext) {
         &[Method::ClientShellSurfaceSet, Method::PaneMarkUnread],
         snapshot_with_agent(),
     );
-    let (view, cx) = window_drawn_over(cx, endpoint);
-    cx.update(|_, cx| crate::bind_keys(cx));
-    view.update(cx, |view, cx| {
-        project_until(view, cx, "the agent", |view| {
-            view.live.snapshot_v2 && view.live.snapshot.is_some()
-        });
-    });
-    cx.update(|window, cx| {
-        view.update(cx, |view, cx| {
-            view.open_agent_menu("ssh:remote", "p1", point(px(40.), px(40.)), window, cx)
-        });
-    });
-    draw(cx);
+    let (view, cx) = agent_menu_over(cx, endpoint);
     let item = cx.debug_bounds("session-menu-1").unwrap().center();
     cx.simulate_click(item, gpui::Modifiers::default());
     view.read_with(cx, |view, _| assert_eq!(view.menu.page, None));

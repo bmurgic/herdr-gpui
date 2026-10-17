@@ -3,37 +3,9 @@ use crate::{
     menu::Page,
     pane_menu::session::SessionTarget,
     search_input::SearchInput,
-    sidebar::layout_tests::{full_draw, two_endpoint_window},
     state::{ConnectionStatus, SessionOutcome},
 };
 use gpui::VisualTestContext;
-
-/// Two connected hosts that accept session actions, `local` shown and
-/// `ssh:test` not. Neither has a connection handle or advertises a method.
-pub(super) fn v2_window(cx: &mut TestAppContext) -> (Entity<HerdrWindow>, &mut VisualTestContext) {
-    let (view, cx) = two_endpoint_window(cx);
-    cx.update(|_, cx| crate::bind_keys(cx));
-    view.update(cx, |view, _| {
-        view.live.snapshot_v2 = true;
-        for endpoint in &mut view.endpoints {
-            endpoint.live.snapshot_v2 = true;
-        }
-    });
-    (view, cx)
-}
-
-pub(super) fn redraw(cx: &mut VisualTestContext) {
-    cx.update(|window, cx| full_draw(window, cx).clear(cx));
-}
-
-pub(super) fn open(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, endpoint: &str) {
-    cx.update(|window, cx| {
-        view.update(cx, |view, cx| {
-            view.open_agent_menu(endpoint, "p0", point(px(40.), px(40.)), window, cx)
-        });
-    });
-    redraw(cx);
-}
 
 /// Opens the menu on `endpoint`'s row and chooses `Rename session...`.
 fn open_rename(
@@ -52,10 +24,9 @@ fn open_rename(
 
 fn toast_titles(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Vec<String> {
     view.read_with(cx, |view, _| {
-        view.endpoints
-            .iter()
-            .flat_map(|endpoint| endpoint.toasts.entries.iter())
-            .map(|(_, toast)| toast.title.clone())
+        toast_texts(view)
+            .into_iter()
+            .map(|(title, _)| title)
             .collect()
     })
 }

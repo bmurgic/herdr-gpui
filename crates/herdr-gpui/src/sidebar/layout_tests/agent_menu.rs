@@ -29,17 +29,6 @@ fn agent_rows_open_their_panes_menu_on_any_host(cx: &mut gpui::TestAppContext) {
     }
 }
 
-/// Marks every host of `view` as one that accepts session actions, which is
-/// what opens the session menu instead of the pane menu.
-fn make_hosts_v2(view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext) {
-    view.update(cx, |view, _| {
-        view.live.snapshot_v2 = true;
-        for endpoint in &mut view.endpoints {
-            endpoint.live.snapshot_v2 = true;
-        }
-    });
-}
-
 /// On a host that accepts session actions the right-click opens the session
 /// menu where the row is: it neither shows that host nor focuses the pane.
 #[gpui::test]

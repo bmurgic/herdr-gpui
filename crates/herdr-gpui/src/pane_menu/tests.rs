@@ -15,6 +15,38 @@ mod carry;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod moves;
 
+/// Two connected hosts that accept session actions, `local` shown and
+/// `ssh:test` not. Neither has a connection handle or advertises a method.
+fn v2_window(cx: &mut TestAppContext) -> (Entity<HerdrWindow>, &mut VisualTestContext) {
+    let (view, cx) = crate::sidebar::layout_tests::two_endpoint_window(cx);
+    cx.update(|_, cx| crate::bind_keys(cx));
+    crate::sidebar::layout_tests::make_hosts_v2(&view, cx);
+    (view, cx)
+}
+
+fn redraw(cx: &mut VisualTestContext) {
+    cx.update(|window, cx| crate::sidebar::layout_tests::full_draw(window, cx).clear(cx));
+}
+
+/// Opens the session menu of `endpoint`'s row for the agent `p0`.
+fn open(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, endpoint: &str) {
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            view.open_agent_menu(endpoint, "p0", point(px(40.), px(40.)), window, cx)
+        });
+    });
+    redraw(cx);
+}
+
+/// The title and body of every toast, host by host.
+pub(crate) fn toast_texts(view: &HerdrWindow) -> Vec<(String, Option<String>)> {
+    view.endpoints
+        .iter()
+        .flat_map(|endpoint| endpoint.toasts.entries.iter())
+        .map(|(_, toast)| (toast.title.clone(), toast.body.clone()))
+        .collect()
+}
+
 fn snapshot() -> ClientShellSnapshotV2 {
     let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"

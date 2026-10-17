@@ -1,16 +1,7 @@
-use super::session_menu::{open, redraw, v2_window};
 use super::*;
-use crate::pane_menu::session::session_items;
+use crate::{pane_menu::session::session_items, sidebar::layout_tests::AGENT_STATUSES};
 use gpui::VisualTestContext;
 use herdr_client::protocol::AgentStatus;
-
-const ALL_STATUSES: [AgentStatus; 5] = [
-    AgentStatus::Idle,
-    AgentStatus::Working,
-    AgentStatus::Blocked,
-    AgentStatus::Done,
-    AgentStatus::Unknown,
-];
 
 /// Gives the host `endpoint` the advertised `methods`, the background
 /// capability when `background`, and an agent in `status`.
@@ -61,7 +52,7 @@ fn second_item(
 fn mark_unread_is_listed_only_for_an_idle_agent_on_a_supporting_host(cx: &mut TestAppContext) {
     let (view, cx) = v2_window(cx);
     let mark = ["pane.mark_unread"];
-    for status in ALL_STATUSES {
+    for &status in AGENT_STATUSES {
         host_with(&view, cx, "ssh:test", &mark, true, status);
         let listed = second_item(&view, cx, "ssh:test");
         let expected = (status == AgentStatus::Idle).then(|| "Mark as unread".to_owned());
