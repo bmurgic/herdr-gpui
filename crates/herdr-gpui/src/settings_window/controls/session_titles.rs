@@ -493,7 +493,9 @@ impl SettingsWindow {
         cx.notify();
     }
 
-    #[cfg(test)]
+    // Only the Unix-gated tests read the field, so a Windows test build would
+    // flag these accessors as dead code.
+    #[cfg(all(test, unix))]
     pub(in crate::settings_window) fn title_model_phase(&self) -> Option<ModelPhase> {
         self.controls
             .session_titles
@@ -502,7 +504,7 @@ impl SettingsWindow {
             .map(|field| field.phase)
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(in crate::settings_window) fn title_model_input(&self) -> Option<Entity<SearchInput>> {
         self.controls
             .session_titles
@@ -511,7 +513,7 @@ impl SettingsWindow {
             .map(|field| field.input.clone())
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(in crate::settings_window) fn title_model_highlight(&self) -> Option<&'static str> {
         let field = self.controls.session_titles.model_field.as_ref()?;
         field.suggestions.get(field.highlighted).copied()
