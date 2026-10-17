@@ -4,8 +4,16 @@ use crate::herdr_settings::TitleAgent;
 
 /// The names the agent's CLI accepts, from myherdr's own lists. Order here
 /// carries no meaning: `ranked` sorts.
-const CLAUDE: &[&str] = &["haiku", "opus", "sonnet"];
-const CODEX: &[&str] = &["gpt-6-luna"];
+const CLAUDE: &[&str] = &[
+    // keep-sorted start
+    "haiku", "opus", "sonnet",
+    // keep-sorted end
+];
+const CODEX: &[&str] = &[
+    // keep-sorted start
+    "gpt-6-luna",
+    // keep-sorted end
+];
 
 /// The agent's names that contain `input` (trimmed, ignoring case). Names
 /// that start with it exactly come first, then names that start with it

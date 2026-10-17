@@ -5,6 +5,7 @@
 //! on one that does.
 use super::{Edit, SettingsWindow};
 use crate::{
+    config::{FontConfig, Theme},
     herdr_settings::{SessionTitles, TitleAgent},
     search_input::{Changed, SearchInput},
     settings_window::{Section, title_model_suggestions::ranked},
@@ -42,7 +43,16 @@ struct ModelField {
     /// The names offered for the text, while editing.
     suggestions: Vec<&'static str>,
     highlighted: usize,
+    /// What the input's look and placeholder were last set from, so a frame
+    /// that changes none of it skips the clones and the placeholder text.
+    synced: Option<SyncedLook>,
     _subscriptions: [Subscription; 3],
+}
+
+struct SyncedLook {
+    font: FontConfig,
+    theme: Theme,
+    agent: TitleAgent,
 }
 
 impl ModelField {
@@ -180,12 +190,11 @@ impl SettingsWindow {
         let Some(shared) = &self.shared else {
             return;
         };
-        let titles = shared.session_titles.clone();
         if self.controls.session_titles.model_field.is_none() {
             let input = cx.new(SearchInput::new);
             input.update(cx, |input, cx| {
                 input.set_breaks_as_spaces(true);
-                input.set_text_selected(&titles.model, cx);
+                input.set_text_selected(&shared.session_titles.model, cx);
             });
             let focus = input.read(cx).focus.clone();
             let changed = cx.subscribe(&input, |this, _, _: &Changed, cx| {
@@ -203,19 +212,32 @@ impl SettingsWindow {
                 has_focus: false,
                 suggestions: Vec::new(),
                 highlighted: 0,
+                synced: None,
                 _subscriptions: [changed, focused, blurred],
             });
         }
-        let Some(field) = &self.controls.session_titles.model_field else {
+        let Some(field) = &mut self.controls.session_titles.model_field else {
             return;
         };
         let agent = match field.phase {
             ModelPhase::Editing(agent) | ModelPhase::Submitted(agent) => agent,
-            ModelPhase::NotEditing => titles.agent,
+            ModelPhase::NotEditing => shared.session_titles.agent,
         };
+        let (font, theme) = (&self.config.ui, &self.theme);
+        let unchanged = field.synced.as_ref().is_some_and(|synced| {
+            synced.agent == agent && synced.font == *font && synced.theme == *theme
+        });
+        if unchanged {
+            return;
+        }
         field.input.update(cx, |input, cx| {
-            input.set_appearance(self.config.ui.clone(), self.theme.clone(), cx);
+            input.set_appearance(font.clone(), theme.clone(), cx);
             input.set_placeholder(&format!("{} (default)", agent.default_model()), cx);
+        });
+        field.synced = Some(SyncedLook {
+            font: font.clone(),
+            theme: theme.clone(),
+            agent,
         });
     }
 
