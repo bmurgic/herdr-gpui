@@ -1,5 +1,5 @@
 #[cfg(unix)]
-use super::session_titles::click;
+use super::session_titles::{advertise, assert_save_failed, click, disconnected};
 use super::session_titles::{draw, painted};
 use super::*;
 #[cfg(unix)]
@@ -69,6 +69,12 @@ fn phase(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext) -> ModelPhas
 #[cfg(unix)]
 fn highlight(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext) -> Option<&'static str> {
     view.read_with(cx, |view, _| view.title_model_highlight())
+}
+
+/// The debug selector of the suggestion row for `name`.
+#[cfg(unix)]
+fn suggestion(name: &str) -> &'static str {
+    Box::leak(format!("settings-title-model-suggestion-{name}").into_boxed_str())
 }
 
 /// The model of each recorded edit, which must all be title model edits.
@@ -228,13 +234,7 @@ fn failed_model_save_keeps_the_typed_text_and_retries(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(phase(&view, cx), ModelPhase::Editing(TitleAgent::Claude));
     assert_eq!(text(&view, cx), "opus");
-    view.read_with(cx, |view, _| {
-        assert!(
-            view.error
-                .as_deref()
-                .is_some_and(|error| error.starts_with("Save settings:"))
-        );
-    });
+    assert_save_failed(&view, cx);
 
     press(cx, "enter");
     assert_eq!(recorded(&edits), ["opus", "opus"]);
@@ -260,13 +260,7 @@ fn failed_save_after_focus_left_ends_editing(cx: &mut TestAppContext) {
     assert_eq!(recorded(&edits), ["opus"]);
     assert_eq!(phase(&view, cx), ModelPhase::NotEditing);
     assert_eq!(text(&view, cx), "sonnet");
-    view.read_with(cx, |view, _| {
-        assert!(
-            view.error
-                .as_deref()
-                .is_some_and(|error| error.starts_with("Save settings:"))
-        );
-    });
+    assert_save_failed(&view, cx);
 }
 
 #[cfg(unix)]
@@ -288,28 +282,17 @@ fn hiding_the_rows_ends_editing(cx: &mut TestAppContext) {
     type_text(cx, "opus");
     assert_eq!(phase(&view, cx), ModelPhase::Editing(TitleAgent::Claude));
 
-    let apply = |cx: &mut VisualTestContext, event| {
-        source
-            .update(cx, |source, _, cx| {
-                source.endpoints[0].live.apply(event);
-                cx.notify();
-            })
-            .unwrap();
-        cx.run_until_parked();
-    };
-    apply(
-        cx,
-        herdr_client::ClientEvent::Disconnected {
-            reason: "gone".into(),
-            ssh: None,
-        },
-    );
+    advertise(source, cx, disconnected());
     draw(cx);
     assert_eq!(phase(&view, cx), ModelPhase::NotEditing);
     assert_eq!(text(&view, cx), "sonnet");
 
     // The field is drawn again, and must not take the focus it kept as a new one.
-    apply(cx, crate::test_snapshots::welcome(&[], &["session_titles"]));
+    advertise(
+        source,
+        cx,
+        crate::test_snapshots::welcome(&[], &["session_titles"]),
+    );
     draw(cx);
     assert!(painted(cx, "settings-title-model"));
     assert_eq!(text(&view, cx), "sonnet");
@@ -328,12 +311,7 @@ fn the_hidden_edit_ends_without_waiting_for_a_redraw(cx: &mut TestAppContext) {
     cx.update(|_, cx| {
         source
             .update(cx, |source, _, _| {
-                source.endpoints[0]
-                    .live
-                    .apply(herdr_client::ClientEvent::Disconnected {
-                        reason: "gone".into(),
-                        ssh: None,
-                    });
+                source.endpoints[0].live.apply(disconnected());
             })
             .unwrap();
         let editing = view.read_with(cx, |view, _| view.title_model_phase());
@@ -409,11 +387,7 @@ fn suggestions_fill_without_saving(cx: &mut TestAppContext) {
 
     empty(&view, cx);
     let tops: Vec<_> = ["haiku", "opus", "sonnet"]
-        .map(|name| {
-            let selector: &'static str =
-                Box::leak(format!("settings-title-model-suggestion-{name}").into_boxed_str());
-            cx.debug_bounds(selector).unwrap().top()
-        })
+        .map(|name| cx.debug_bounds(suggestion(name)).unwrap().top())
         .into();
     assert!(tops.is_sorted_by(|above, below| above < below), "{tops:?}");
     assert_eq!(highlight(&view, cx), Some("haiku"));
@@ -441,9 +415,7 @@ fn suggestions_fill_without_saving(cx: &mut TestAppContext) {
 
     set_text(&view, cx, "gpt");
     for name in ["haiku", "opus", "sonnet", "gpt-6-luna"] {
-        let selector: &'static str =
-            Box::leak(format!("settings-title-model-suggestion-{name}").into_boxed_str());
-        assert!(!painted(cx, selector), "{selector}");
+        assert!(!painted(cx, suggestion(name)), "{name}");
     }
     press(cx, "tab");
     assert_eq!(text(&view, cx), "gpt");
@@ -469,11 +441,7 @@ fn suggestions_use_the_agent_shown_when_editing_started(cx: &mut TestAppContext)
     let (view, cx) = open(cx, "[session_titles]\nagent = \"codex\"\n");
     focus_field(&view, cx);
     let shown = |cx: &mut VisualTestContext| {
-        ["haiku", "opus", "sonnet", "gpt-6-luna"].map(|name| {
-            let selector: &'static str =
-                Box::leak(format!("settings-title-model-suggestion-{name}").into_boxed_str());
-            painted(cx, selector)
-        })
+        ["haiku", "opus", "sonnet", "gpt-6-luna"].map(|name| painted(cx, suggestion(name)))
     };
     assert_eq!(shown(cx), [false, false, false, true]);
 

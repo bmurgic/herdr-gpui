@@ -100,9 +100,9 @@ pub(super) fn sessions_fixture<'a>(
 }
 
 /// Shared saves that record each `Edit` instead of writing the user's config.
-/// The write after `fail_first` fails once; every reload answers with
-/// `load_text`, never with absent settings, so later clicks still have a
-/// loaded config to edit.
+/// With `fail_first`, the first write fails and later ones succeed. Every
+/// reload answers with `load_text`, never with absent settings, so later
+/// clicks still have a loaded config to edit.
 #[cfg(unix)]
 pub(super) fn recording_shared(
     load_text: &'static str,

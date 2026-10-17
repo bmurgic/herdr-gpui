@@ -151,19 +151,14 @@ impl Editing {
         self.anchor = self.cursor;
         if composing && let Some(selection) = selection {
             // IME selection is relative to the supplied text, not the whole buffer.
-            // Map through newline removal as well as UTF-16 conversion.
-            self.anchor = range.start
-                + single_line(
-                    &text[..from_utf16(text, selection.start)],
-                    self.breaks_as_spaces,
-                )
-                .len();
-            self.cursor = range.start
-                + single_line(
-                    &text[..from_utf16(text, selection.end)],
-                    self.breaks_as_spaces,
-                )
-                .len();
+            // Map through line-break handling as well as UTF-16 conversion.
+            let breaks_as_spaces = self.breaks_as_spaces;
+            let buffer_offset = |utf16_offset: usize| {
+                let supplied = &text[..from_utf16(text, utf16_offset)];
+                range.start + single_line(supplied, breaks_as_spaces).len()
+            };
+            self.anchor = buffer_offset(selection.start);
+            self.cursor = buffer_offset(selection.end);
         }
         changed
     }

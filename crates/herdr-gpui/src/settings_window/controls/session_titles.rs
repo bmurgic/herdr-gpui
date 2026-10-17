@@ -56,6 +56,12 @@ struct SyncedLook {
 }
 
 impl ModelField {
+    /// Moves to `phase`, with the suggestions that phase offers.
+    fn set_phase(&mut self, phase: ModelPhase, cx: &App) {
+        self.phase = phase;
+        self.refresh_suggestions(cx);
+    }
+
     /// Re-ranks the suggestions for the text and phase, and moves the
     /// highlight back to the first name when the list changed.
     fn refresh_suggestions(&mut self, cx: &App) {
@@ -333,8 +339,7 @@ impl SettingsWindow {
         match field.phase {
             ModelPhase::NotEditing => {
                 if field.has_focus && field.input.read(cx).text() != titles.model {
-                    field.phase = ModelPhase::Editing(titles.agent);
-                    field.refresh_suggestions(cx);
+                    field.set_phase(ModelPhase::Editing(titles.agent), cx);
                 }
             }
             ModelPhase::Editing(_) => field.refresh_suggestions(cx),
@@ -353,8 +358,7 @@ impl SettingsWindow {
         match (focused, field.phase) {
             (true, ModelPhase::NotEditing) => {
                 if let Some(shared) = &self.shared {
-                    field.phase = ModelPhase::Editing(shared.session_titles.agent);
-                    field.refresh_suggestions(cx);
+                    field.set_phase(ModelPhase::Editing(shared.session_titles.agent), cx);
                 }
             }
             (false, ModelPhase::Editing(_)) => self.finish_title_model_edit(true, cx),
@@ -373,8 +377,7 @@ impl SettingsWindow {
         let Some(field) = &mut self.controls.session_titles.model_field else {
             return;
         };
-        field.phase = ModelPhase::NotEditing;
-        field.refresh_suggestions(cx);
+        field.set_phase(ModelPhase::NotEditing, cx);
         if restore && let Some(model) = configured {
             field.replace_text(&model, cx);
         }
@@ -410,8 +413,7 @@ impl SettingsWindow {
         };
         let Some(shared) = &self.shared else {
             // Nothing to edit any more, so nothing to keep editing.
-            field.phase = ModelPhase::NotEditing;
-            field.refresh_suggestions(cx);
+            field.set_phase(ModelPhase::NotEditing, cx);
             return;
         };
         let configured = shared.session_titles.model.clone();
@@ -419,12 +421,10 @@ impl SettingsWindow {
             // The typed text outlives any reload until the edit ends.
             ModelPhase::Editing(_) => {}
             ModelPhase::Submitted(agent) if field.has_focus => {
-                field.phase = ModelPhase::Editing(agent);
-                field.refresh_suggestions(cx);
+                field.set_phase(ModelPhase::Editing(agent), cx);
             }
             ModelPhase::Submitted(_) => {
-                field.phase = ModelPhase::NotEditing;
-                field.refresh_suggestions(cx);
+                field.set_phase(ModelPhase::NotEditing, cx);
                 field.replace_text(&configured, cx);
             }
             // After a write that succeeded but a reload that did not, the
@@ -456,8 +456,7 @@ impl SettingsWindow {
             return;
         }
         let model = input.text().trim().to_owned();
-        field.phase = ModelPhase::Submitted(agent);
-        field.refresh_suggestions(cx);
+        field.set_phase(ModelPhase::Submitted(agent), cx);
         self.save_shared_then(
             Edit::TitleModel(model),
             |this, cx| this.finish_title_model_edit(false, cx),

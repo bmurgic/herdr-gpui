@@ -1,5 +1,6 @@
-//! The `[session_titles]` section: whether the daemon names agent panes from
-//! their first prompt, and which agent CLI writes the titles.
+//! The keys the Sessions card edits: `ui.session_sidebar`, and the
+//! `[session_titles]` section, which says whether the daemon names agent
+//! panes from their first prompt and which agent CLI writes the titles.
 use super::{Error, set};
 use serde::Deserialize;
 use toml_edit::DocumentMut;

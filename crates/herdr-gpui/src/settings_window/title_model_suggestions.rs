@@ -3,12 +3,17 @@
 use crate::herdr_settings::TitleAgent;
 
 /// The names the agent's CLI accepts, from myherdr's own lists. Order here
-/// carries no meaning: `ranked` sorts.
+/// carries no meaning: `ranked` sorts. Each list keeps one name per line,
+/// which rustfmt would join, because `check-sorted` sorts whole lines.
+#[rustfmt::skip]
 const CLAUDE: &[&str] = &[
     // keep-sorted start
-    "haiku", "opus", "sonnet",
+    "haiku",
+    "opus",
+    "sonnet",
     // keep-sorted end
 ];
+#[rustfmt::skip]
 const CODEX: &[&str] = &[
     // keep-sorted start
     "gpt-6-luna",

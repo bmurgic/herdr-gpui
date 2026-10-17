@@ -30,6 +30,42 @@ pub(super) fn click(cx: &mut VisualTestContext, selector: &'static str) {
     draw(cx);
 }
 
+/// Applies `event` to the source window's first host and runs what follows.
+pub(super) fn advertise(
+    source: WindowHandle<crate::HerdrWindow>,
+    cx: &mut VisualTestContext,
+    event: ClientEvent,
+) {
+    source
+        .update(cx, |source, _, cx| {
+            source.endpoints[0].live.apply(event);
+            cx.notify();
+        })
+        .unwrap();
+    cx.run_until_parked();
+}
+
+pub(super) fn disconnected() -> ClientEvent {
+    ClientEvent::Disconnected {
+        reason: "gone".into(),
+        ssh: None,
+    }
+}
+
+/// The footer shows the failed write, whatever else the reload brought.
+#[cfg(unix)]
+pub(super) fn assert_save_failed(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext) {
+    view.read_with(cx, |view, _| {
+        assert!(
+            view.error
+                .as_deref()
+                .is_some_and(|error| error.starts_with("Save settings:")),
+            "{:?}",
+            view.error
+        );
+    });
+}
+
 #[gpui::test]
 fn title_rows_show_on_a_titles_host(cx: &mut TestAppContext) {
     let (_, _, cx) = sessions_fixture(
@@ -108,16 +144,7 @@ fn title_rows_follow_the_welcome_after_opening(cx: &mut TestAppContext) {
     draw(cx);
     assert!(!painted(cx, "settings-session-titles"));
 
-    let advertise = |cx: &mut VisualTestContext, event: ClientEvent| {
-        source
-            .update(cx, |source, _, cx| {
-                source.endpoints[0].live.apply(event);
-                cx.notify();
-            })
-            .unwrap();
-        cx.run_until_parked();
-    };
-    advertise(cx, welcome(&[], &["session_titles"]));
+    advertise(source, cx, welcome(&[], &["session_titles"]));
     assert!(repaints.load(Ordering::SeqCst) > 0);
     draw(cx);
     for selector in TITLE_SELECTORS {
@@ -130,13 +157,7 @@ fn title_rows_follow_the_welcome_after_opening(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(repaints.load(Ordering::SeqCst), before);
 
-    advertise(
-        cx,
-        ClientEvent::Disconnected {
-            reason: "gone".into(),
-            ssh: None,
-        },
-    );
+    advertise(source, cx, disconnected());
     assert!(repaints.load(Ordering::SeqCst) > before);
     draw(cx);
     for selector in TITLE_SELECTORS {
@@ -203,12 +224,8 @@ fn failed_session_save_reports_in_the_footer(cx: &mut TestAppContext) {
     view.update(cx, |view, _| view.shared_io = Some(io));
     draw(cx);
     click(cx, "settings-session-titles");
+    assert_save_failed(&view, cx);
     view.read_with(cx, |view, _| {
-        assert!(
-            view.error
-                .as_deref()
-                .is_some_and(|error| error.starts_with("Save settings:"))
-        );
         assert_eq!(
             view.status.as_deref(),
             Some("Save failed; reloaded current preferences")

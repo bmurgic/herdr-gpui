@@ -1,7 +1,7 @@
 //! The v2 snapshots that the empty-workspace screen, endpoint lifecycle, and
-//! New Workspace page tests share, and the daemon welcome that the state, link,
-//! and settings tests apply, so "no workspaces" and "scratch focused"
-//! mean the same state in each of them.
+//! New Workspace page tests share, so "no workspaces" and "scratch focused"
+//! mean the same state in each of them, and the daemon welcome that the state,
+//! link, and settings tests apply.
 #![allow(clippy::unwrap_used)]
 
 use herdr_client::{
