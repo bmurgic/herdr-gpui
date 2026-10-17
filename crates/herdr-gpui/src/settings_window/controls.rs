@@ -362,7 +362,7 @@ impl SettingsWindow {
             .child(text.into())
     }
 
-    fn control_row(&self, label: &'static str, value: impl Into<SharedString>) -> Div {
+    fn control_row(&self, label: &'static str, value: impl IntoElement) -> Div {
         div()
             .flex()
             .flex_wrap()
@@ -370,7 +370,7 @@ impl SettingsWindow {
             .justify_between()
             .gap(px(12.))
             .child(div().text_color(rgb(self.theme.muted)).child(label))
-            .child(div().min_w_0().child(value.into()))
+            .child(div().min_w_0().child(value))
     }
 
     pub(super) fn control_choice(

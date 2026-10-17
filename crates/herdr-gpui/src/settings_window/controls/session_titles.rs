@@ -96,16 +96,7 @@ impl SettingsWindow {
             }),
         )
         .child(self.control_note("Name Claude and Codex panes from their first prompt"))
-        .child(
-            div()
-                .flex()
-                .flex_wrap()
-                .items_center()
-                .justify_between()
-                .gap(px(12.))
-                .child(div().text_color(rgb(self.theme.muted)).child("Title agent"))
-                .child(agents),
-        )
+        .child(self.control_row("Title agent", agents))
         .child(self.control_note("Agent CLI that writes the titles"))
     }
 }
