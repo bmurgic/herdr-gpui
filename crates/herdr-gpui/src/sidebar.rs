@@ -44,7 +44,7 @@ pub(crate) use {
     row::{compact, github_mark, label_text, styled as styled_token},
     search::SidebarSearch,
     session_age::{SessionAges, now_ms},
-    tabs::SidebarTab,
+    tabs::{SidebarTab, TabBounds},
     view::SidebarView,
     workspaces::workspace_label,
 };

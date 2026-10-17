@@ -20,6 +20,33 @@ pub(crate) enum SidebarTab {
     Spaces,
 }
 
+/// Where the tab bar painted each tab, as last prepainted. A tab the bar did
+/// not draw has none.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct TabBounds {
+    agents: Option<Bounds<Pixels>>,
+    spaces: Option<Bounds<Pixels>>,
+}
+
+impl TabBounds {
+    fn record(&mut self, tab: SidebarTab, bounds: Bounds<Pixels>) {
+        match tab {
+            SidebarTab::Agents => self.agents = Some(bounds),
+            SidebarTab::Spaces => self.spaces = Some(bounds),
+        }
+    }
+
+    /// The tab painted under `point`.
+    pub(crate) fn hit(&self, point: Point<Pixels>) -> Option<SidebarTab> {
+        [
+            (SidebarTab::Agents, self.agents),
+            (SidebarTab::Spaces, self.spaces),
+        ]
+        .into_iter()
+        .find_map(|(tab, bounds)| bounds.filter(|bounds| bounds.contains(&point)).map(|_| tab))
+    }
+}
+
 /// Columns each tab takes in a bar `width_columns` wide: two tabs and a
 /// one-column gap, with any odd column left over unpainted. A port of
 /// myherdr's `split_sidebar_tabs`.
@@ -135,7 +162,17 @@ impl HerdrWindow {
             .child(agents_sort(self, cx, Some(columns), Some(self.theme.primary())).ml_auto())
     }
 
+    /// The list the sidebar builds: the selected tab, or Spaces while the
+    /// workspace picker is open.
     pub(crate) fn shown_sidebar_tab(&self) -> SidebarTab {
+        if self
+            .menu
+            .palette
+            .as_ref()
+            .is_some_and(|palette| palette.forces_spaces)
+        {
+            return SidebarTab::Spaces;
+        }
         self.sidebar_tab
     }
 
@@ -195,6 +232,7 @@ impl HerdrWindow {
         let columns = tab_columns(bar_columns);
         let tab = |tab: SidebarTab, label: &'static str, key: &'static str| {
             let selected = shown == tab;
+            let recorded = self.sidebar_tab_bounds.clone();
             let (background, text, weight) = tab_style(selected, &self.theme);
             let element = div()
                 .id(SharedString::from(format!("sidebar-tab-{key}")))
@@ -217,6 +255,18 @@ impl HerdrWindow {
                     div()
                         .debug_selector(|| format!("sidebar-tab-label-{key}"))
                         .child(label_text(&tab_label(label, columns))),
+                )
+                .child(
+                    canvas(
+                        move |bounds, _, _| {
+                            let mut tabs = recorded.get();
+                            tabs.record(tab, bounds);
+                            recorded.set(tabs);
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .absolute()
+                    .size_full(),
                 );
             // The fill is invisible to debug bounds, so the selected tab
             // carries a layer that tests can find.
@@ -242,7 +292,12 @@ impl HerdrWindow {
 
     /// Shows `tab`. Agents has no search field, so a field still holding the
     /// keyboard hands it back to the terminal; the query stays for Spaces.
-    fn select_sidebar_tab(&mut self, tab: SidebarTab, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_sidebar_tab(
+        &mut self,
+        tab: SidebarTab,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.sidebar_tab = tab;
         if tab == SidebarTab::Agents && self.sidebar_search.focus(cx).is_focused(window) {
             window.focus(&self.focus, cx);

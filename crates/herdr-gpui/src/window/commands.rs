@@ -312,16 +312,17 @@ impl HerdrWindow {
                 self.install_browser_skill(window, cx);
                 return;
             }
-            Command::Palette | Command::WorkspacePicker => {
-                self.open_palette(
-                    if command == Command::WorkspacePicker {
-                        crate::palette::Filter::Navigation
-                    } else {
-                        crate::palette::Filter::All
-                    },
-                    window,
-                    cx,
-                );
+            Command::Palette => {
+                self.open_palette(crate::palette::Filter::All, window, cx);
+                return;
+            }
+            Command::WorkspacePicker => {
+                self.open_palette(crate::palette::Filter::Navigation, window, cx);
+                // After `open_palette`: opening a menu resets the menu state,
+                // which would drop a force set before it.
+                if let Some(palette) = &mut self.menu.palette {
+                    palette.forces_spaces = true;
+                }
                 return;
             }
             Command::ResumePalette => {

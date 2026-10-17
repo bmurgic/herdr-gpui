@@ -68,6 +68,9 @@ impl HerdrWindow {
         // out of the element tree. The stacked one always shows both.
         let tabbed = self.sidebar_tabbed();
         let shown = self.shown_sidebar_tab();
+        if !tabbed {
+            self.sidebar_tab_bounds.set(Default::default());
+        }
         let spaces_shown = !tabbed || shown == SidebarTab::Spaces;
         let search =
             (spaces_shown && searchable && self.sidebar_search.query().is_some()).then(|| {

@@ -307,6 +307,9 @@ pub(crate) struct HerdrWindow {
     /// The list the sidebar drew last: `None` in the stacked layout and
     /// before the first draw. A list that was not drawn has stale bounds.
     pub(crate) sidebar_drawn_tab: std::cell::Cell<Option<sidebar::SidebarTab>>,
+    /// Where the tab bar painted each tab, for a click the workspace picker's
+    /// overlay receives; empty while no tab bar is drawn.
+    pub(crate) sidebar_tab_bounds: std::rc::Rc<std::cell::Cell<sidebar::TabBounds>>,
     /// What `reconnecting()` was when `render` last ran, so the cached
     /// sidebar redraws when the reconnect card goes away without a notify.
     pub(crate) reconnect_seen: std::cell::Cell<bool>,
@@ -793,6 +796,7 @@ impl HerdrWindow {
             sidebar_split_modified: false,
             sidebar_tab: Default::default(),
             sidebar_drawn_tab: Default::default(),
+            sidebar_tab_bounds: Default::default(),
             reconnect_seen: Default::default(),
             sidebar_preferences: None,
             sidebar_modified: false,

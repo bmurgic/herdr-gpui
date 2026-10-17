@@ -71,6 +71,8 @@ mod sidebar_tabs;
 #[cfg(test)]
 mod sidebar_tabs_lists;
 #[cfg(test)]
+mod sidebar_tabs_navigate;
+#[cfg(test)]
 mod sidebar_tabs_sort;
 #[cfg(test)]
 mod spacing_overrides;
@@ -849,6 +851,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         sidebar_split: None,
         sidebar_split_modified: false,
         sidebar_tab: Default::default(),
+        sidebar_tab_bounds: Default::default(),
         sidebar_drawn_tab: Default::default(),
         reconnect_seen: Default::default(),
         sidebar_preferences: None,
