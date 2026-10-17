@@ -6,6 +6,7 @@ use super::{
     layout::SidebarLook,
     line_height,
     render::{Lists, spaces_body},
+    search::Heading,
     session_text::truncate_end,
 };
 use crate::{
@@ -315,13 +316,18 @@ impl HerdrWindow {
     }
 
     /// Hands the keyboard back to the terminal when the search field holds
-    /// it but the sidebar shows Agents, which has no field. A tab click gets
+    /// it but the sidebar shows Agents, which has no field. Both fields count:
+    /// the workspace search and the Devices layout's tree search. A tab click gets
     /// there, and so does a stacked sidebar turning tabbed, as when the
     /// reconnect card ends or the setting is reloaded; the window checks for
     /// that as each frame starts. The query stays for Spaces.
     pub(crate) fn release_hidden_search_focus(&self, window: &mut Window, cx: &mut App) {
         let hidden = self.sidebar_tabbed() && self.shown_sidebar_tab() == SidebarTab::Agents;
-        if hidden && self.sidebar_search.focus(cx).contains_focused(window, cx) {
+        let holds_focus = [Heading::Spaces, Heading::DeviceTree]
+            .into_iter()
+            .filter_map(|heading| self.heading_input(heading))
+            .any(|input| input.read(cx).focus.contains_focused(window, cx));
+        if hidden && holds_focus {
             window.focus(&self.focus, cx);
         }
     }

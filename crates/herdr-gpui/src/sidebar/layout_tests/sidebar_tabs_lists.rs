@@ -217,3 +217,33 @@ fn the_devices_layout_lists_agents_flat_and_keeps_its_tree(cx: &mut gpui::TestAp
     assert!(cx.debug_bounds("header-devices").is_none());
     assert!(cx.debug_bounds("host-local").is_some());
 }
+
+#[gpui::test]
+fn showing_agents_hands_a_focused_device_search_back_to_the_terminal(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (view, cx) = devices_window(cx);
+    edit(&view, cx, show_spaces_tab);
+    draw(cx);
+    let input = view.read_with(cx, |view, _| {
+        view.devices_overview
+            .tree_search
+            .as_ref()
+            .unwrap()
+            .input
+            .clone()
+    });
+    let field = input.read_with(cx, |input, _| input.focus.clone());
+    cx.update(|window, cx| {
+        window.focus(&field, cx);
+        full_draw(window, cx).clear(cx);
+    });
+    cx.update(|window, cx| assert!(field.contains_focused(window, cx)));
+
+    select_tab("sidebar-tab-agents", cx);
+    draw(cx);
+    cx.update(|window, cx| {
+        assert!(view.read(cx).focus.is_focused(window));
+        assert!(!field.contains_focused(window, cx));
+    });
+}

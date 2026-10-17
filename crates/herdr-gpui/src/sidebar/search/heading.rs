@@ -45,7 +45,10 @@ impl Heading {
 }
 
 impl HerdrWindow {
-    fn heading_input(&self, heading: Heading) -> Option<&Entity<SearchInput>> {
+    pub(in crate::sidebar) fn heading_input(
+        &self,
+        heading: Heading,
+    ) -> Option<&Entity<SearchInput>> {
         match heading {
             Heading::Spaces => Some(&self.sidebar_search.input),
             Heading::DeviceTree => self
