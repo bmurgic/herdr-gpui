@@ -98,7 +98,8 @@ impl HerdrWindow {
             // Configured `[sidebar_layout.agents]` rows apply here as in the
             // agents panel, gap included. A session row leaves the machine
             // unnamed, as the header above names it.
-            let Some(row) = self.agent_row(index, agent, snapshot, &row_cx, None, age, count, cx)
+            let Some(row) =
+                self.agent_row(index, agent, snapshot, &row_cx, None, age, count, false, cx)
             else {
                 continue;
             };

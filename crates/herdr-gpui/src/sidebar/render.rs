@@ -623,18 +623,10 @@ impl HerdrWindow {
                 self.sidebar_revealed[list].set(Some(row));
             }
         }
-        if agent_count == 0 {
-            agents = agents.child(
-                div()
-                    .px(px(content_x))
-                    .text_color(rgb(theme.muted))
-                    .truncate()
-                    .child(label_text(if filtered {
-                        "no matching agents"
-                    } else {
-                        "no agents"
-                    })),
-            );
+        // The tabbed layout builds the empty line, with its label, only while
+        // Agents is shown.
+        if agent_count == 0 && (!tabbed || shown == SidebarTab::Agents) {
+            agents = agents.child(self.empty_agents_line(filtered, tabbed, look, width, cx));
         }
         let shell = div()
             .id("sidebar")

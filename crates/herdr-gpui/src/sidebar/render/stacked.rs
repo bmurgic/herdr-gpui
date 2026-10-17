@@ -107,7 +107,7 @@ impl HerdrWindow {
                             .child(
                                 header("agents", font, theme, look)
                                     .justify_between()
-                                    .child(agents_sort(self, cx)),
+                                    .child(agents_sort(self, cx, None, None)),
                             )
                             .child(agents),
                     )

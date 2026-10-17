@@ -9,6 +9,7 @@ use crate::{
         cell::{AgentRow, Cell, RowContext, RowData, layout_for},
         layout::SidebarLook,
         line_height,
+        render::session_row::text_room,
         session_age::{AgeClock, now_ms},
         tokens, wash,
     },
@@ -35,6 +36,7 @@ impl HerdrWindow {
         let mut count = 0;
         let mut focused = None;
         let now_ms = now_ms();
+        let tabbed = self.sidebar_tabbed();
         for (index, agent) in self.panel_agents() {
             let Some(endpoint) = self.endpoints.get(index) else {
                 continue;
@@ -69,9 +71,12 @@ impl HerdrWindow {
                 carries_activity: live.snapshot_v2,
                 now_ms,
             };
-            let Some(row) =
-                self.agent_row(index, agent, snapshot, &row_cx, machine, age, count, cx)
-            else {
+            // The tabbed Agents list ends its first row's line one with the
+            // sort label; the stacked layout has it in its header.
+            let labelled = tabbed && count == 0;
+            let Some(row) = self.agent_row(
+                index, agent, snapshot, &row_cx, machine, age, count, labelled, cx,
+            ) else {
                 continue;
             };
             if self.is_focused_agent(index, agent) {
@@ -140,7 +145,8 @@ impl HerdrWindow {
     /// number of rows already in the list. `machine` is the label a session
     /// row names its machine with, and `age` what it dates its activity by.
     /// None when the configured rows leave this agent out, which a session
-    /// row never does.
+    /// row never does. `labelled` is whether the row ends its first line with
+    /// the sort label.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn agent_row(
         &self,
@@ -151,11 +157,19 @@ impl HerdrWindow {
         machine: Option<&str>,
         age: AgeClock,
         count: usize,
+        labelled: bool,
         cx: &mut Context<Self>,
     ) -> Option<Stateful<Div>> {
         let gap = self.agent_row_gap(count);
         if self.session_sidebar() {
-            return Some(self.session_cell(index, agent, snapshot, row_cx, machine, age, gap, cx));
+            let reserve = if labelled {
+                self.first_line_label_reserve(text_room(row_cx).1)
+            } else {
+                0
+            };
+            return Some(self.session_cell(
+                index, agent, snapshot, row_cx, machine, age, gap, reserve, cx,
+            ));
         }
         let lines = self.configured_agent_lines(agent, snapshot, row_cx.host)?;
         Some(self.agent_cell(index, agent, snapshot, row_cx, lines, gap, cx))

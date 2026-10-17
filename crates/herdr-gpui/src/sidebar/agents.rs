@@ -2,7 +2,10 @@
 //! are labelled. Status comes from the daemon's snapshot, never from guessing
 //! at terminal output.
 
-use super::{STATUS_DOT_UNKNOWN, STATUS_WIDTH, first_text, label_text, line_height};
+use super::{
+    STATUS_DOT_UNKNOWN, STATUS_WIDTH, first_text, label_text, line_height,
+    session_text::truncate_end,
+};
 use crate::{
     HerdrWindow,
     config::{FontConfig, StatusIcons, Theme},
@@ -11,24 +14,49 @@ use crate::{
 use gpui::{prelude::*, *};
 use herdr_client::protocol::{AgentStatus, ClientShellAgent, ClientShellSnapshotV2};
 
-pub(super) fn agents_sort(window: &HerdrWindow, cx: &mut Context<HerdrWindow>) -> Stateful<Div> {
+/// What the agents list's label reads: the plugin's agent view while the
+/// daemon names one, otherwise the current sort.
+pub(super) struct SortLabel {
+    pub(super) text: String,
+    pub(super) is_view: bool,
+}
+
+impl HerdrWindow {
+    pub(super) fn sort_label(&self) -> SortLabel {
+        let view = self
+            .live
+            .snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.agent_view_label.clone());
+        SortLabel {
+            is_view: view.is_some(),
+            text: view.unwrap_or_else(|| self.agent_sort.to_string()),
+        }
+    }
+}
+
+/// The agents list's label. It is cut with an ellipsis to `max_columns`
+/// when given, and an agent view label is drawn in `view_color` when given
+/// (muted otherwise), with `agents-sort-accent` marking that it was.
+pub(super) fn agents_sort(
+    window: &HerdrWindow,
+    cx: &mut Context<HerdrWindow>,
+    max_columns: Option<usize>,
+    view_color: Option<u32>,
+) -> Stateful<Div> {
     let theme = &window.theme;
-    let view = window
-        .live
-        .snapshot
-        .as_ref()
-        .and_then(|snapshot| snapshot.agent_view_label.clone());
-    let label = view
-        .clone()
-        .unwrap_or_else(|| window.agent_sort.to_string());
+    let SortLabel { text, is_view } = window.sort_label();
+    let accent = view_color.filter(|_| is_view);
+    let shown = max_columns.map_or_else(|| text.clone(), |columns| truncate_end(&text, columns));
     div()
         .id("agents-sort")
         .debug_selector(|| "agents-sort".into())
         .flex_none()
         .min_w_0()
-        .truncate()
-        .text_color(rgb(theme.muted))
-        .when(view.is_none(), |sort| {
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .text_color(rgb(accent.unwrap_or(theme.muted)))
+        .when(!is_view, |sort| {
             sort.cursor_pointer()
                 .hover(|style| style.text_color(rgb(theme.foreground)))
                 .on_click(cx.listener(|this, _, _, cx| {
@@ -39,7 +67,16 @@ pub(super) fn agents_sort(window: &HerdrWindow, cx: &mut Context<HerdrWindow>) -
                     cx.notify();
                 }))
         })
-        .child(label_text(&label))
+        // The text color is invisible to debug bounds.
+        .when(accent.is_some(), |sort| {
+            sort.child(
+                div()
+                    .absolute()
+                    .size_full()
+                    .debug_selector(|| "agents-sort-accent".into()),
+            )
+        })
+        .child(label_text(&shown))
 }
 
 /// Attention first, then the most recent change, as upstream orders it.

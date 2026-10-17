@@ -1,6 +1,7 @@
 //! The sidebar's Agents and Spaces tabs.
 
 use super::{
+    agents::agents_sort,
     glyph_width, label_text,
     layout::SidebarLook,
     line_height,
@@ -9,6 +10,7 @@ use super::{
 };
 use crate::{HerdrWindow, config::Theme};
 use gpui::{prelude::*, *};
+use unicode_width::UnicodeWidthStr;
 
 /// The list the tabbed sidebar shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -29,6 +31,39 @@ pub(super) fn tab_label(label: &str, tab_columns: usize) -> String {
     truncate_end(label, tab_columns)
 }
 
+/// The narrowest session row text column that holds the sort label. myherdr's
+/// rule is a list 22 columns wide (`SORT_TOGGLE_MIN_LIST_WIDTH`); its padding,
+/// status character, space, scrollbar column, and spare column are not in a
+/// row's text column here, which leaves 22 - 5.
+const SORT_LABEL_MIN_ROW_COLUMNS: usize = 17;
+
+/// The narrowest empty first line that holds the sort label: myherdr's 22
+/// less its padding and spare column, since an empty list draws no scrollbar.
+const SORT_LABEL_MIN_EMPTY_COLUMNS: usize = 20;
+
+/// Whether the sort label shows on the first agent row, whose text column is
+/// `columns` wide. The rule reads neither the age nor the label, so switching
+/// `grouped` to `priority` cannot make the label vanish.
+pub(super) fn sort_label_fits(columns: usize) -> bool {
+    columns >= SORT_LABEL_MIN_ROW_COLUMNS
+}
+
+/// Whether the sort label shows on the empty list's first line, `columns`
+/// wide.
+pub(super) fn empty_label_fits(columns: usize) -> bool {
+    columns >= SORT_LABEL_MIN_EMPTY_COLUMNS
+}
+
+/// The empty list's message, whole when it leaves a space before the label,
+/// otherwise cut so that one space separates the two. The label stays whole.
+pub(super) fn empty_agents_message(message: &str, label: &str, columns: usize) -> String {
+    let beside_label = label.width() + 1;
+    if message.width() + beside_label <= columns {
+        return message.to_owned();
+    }
+    truncate_end(message, columns.saturating_sub(beside_label))
+}
+
 /// Background, text color, and weight of a tab. They are the terminal tab
 /// strip's focused and unselected colors; `HerdrWindow::tab_colors` also
 /// depends on a split group, which means nothing in the sidebar.
@@ -47,6 +82,57 @@ impl HerdrWindow {
     /// connection drew, and tabs over them would suggest they can be browsed.
     pub(crate) fn sidebar_tabbed(&self) -> bool {
         self.session_sidebar() && !self.reconnecting() && self.config.show_agents
+    }
+
+    /// The columns the first agent row's line one leaves free at its right
+    /// end for the sort label and the space before it, or 0 when no label
+    /// fits a row `columns` wide.
+    pub(super) fn first_line_label_reserve(&self, columns: usize) -> usize {
+        if !sort_label_fits(columns) {
+            return 0;
+        }
+        (self.sort_label().text.width() + 1).min(columns)
+    }
+
+    /// The Agents list's only line when no agent is listed: `no agents`, or
+    /// `no matching agents` while an agent view hides every agent. The tabbed
+    /// layout ends it with the sort label when the line is wide enough.
+    pub(super) fn empty_agents_line(
+        &self,
+        filtered: bool,
+        tabbed: bool,
+        look: SidebarLook,
+        width: f32,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let message = if filtered {
+            "no matching agents"
+        } else {
+            "no agents"
+        };
+        let columns = (look.content_width(width) / glyph_width(&self.config.sidebar))
+            .floor()
+            .max(0.) as usize;
+        if !tabbed || !empty_label_fits(columns) {
+            return div()
+                .px(px(look.content_x()))
+                .text_color(rgb(self.theme.muted))
+                .truncate()
+                .child(label_text(message));
+        }
+        let message = empty_agents_message(message, &self.sort_label().text, columns);
+        div()
+            .w_full()
+            .px(px(look.content_x()))
+            .flex()
+            .text_color(rgb(self.theme.muted))
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .when(!message.is_empty(), |line| line.child(label_text(&message))),
+            )
+            .child(agents_sort(self, cx, Some(columns), Some(self.theme.primary())).ml_auto())
     }
 
     pub(crate) fn shown_sidebar_tab(&self) -> SidebarTab {

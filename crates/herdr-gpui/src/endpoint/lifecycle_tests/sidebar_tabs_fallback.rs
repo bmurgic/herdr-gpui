@@ -115,3 +115,66 @@ fn a_collapsed_sidebar_stops_notifying_during_an_outage(cx: &mut gpui::TestAppCo
     frame(cx);
     assert_eq!(notifies.get(), settled);
 }
+
+/// Thirty characters, so that line one cuts it at any width a sidebar has.
+const LONG_TITLE: &str = "abcdefghijabcdefghijabcdefghij";
+
+#[gpui::test]
+fn the_stacked_fallback_reserves_no_room(cx: &mut gpui::TestAppContext) {
+    let (endpoint, _server) = connected_endpoint("ssh:remote");
+    let (view, cx) = window_drawn_over(cx, endpoint);
+    lose_connection(&view, cx);
+    // Two agents under the long title, the first dated, so the first row's
+    // line one is the title and its age, and the second's the title alone.
+    view.update(cx, |view, cx| {
+        view.live.snapshot_v2 = true;
+        let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
+        listing.workspaces[0].label = LONG_TITLE.into();
+        let mut second = listing.agents[0].clone();
+        second.pane_id = "w1:p2".into();
+        second.focused = false;
+        listing.agents.push(second);
+        // The fixture's agent view lists only the first agent.
+        listing.agent_order = vec!["w1:p1".into(), "w1:p2".into()];
+        listing.agents[0].tokens = vec![(
+            ACTIVITY_TOKEN_KEY.into(),
+            (crate::sidebar::now_ms() - 300_000).to_string(),
+        )];
+        view.sidebar_width = Some(200.);
+        cx.notify();
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("sidebar-tabs").is_none());
+    let (first, second) = (
+        cx.debug_bounds("agent-ssh:remote-w1:p1").unwrap(),
+        cx.debug_bounds("agent-ssh:remote-w1:p2").unwrap(),
+    );
+    assert!(first.top() < second.top());
+
+    // The stacked layout has its label in the section header, not in a row.
+    let sort = cx.debug_bounds("agents-sort").unwrap();
+    assert!(!first.intersects(&sort), "{sort:?} lies in {first:?}");
+    assert!(
+        cx.debug_bounds("header-agents")
+            .unwrap()
+            .contains(&sort.center())
+    );
+
+    // The first row's title ends before its age, and is as wide as the age
+    // and the space before it allow: a column budget the second row's title,
+    // alone on its line, does not give up.
+    let age = cx.debug_bounds("session-age-w1:p1").unwrap();
+    let (title, whole) = (
+        cx.debug_bounds("session-title-w1:p1").unwrap(),
+        cx.debug_bounds("session-title-w1:p2").unwrap(),
+    );
+    assert!(title.right() <= age.left(), "{title:?} {age:?}");
+    // `5m` is two columns, so the age and its space are one and a half times
+    // its width.
+    let given_up = f32::from(whole.size.width - title.size.width);
+    let expected = 1.5 * f32::from(age.size.width);
+    assert!(
+        (given_up - expected).abs() <= 1.,
+        "{given_up} px: {title:?} {whole:?}"
+    );
+}

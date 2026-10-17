@@ -71,6 +71,8 @@ mod sidebar_tabs;
 #[cfg(test)]
 mod sidebar_tabs_lists;
 #[cfg(test)]
+mod sidebar_tabs_sort;
+#[cfg(test)]
 mod spacing_overrides;
 #[cfg(test)]
 mod split_pane;
