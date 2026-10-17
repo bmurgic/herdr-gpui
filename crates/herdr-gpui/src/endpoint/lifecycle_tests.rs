@@ -51,6 +51,7 @@ mod prompts;
 mod reconnect_backoff;
 mod remote_drop;
 mod scrollbar_drag;
+mod session_requests;
 mod smooth_scroll_off;
 mod snapshot_codec_flag;
 mod sounds;

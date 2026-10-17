@@ -1,8 +1,9 @@
 //! GUI-owned endpoint catalog and connection lifetimes. Each attempt has its own
 //! inbox, so retired workers can never publish into a replacement connection.
 use super::{
-    HerdrWindow, LiveState, NavigationTarget, WheelAccumulator, connection::ConnectionBridge,
-    state::ConnectionStatus,
+    HerdrWindow, LiveState, NavigationTarget, WheelAccumulator,
+    connection::ConnectionBridge,
+    state::{ConnectionStatus, SESSION_ACTION_LIMIT, SessionOutcome},
 };
 use gpui::Context;
 use herdr_client::{ClientHandle, ConnectOptions, ConnectTarget, SshFailure, VersionMismatch};
@@ -111,6 +112,8 @@ impl Release {
                         active: false,
                         focus_request: None,
                     });
+                    // A refusal names the fence it ended, not this new one.
+                    state.focus_refused = false;
                     self.phase = ReleasePhase::Sent(request);
                 }
                 Err(_) => {
@@ -151,6 +154,11 @@ pub(super) struct Endpoint {
     pub(crate) history: history::History,
     pub generation: u64,
     pub(crate) toasts: crate::notifications::Toasts,
+    /// Outcomes of the agent-row menu's requests that the window has yet to
+    /// show. Kept here, not in `live`, because `live` is replaced on every
+    /// poll and reconnect, and the window shows them only while its own host
+    /// is connected.
+    pub(crate) session_outcomes: Vec<SessionOutcome>,
     /// Derived from `live.snapshot`; refreshed by `sync_live` whenever `live` changes.
     pub(crate) config_diagnostic: crate::config_diagnostic::ConfigDiagnostic,
     /// The last refused handshake's update advice. Unlike `live`, it survives
@@ -229,6 +237,7 @@ impl Endpoint {
             history: Default::default(),
             generation: 0,
             toasts: Default::default(),
+            session_outcomes: Vec::new(),
             config_diagnostic: Default::default(),
             version_mismatch: None,
             retry_at: Instant::now(),
@@ -241,13 +250,31 @@ impl Endpoint {
         }
     }
 
+    /// Keeps at most `SESSION_ACTION_LIMIT` outcomes for the window and drops
+    /// newer ones beyond that, so a window that never drains cannot grow it.
+    pub(crate) fn keep_session_outcomes(&mut self, outcomes: Vec<SessionOutcome>) {
+        let room = SESSION_ACTION_LIMIT.saturating_sub(self.session_outcomes.len());
+        self.session_outcomes
+            .extend(outcomes.into_iter().take(room));
+    }
+
+    /// The connection's next update, with its session outcomes moved to this
+    /// endpoint before `live` can be replaced or written back to the inbox.
+    fn take_update_keeping_outcomes(&mut self) -> LiveState {
+        let mut live = self.connection.take_update().unwrap_or_default();
+        self.keep_session_outcomes(live.session_actions.take_outcomes());
+        live
+    }
+
     fn stop(&mut self) {
         self.toasts.entries.clear();
         self.connection.detach(false);
         self.initial_surface = false;
         self.online_since = None;
         self.generation += 1;
-        self.live = self.connection.take_update().unwrap_or_default();
+        // The detach turned this connection's pending requests into
+        // interrupted outcomes; take them before `live` is replaced.
+        self.live = self.take_update_keeping_outcomes();
         self.sync_live();
     }
 
@@ -290,7 +317,7 @@ impl Endpoint {
         self.initial_surface = active;
         self.attempts = self.attempts.saturating_add(1);
         self.connection.reconnect(options, false, active);
-        self.live = self.connection.take_update().unwrap_or_default();
+        self.live = self.take_update_keeping_outcomes();
         self.sync_live();
         self.toasts.receive(self.live.notifications.drain(..));
         self.retry_at = Instant::now() + self.retry_delay();
@@ -304,6 +331,8 @@ impl Endpoint {
             } else {
                 Redraw::Window
             };
+            // After the comparison, which counts them as a change.
+            self.keep_session_outcomes(state.session_actions.take_outcomes());
             if state.notifications_lost
                 || !state.status.is_connected()
                 || self

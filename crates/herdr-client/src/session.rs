@@ -186,13 +186,15 @@ impl Session {
             tracing::warn!(category = "initial_snapshot", "client timeout");
             return Err(Error::HandshakeTimeout);
         }
-        if self
+        if let Some(pending) = self
             .pending
             .as_ref()
-            .is_some_and(|p| p.started.elapsed() > COMMAND_TIMEOUT)
+            .filter(|p| p.started.elapsed() > COMMAND_TIMEOUT)
         {
             tracing::warn!(category = "request", "client timeout; request not replayed");
-            return Err(Error::RequestTimeout);
+            return Err(Error::RequestTimeout {
+                request_id: pending.id.clone(),
+            });
         }
         Ok(())
     }

@@ -41,6 +41,12 @@ mod notifications;
 use notifications::start_notifications;
 
 #[cfg(target_os = "macos")]
+#[path = "smoke_session_rows.rs"]
+mod session_rows;
+#[cfg(target_os = "macos")]
+use session_rows::start_session_rows;
+
+#[cfg(target_os = "macos")]
 #[path = "smoke_preferences.rs"]
 mod preferences;
 #[cfg(target_os = "macos")]

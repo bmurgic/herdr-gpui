@@ -125,8 +125,10 @@ fn session_deadlines_and_snapshot_revision_fence() {
         bytes: Vec::new(),
         started: Instant::now() - COMMAND_TIMEOUT - POLL,
     });
+    let timeout = session.check_timeouts().unwrap_err();
+    assert!(matches!(&timeout, Error::RequestTimeout { request_id } if request_id == "one"));
     assert_eq!(
-        session.check_timeouts().unwrap_err().to_string(),
+        timeout.to_string(),
         "endpoint request timed out; not replayed"
     );
 

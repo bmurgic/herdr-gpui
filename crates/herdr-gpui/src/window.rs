@@ -135,6 +135,8 @@ pub(crate) struct HerdrWindow {
     /// when it was last laid out; see `HerdrWindow::strip_leading`.
     pub(crate) strip_navigation_fits: bool,
     pub(crate) pending_toast: Option<u64>,
+    /// The agent-row menu's notices already shown, so a repeat shows once.
+    pub(crate) session_notices: crate::pane_menu::session::NoticeMemory,
     pub(crate) toasts_hidden: bool,
     pub(crate) pending_releases: Vec<endpoint::Release>,
     pub(crate) selected_generation: u64,
@@ -306,6 +308,8 @@ pub(crate) struct HerdrWindow {
     /// stored session. Until then the daemon's `ui.agent_panel_sort` decides,
     /// including after a config reload, as upstream's manual override does.
     pub(crate) agent_sort_modified: bool,
+    /// When the sidebar next repaints for an age whose text changes.
+    pub(crate) session_ages: sidebar::SessionAges,
     pub(crate) avatars: Option<avatars::Avatars>,
     #[cfg(feature = "integration-test")]
     pub(crate) input_probe: smoke::InputProbe,
@@ -474,7 +478,10 @@ impl HerdrWindow {
                 .map(|s| (s.focused_workspace_id.clone(), s.focused_tab_id.clone()))
         };
         let old_tab = focused_tab(&self.live);
-        self.poll_endpoints(cx);
+        let snapshots_changed = self.poll_endpoints(cx);
+        if self.poll_session_ages(sidebar::now_ms(), snapshots_changed) {
+            cx.notify();
+        }
         if self
             .icon_font_notice
             .observe(self.config.icon_font_missing, self.live.surface.as_deref())
@@ -545,6 +552,7 @@ impl HerdrWindow {
         }
         self.poll_tab_rename(window, cx);
         self.poll_pane_rename(window, cx);
+        self.drain_session_outcomes(cx);
         self.poll_pane_processes(cx);
         if old_pane
             != self
@@ -679,6 +687,7 @@ impl HerdrWindow {
             arrival: None,
             strip_navigation_fits: true,
             pending_toast: None,
+            session_notices: Default::default(),
             toasts_hidden: false,
             pending_releases: Vec::new(),
             selected_generation: 0,
@@ -777,6 +786,7 @@ impl HerdrWindow {
             sidebar_modified: false,
             agent_sort: preferences::AgentSort::default(),
             agent_sort_modified: false,
+            session_ages: Default::default(),
             avatars: None,
             #[cfg(feature = "integration-test")]
             input_probe: smoke::InputProbe::default(),
@@ -841,6 +851,8 @@ impl HerdrWindow {
                 *inbox = this.live.clone();
             }
             // The smoke tests measure the old agent row, not the session row.
+            // This covers the frames before their Settings phase loads the
+            // sandbox config, which says the same (tests/live_gui.rs).
             this.settings.shared =
                 crate::herdr_settings::Settings::parse_text("[ui]\nsession_sidebar = false\n").ok();
             return this;

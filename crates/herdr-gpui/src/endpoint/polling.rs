@@ -28,7 +28,9 @@ impl HerdrWindow {
         true
     }
 
-    pub(crate) fn poll_endpoints(&mut self, cx: &mut Context<Self>) {
+    /// Returns whether any endpoint applied an update that rebuilds the
+    /// sidebar. A surface-only update does not, as its rows are unchanged.
+    pub(crate) fn poll_endpoints(&mut self, cx: &mut Context<Self>) -> bool {
         self.recover_after_sleep(Instant::now(), std::time::SystemTime::now());
         // Record the focused target the user last saw before a newer snapshot
         // can replace it; input held across a gap may only go there.
@@ -169,6 +171,8 @@ impl HerdrWindow {
                         active: true,
                         focus_request: None,
                     });
+                    // A refusal names the fence it ended, not this new one.
+                    state.focus_refused = false;
                     state.dirty = true;
                     endpoint.initial_surface = true;
                     self.live = state.clone();
@@ -231,6 +235,7 @@ impl HerdrWindow {
             Redraw::Terminal => self.redraw_terminal(cx),
             Redraw::Window => cx.notify(),
         }
+        changed == Redraw::Window
     }
 
     /// Scan local sessions while the popup asks for them, and ask the saved

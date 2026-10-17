@@ -26,6 +26,15 @@ fn pane_rename_wire_name_and_advertisement() {
 }
 
 #[test]
+fn pane_mark_unread_wire_name_and_advertisement() {
+    assert_eq!(Method::PaneMarkUnread.as_str(), "pane.mark_unread");
+    assert!(Method::PaneMarkUnread.advertised_in(&["pane.mark_unread".into()]));
+    // Stock Herdr's list lacks it: only myherdr's daemon answers the method.
+    let stock: Vec<String> = OFFERED.iter().map(|name| (*name).to_owned()).collect();
+    assert!(!Method::PaneMarkUnread.advertised_in(&stock));
+}
+
+#[test]
 fn pane_clear_is_only_advertised_by_newer_daemons() {
     assert_eq!(Method::PaneClear.as_str(), "pane.clear");
     assert!(Method::PaneClear.advertised_in(&["pane.close".into(), "pane.clear".into()]));
@@ -146,9 +155,10 @@ const OFFERED: &[&str] = &[
     "worktree.remove",
 ];
 
-/// The `.v2` methods only myherdr's daemon answers on the client endpoint
-/// (its `src/api/schema.rs`). Herdr's `OFFERED` list does not hold them.
+/// The methods only myherdr's daemon answers on the client endpoint (its
+/// `src/api/schema.rs`). Herdr's `OFFERED` list does not hold them.
 const MYHERDR_OFFERED: &[&str] = &[
+    "pane.mark_unread",
     "workspace.focus.v2",
     "workspace.move.v2",
     "workspace.move_block.v2",
@@ -174,6 +184,7 @@ const ALL: &[Method] = &[
     Method::PaneInputSet,
     Method::PaneLinkActivate,
     Method::PaneLinkResolve,
+    Method::PaneMarkUnread,
     Method::PaneRename,
     Method::PaneResize,
     Method::PaneScroll,
@@ -255,7 +266,8 @@ fn every_method_is_offered_to_endpoint_clients() {
                     "{method} is not offered to endpoint clients"
                 );
             }
-            Method::WorkspaceFocusV2
+            Method::PaneMarkUnread
+            | Method::WorkspaceFocusV2
             | Method::WorkspaceMoveBlockV2
             | Method::WorkspaceMoveV2
             | Method::WorkspaceRenameV2

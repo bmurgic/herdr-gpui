@@ -178,7 +178,7 @@ setting key:      [ui] session_sidebar, default true, also while the shared conf
 
 ### Task 2: Show the activity age on line one
 
-- [ ] Task 2: Show the activity age on line one
+- [x] Task 2: Show the activity age on line one
 
 **Files:**
 - Create: `crates/herdr-protocol/src/agent_tokens.rs`
@@ -237,7 +237,7 @@ age texts: "now", "<n>m", "<n>h", "<n>d"
 
 ### Task 3: Repaint the age when its text changes
 
-- [ ] Task 3: Repaint the age when its text changes
+- [x] Task 3: Repaint the age when its text changes
 
 **Files:**
 - Modify: `crates/herdr-gpui/src/sidebar/session_age.rs` (`next_change`, `SessionAges`, `HerdrWindow::poll_session_ages`)

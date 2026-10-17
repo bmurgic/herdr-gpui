@@ -10,7 +10,7 @@ use herdr_client::{
     Client, ClientEvent, ConnectOptions, ConnectTarget, Method, connect,
     protocol::{
         ClientKeyCode, ClientKeyKind, ClientPaneInputEvent, ClientShellSnapshotV2,
-        ClientSurfaceSize,
+        ClientSurfaceSize, ServerMessage,
     },
 };
 use sandbox::{Sandbox, daemon_binary, stop_children};
@@ -26,6 +26,8 @@ use std::{
 
 const TIMEOUT: Duration = Duration::from_secs(20);
 
+#[path = "live/mark_unread.rs"]
+mod mark_unread;
 #[path = "live/plugins.rs"]
 mod plugins;
 
@@ -152,6 +154,31 @@ impl Daemon {
     }
 }
 
+/// Reports an agent state for `pane` the way an agent hook does. Hooks use the
+/// JSON API socket, not the shell's UI-only command allowlist.
+fn report_agent(daemon: &Daemon, pane: &str, state: &str, seq: u64) {
+    use std::{
+        io::{BufRead, BufReader, Write},
+        os::unix::net::UnixStream,
+    };
+    let mut api = UnixStream::connect(daemon.sandbox.dir.join("a.sock")).unwrap();
+    api.set_read_timeout(Some(TIMEOUT)).unwrap();
+    writeln!(
+        api,
+        "{}",
+        json!({
+            "id": format!("state-{seq}"), "method": "pane.report_agent",
+            "params": {"pane_id": pane, "source": "claude-hook", "agent": "claude",
+                "state": state, "seq": seq}
+        })
+    )
+    .unwrap();
+    let mut response = String::new();
+    BufReader::new(api).read_line(&mut response).unwrap();
+    let response: Value = serde_json::from_str(&response).unwrap();
+    assert!(response.get("error").is_none(), "{response}");
+}
+
 struct Session {
     client: Client,
     snapshot: Option<Arc<ClientShellSnapshotV2>>,
@@ -209,22 +236,7 @@ impl Session {
                 .unwrap_or_else(|error| {
                     panic!("waiting for {label}: {error}; snapshot={:?}", self.snapshot)
                 });
-            match &event {
-                ClientEvent::Disconnected { reason, .. } => {
-                    panic!("{label}: disconnected: {reason}")
-                }
-                ClientEvent::CommandRejected { reason, .. } => {
-                    panic!("{label}: rejected: {reason}")
-                }
-                ClientEvent::Snapshot(snapshot) => self.snapshot = Some(snapshot.clone()),
-                ClientEvent::Surface(surface) => {
-                    let snapshot = self.snapshot.as_ref().unwrap();
-                    assert_eq!(surface.boot_id, snapshot.boot_id);
-                    assert_eq!(surface.projection_revision, snapshot.revision);
-                    surface.frame.validate().unwrap();
-                }
-                _ => {}
-            }
+            self.observe(label, &event);
             if predicate(&event) {
                 return;
             }
@@ -232,21 +244,63 @@ impl Session {
         }
     }
 
+    /// Drains events for `duration`, keeping the snapshot current and passing
+    /// each event to `record`. Unlike `until`, running out of time is the
+    /// expected end, not a failure.
+    fn watch(&mut self, duration: Duration, mut record: impl FnMut(&ClientEvent)) {
+        let deadline = Instant::now() + duration;
+        while let Ok(event) = self
+            .client
+            .events
+            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        {
+            self.observe("watching", &event);
+            record(&event);
+        }
+    }
+
+    /// Keeps `snapshot` current and fails on events that end or break the test.
+    fn observe(&mut self, label: &str, event: &ClientEvent) {
+        match event {
+            ClientEvent::Disconnected { reason, .. } => {
+                panic!("{label}: disconnected: {reason}")
+            }
+            ClientEvent::CommandRejected { reason, .. } => {
+                panic!("{label}: rejected: {reason}")
+            }
+            ClientEvent::Snapshot(snapshot) => self.snapshot = Some(snapshot.clone()),
+            ClientEvent::Surface(surface) => {
+                let snapshot = self.snapshot.as_ref().unwrap();
+                assert_eq!(surface.boot_id, snapshot.boot_id);
+                assert_eq!(surface.projection_revision, snapshot.revision);
+                surface.frame.validate().unwrap();
+            }
+            _ => {}
+        }
+    }
+
     fn response(&mut self, id: String) -> Value {
+        self.response_recording(id, |_| {})
+    }
+
+    /// Like `response`, passing every `Message` seen while waiting to `record`.
+    fn response_recording(&mut self, id: String, mut record: impl FnMut(&ServerMessage)) -> Value {
         let mut result = None;
-        self.until("API response", |event| {
-            if let ClientEvent::Response {
+        self.until("API response", |event| match event {
+            ClientEvent::Response {
                 request_id,
                 response,
-            } = event
-            {
+            } => {
                 assert_eq!(*request_id, id);
                 assert!(response.get("error").is_none(), "{response}");
                 result = Some(response["result"].clone());
                 true
-            } else {
+            }
+            ClientEvent::Message(message) => {
+                record(message);
                 false
             }
+            _ => false,
         });
         result.unwrap()
     }
@@ -425,10 +479,6 @@ fn stable_endpoint_live() {
 #[ignore = "requires explicit HERDR_TEST_BINARY; spawns an isolated live daemon"]
 fn daemon_completion_status_live() {
     use herdr_client::protocol::AgentStatus;
-    use std::{
-        io::{BufRead, BufReader, Write},
-        os::unix::net::UnixStream,
-    };
     let daemon = Daemon::start();
     let mut session = Session::open(&daemon);
     let initial = session.snapshot.as_ref().unwrap();
@@ -436,23 +486,7 @@ fn daemon_completion_status_live() {
     let pane = initial.focused_pane_id.clone().unwrap();
     let mut previous_sequence = None;
     for (seq, wire_status) in [(1, "working"), (2, "blocked"), (3, "idle")] {
-        // Agent hooks use the JSON API, not the shell's UI-only command allowlist.
-        let mut api = UnixStream::connect(daemon.sandbox.dir.join("a.sock")).unwrap();
-        api.set_read_timeout(Some(TIMEOUT)).unwrap();
-        writeln!(
-            api,
-            "{}",
-            json!({
-                "id": format!("state-{seq}"), "method": "pane.report_agent",
-                "params": {"pane_id": pane, "source": "claude-hook", "agent": "claude",
-                    "state": wire_status, "seq": seq}
-            })
-        )
-        .unwrap();
-        let mut response = String::new();
-        BufReader::new(api).read_line(&mut response).unwrap();
-        let response: Value = serde_json::from_str(&response).unwrap();
-        assert!(response.get("error").is_none(), "{response}");
+        report_agent(&daemon, &pane, wire_status, seq);
         let matches = |snapshot: &ClientShellSnapshotV2| {
             snapshot.agents.iter().any(|agent| {
                 agent.pane_id == pane
