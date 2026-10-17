@@ -175,6 +175,23 @@ fn the_focused_row_background_covers_four_lines(cx: &mut gpui::TestAppContext) {
     assert!(cx.debug_bounds("selected-agent-p1").is_none());
 }
 
+/// Right-clicks agent `p0`'s row and draws the menu it opens.
+fn right_click_first_row(cx: &mut gpui::VisualTestContext) {
+    let position = cx.debug_bounds("row-agent-p0").unwrap().center();
+    cx.simulate_mouse_down(position, MouseButton::Right, Modifiers::default());
+    redraw(cx);
+}
+
+/// Agent `p0`'s row, all four lines of it, is marked as the open menu's row,
+/// and agent `p1`'s is not.
+fn assert_only_the_first_row_is_open(view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext) {
+    let highlight = cx.debug_bounds("highlight-agent-p0").unwrap();
+    let lines = 4. * line_height_of(view, cx);
+    assert!(f32::from(highlight.size.height) >= lines, "{highlight:?}");
+    assert!(cx.debug_bounds("open-agent-p0").is_some());
+    assert!(cx.debug_bounds("open-agent-p1").is_none());
+}
+
 /// The pane menu opening on a right-click is the reused `agent_menu` test's;
 /// this one checks the row, four lines tall, stays marked while it is open.
 #[gpui::test]
@@ -187,18 +204,12 @@ fn an_open_menu_highlights_the_row(cx: &mut gpui::TestAppContext) {
     });
     redraw(cx);
     assert!(cx.debug_bounds("open-agent-p0").is_none());
-    let position = cx.debug_bounds("row-agent-p0").unwrap().center();
-    cx.simulate_mouse_down(position, MouseButton::Right, Modifiers::default());
-    redraw(cx);
+    right_click_first_row(cx);
     view.read_with(cx, |view, _| {
         assert_eq!(view.agent_menu_target(), Some(("local", "p0")));
         assert_eq!(view.menu.page, Some(crate::menu::Page::Pane));
     });
-    let highlight = cx.debug_bounds("highlight-agent-p0").unwrap();
-    let lines = 4. * line_height_of(&view, cx);
-    assert!(f32::from(highlight.size.height) >= lines, "{highlight:?}");
-    assert!(cx.debug_bounds("open-agent-p0").is_some());
-    assert!(cx.debug_bounds("open-agent-p1").is_none());
+    assert_only_the_first_row_is_open(&view, cx);
 }
 
 /// On a host that accepts session actions the same row is marked while its
@@ -213,9 +224,7 @@ fn session_menu_lists_rename_first_and_highlights_its_row(cx: &mut gpui::TestApp
         view.live.snapshot_v2 = true;
     });
     redraw(cx);
-    let position = cx.debug_bounds("row-agent-p0").unwrap().center();
-    cx.simulate_mouse_down(position, MouseButton::Right, Modifiers::default());
-    redraw(cx);
+    right_click_first_row(cx);
     view.read_with(cx, |view, _| {
         assert_eq!(view.menu.page, Some(crate::menu::Page::SessionMenu));
         assert_eq!(view.agent_menu_target(), Some(("local", "p0")));
@@ -227,11 +236,7 @@ fn session_menu_lists_rename_first_and_highlights_its_row(cx: &mut gpui::TestApp
         let labels: Vec<_> = session_items(target).map(SessionItem::label).collect();
         assert_eq!(labels, ["Rename session..."]);
     });
-    let highlight = cx.debug_bounds("highlight-agent-p0").unwrap();
-    let lines = 4. * line_height_of(&view, cx);
-    assert!(f32::from(highlight.size.height) >= lines, "{highlight:?}");
-    assert!(cx.debug_bounds("open-agent-p0").is_some());
-    assert!(cx.debug_bounds("open-agent-p1").is_none());
+    assert_only_the_first_row_is_open(&view, cx);
 }
 
 #[gpui::test]
