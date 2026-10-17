@@ -11,7 +11,7 @@
 use crate::{
     HerdrWindow,
     menu::Page,
-    notifications::safe_text,
+    notifications::{BODY_LIMIT, TITLE_LIMIT, safe_text},
     search_input::SearchInput,
     state::{LiveState, SessionOutcome},
 };
@@ -20,8 +20,6 @@ use herdr_client::{Method, protocol::AgentStatus};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
-const TITLE_LIMIT: usize = 160;
-const BODY_LIMIT: usize = 512;
 /// What a notice is keyed by when the shown host has no connected snapshot.
 const DISCONNECTED: &str = "disconnected";
 /// The code of a request that failed before the daemon answered it.
