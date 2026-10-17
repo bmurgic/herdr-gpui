@@ -623,7 +623,13 @@ impl HerdrWindow {
                             row.bg(rgb(self.theme.active))
                         })
                         .hover(|row| row.bg(rgb(self.theme.active)))
-                        .child(div().min_w_0().truncate().child(item.label()))
+                        // Probed, so the native fixture can find and click it.
+                        .child(
+                            div()
+                                .min_w_0()
+                                .truncate()
+                                .child(crate::sidebar::label_text(item.label())),
+                        )
                         .on_hover(cx.listener(move |this, hovered, _, cx| {
                             if *hovered && let Some(menu) = &mut this.menu.session {
                                 menu.selected = Some(index);
