@@ -8,7 +8,9 @@ use crate::{
         agents::{agent_place, state_label, status_text},
         cell::{AgentRow, Cell, RowContext, RowData, layout_for},
         layout::SidebarLook,
-        line_height, tokens, wash,
+        line_height,
+        session_age::{AgeClock, now_ms},
+        tokens, wash,
     },
 };
 use gpui::{prelude::*, *};
@@ -32,6 +34,7 @@ impl HerdrWindow {
         let multi = self.endpoints.len() > 1;
         let mut count = 0;
         let mut focused = None;
+        let now_ms = now_ms();
         for (index, agent) in self.panel_agents() {
             let Some(endpoint) = self.endpoints.get(index) else {
                 continue;
@@ -62,7 +65,12 @@ impl HerdrWindow {
             // Every row names its machine while several are listed, the local
             // one included, as the agents of all of them share this list.
             let machine = multi.then_some(endpoint.label.as_str());
-            let Some(row) = self.agent_row(index, agent, snapshot, &row_cx, machine, count, cx)
+            let age = AgeClock {
+                carries_activity: live.snapshot_v2,
+                now_ms,
+            };
+            let Some(row) =
+                self.agent_row(index, agent, snapshot, &row_cx, machine, age, count, cx)
             else {
                 continue;
             };
@@ -83,7 +91,7 @@ impl HerdrWindow {
 
     /// The lines a configured agent row shows, empty for Herdr's own row, or
     /// None when the configured rows leave this agent out.
-    pub(super) fn configured_agent_lines(
+    fn configured_agent_lines(
         &self,
         agent: &ClientShellAgent,
         snapshot: &ClientShellSnapshotV2,
@@ -98,7 +106,7 @@ impl HerdrWindow {
     /// Space above the agent row painted `count`-th in its list: a blank line
     /// between session rows, whatever `row_gap` says; otherwise a configured
     /// `row_gap` between configured rows, none for Herdr's own.
-    pub(super) fn agent_row_gap(&self, count: usize) -> f32 {
+    fn agent_row_gap(&self, count: usize) -> f32 {
         let line = line_height(&self.config.sidebar);
         if count == 0 {
             0.
@@ -114,8 +122,9 @@ impl HerdrWindow {
     /// One agent's row in either list, in the shape the settings ask for: a
     /// session row, or Herdr's own with any configured lines. `count` is the
     /// number of rows already in the list. `machine` is the label a session
-    /// row names its machine with. None when the configured rows leave this
-    /// agent out, which a session row never does.
+    /// row names its machine with, and `age` what it dates its activity by.
+    /// None when the configured rows leave this agent out, which a session
+    /// row never does.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn agent_row(
         &self,
@@ -124,12 +133,13 @@ impl HerdrWindow {
         snapshot: &ClientShellSnapshotV2,
         row_cx: &RowContext,
         machine: Option<&str>,
+        age: AgeClock,
         count: usize,
         cx: &mut Context<Self>,
     ) -> Option<Stateful<Div>> {
         let gap = self.agent_row_gap(count);
         if self.session_sidebar() {
-            return Some(self.session_cell(index, agent, snapshot, row_cx, machine, gap, cx));
+            return Some(self.session_cell(index, agent, snapshot, row_cx, machine, age, gap, cx));
         }
         let lines = self.configured_agent_lines(agent, snapshot, row_cx.host)?;
         Some(self.agent_cell(index, agent, snapshot, row_cx, lines, gap, cx))
@@ -139,7 +149,7 @@ impl HerdrWindow {
     /// the agent of endpoint `index`, drawn in `row_cx`, that shows its pane
     /// when clicked.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn agent_cell(
+    fn agent_cell(
         &self,
         index: usize,
         agent: &ClientShellAgent,
@@ -152,7 +162,8 @@ impl HerdrWindow {
         let rows = layout_for(self.config.layout.mode);
         let selected = index == self.selected_endpoint;
         let id = &agent.pane_id;
-        let menu_open = selected && self.pane_menu_target() == Some(id.as_str());
+        let menu_open =
+            self.agent_menu_target() == Some((self.endpoints[index].id.as_str(), id.as_str()));
         let row = Cell::new(
             rows,
             RowData::Agent(AgentRow {

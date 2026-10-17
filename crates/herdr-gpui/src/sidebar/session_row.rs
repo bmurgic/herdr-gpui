@@ -1,6 +1,7 @@
 //! What a session row shows, read from one agent and its workspace. A port of
 //! myherdr's `session_rows.rs`.
 
+use crate::sidebar::session_age::agent_activity;
 use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshotV2};
 
 /// Between the machine and the workspace in the title.
@@ -14,6 +15,9 @@ pub(super) struct SessionRow {
     /// The name is the handle standing in for a pane label, so it reads dim.
     pub(super) name_dim: bool,
     pub(super) branch: Option<String>,
+    /// When the agent was last active, in milliseconds since the Unix epoch.
+    /// Only a V2 snapshot carries it, and only a usable token sets it.
+    pub(super) activity_ms: Option<u64>,
 }
 
 impl SessionRow {
@@ -25,6 +29,7 @@ impl SessionRow {
         snapshot: &ClientShellSnapshotV2,
         agent: &ClientShellAgent,
         machine: Option<&str>,
+        carries_activity: bool,
     ) -> Self {
         let workspace = snapshot
             .workspaces
@@ -47,11 +52,19 @@ impl SessionRow {
             Some(machine) => format!("{machine}{MACHINE_SEPARATOR}{workspace_label}"),
             None => workspace_label.to_owned(),
         };
+        // A stock daemon negotiates V1 and never sets the token, but an agent
+        // could still report one, so only a V2 endpoint reads it.
+        let activity_ms = if carries_activity {
+            agent_activity(agent)
+        } else {
+            None
+        };
         Self {
             title,
             name: pane_label.or(handle).unwrap_or_default().to_owned(),
             name_dim: pane_label.is_none(),
             branch: workspace.and_then(|workspace| workspace.branch.clone()),
+            activity_ms,
         }
     }
 }

@@ -1,9 +1,13 @@
 //! The v2 snapshots that the empty-workspace screen, endpoint lifecycle, and
 //! New Workspace page tests share, so "no workspaces" and "scratch focused"
-//! mean the same state in each of them.
+//! mean the same state in each of them, and the daemon welcome that the state,
+//! link, and settings tests apply.
 #![allow(clippy::unwrap_used)]
 
-use herdr_client::protocol::ClientShellSnapshotV2;
+use herdr_client::{
+    ClientEvent,
+    protocol::{ClientShellSnapshotV2, endpoint::EndpointServerWelcome},
+};
 
 /// `endpoint-snapshot-v2.json`: `w1`, labelled `api`, focused with its tab
 /// `t1`, and `w2`, labelled `scratch`, with no tab.
@@ -54,4 +58,19 @@ pub(crate) fn clear_workspaces(snapshot: &mut ClientShellSnapshotV2) {
     snapshot.focused_workspace_id = None;
     snapshot.focused_tab_id = None;
     snapshot.focused_pane_id = None;
+}
+
+/// A daemon welcome advertising `methods` and `capabilities` and nothing else.
+pub(crate) fn welcome(methods: &[&str], capabilities: &[&str]) -> ClientEvent {
+    ClientEvent::Connected(EndpointServerWelcome {
+        generation: 1,
+        server_version: "test".into(),
+        snapshot_codec: String::new(),
+        surface_codec: String::new(),
+        input_codec: String::new(),
+        blob_codec: String::new(),
+        methods: methods.iter().map(|method| (*method).into()).collect(),
+        capabilities: capabilities.iter().map(|value| (*value).into()).collect(),
+        error: None,
+    })
 }

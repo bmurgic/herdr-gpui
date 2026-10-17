@@ -24,6 +24,36 @@ use std::{
     thread,
 };
 
+/// What the worker delivers, in order, when a connection ends without being
+/// stopped: the version mismatch and the timed-out request, when the error is
+/// one, then the final `Disconnected`.
+pub(crate) fn ending_events(result: &Result<()>) -> Vec<ClientEvent> {
+    let mut events = Vec::new();
+    if let Some(mismatch) = result.as_ref().err().and_then(Error::version_mismatch) {
+        events.push(ClientEvent::VersionMismatch(mismatch));
+    }
+    if let Err(Error::RequestTimeout { request_id }) = result {
+        events.push(ClientEvent::RequestTimedOut {
+            request_id: request_id.clone(),
+        });
+    }
+    let ssh = match result {
+        Err(Error::SshRefused(failure)) => Some(*failure),
+        _ => None,
+    };
+    let reason = match result {
+        Err(error) => error
+            .to_string()
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(1024)
+            .collect(),
+        Ok(()) => "server disconnected".into(),
+    };
+    events.push(ClientEvent::Disconnected { reason, ssh });
+    events
+}
+
 /// Returns immediately after spawning. Connection/handshake errors arrive as events.
 pub fn connect(target: ConnectTarget, options: ConnectOptions) -> Result<Client> {
     connect_with_surface_active(target, options, true)
@@ -143,24 +173,9 @@ pub fn connect_with_connector<T: Into<Transport>>(
                 tracing::info!("connection ended");
             }
             if !worker_stop.load(Ordering::Acquire) {
-                if let Some(mismatch) = result.as_ref().err().and_then(Error::version_mismatch) {
-                    let _ = deliver(&tx, ClientEvent::VersionMismatch(mismatch), &worker_stop);
+                for event in ending_events(&result) {
+                    let _ = deliver(&tx, event, &worker_stop);
                 }
-                let ssh = match &result {
-                    Err(Error::SshRefused(failure)) => Some(*failure),
-                    _ => None,
-                };
-                let reason = result
-                    .err()
-                    .map(|e| {
-                        e.to_string()
-                            .chars()
-                            .filter(|c| !c.is_control())
-                            .take(1024)
-                            .collect()
-                    })
-                    .unwrap_or_else(|| "server disconnected".into());
-                let _ = deliver(&tx, ClientEvent::Disconnected { reason, ssh }, &worker_stop);
             }
             worker_stop.store(true, Ordering::Release);
         })?;

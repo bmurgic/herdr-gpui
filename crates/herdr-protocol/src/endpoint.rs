@@ -11,6 +11,13 @@ pub const ENDPOINT_SNAPSHOT_KIND: &str = SNAPSHOT_CODEC_V1;
 pub const SURFACE_CODEC_V1: &str = "shell.surface.v1";
 pub const INPUT_CODEC_V1: &str = "shell.input.semantic.v1";
 pub const BLOB_CODEC_V1: &str = "shell.blob.v1";
+/// Advertised by a daemon that accepts `pane.rename` and `pane.mark_unread`
+/// from a client whose surface is inactive, so a client can act on a pane of a
+/// server it is not showing.
+pub const BACKGROUND_PANE_COMMANDS_CAPABILITY: &str = "background_pane_commands";
+/// Advertised by a daemon that names agent panes from their first prompt and
+/// reads the `[session_titles]` settings, so a client may show those settings.
+pub const SESSION_TITLES_CAPABILITY: &str = "session_titles";
 fn default_true() -> bool {
     true
 }

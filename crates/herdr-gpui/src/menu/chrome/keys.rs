@@ -162,6 +162,13 @@ impl HerdrWindow {
             self.pane_menu_key(event, window, cx);
             return;
         }
+        if matches!(
+            self.menu.page,
+            Some(Page::SessionMenu | Page::RenameSession)
+        ) {
+            self.session_menu_key(event, window, cx);
+            return;
+        }
         if let Some(Page::Usage(provider)) = self.menu.page
             && self.usage_key(provider, event, cx)
         {

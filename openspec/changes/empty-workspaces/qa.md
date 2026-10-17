@@ -94,6 +94,7 @@ Shared starting state for the desktop procedures:
 **Starting state**
 - herdr-gpui is connected to the myherdr daemon with the single workspace `scratch`, which has one tab.
 - The setting that asks for a name for new tabs is off.
+- The setting that asks for a name for new workspaces is off.
 
 **Procedure**
 

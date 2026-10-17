@@ -442,7 +442,7 @@ pub(crate) fn old_agent_rows(view: &mut HerdrWindow) {
 }
 
 /// A pane the snapshot names `label`, in workspace `w0`'s first tab.
-#[cfg(test)]
+#[cfg(any(test, all(feature = "integration-test", target_os = "macos")))]
 pub(crate) fn labeled_pane(pane_id: &str, label: &str) -> ClientShellPane {
     serde_json::from_value(serde_json::json!({
         "pane_id": pane_id, "workspace_id": "w0", "tab_id": "t0", "label": label,
@@ -450,6 +450,21 @@ pub(crate) fn labeled_pane(pane_id: &str, label: &str) -> ClientShellPane {
         "right_click_passthrough": false,
     }))
     .unwrap()
+}
+
+/// One line of the sidebar's font, the unit a session row stacks.
+#[cfg(any(test, all(feature = "integration-test", target_os = "macos")))]
+pub(crate) fn session_line_height(view: &HerdrWindow) -> f32 {
+    super::line_height(&view.config.sidebar)
+}
+
+/// What a four-line session row should measure: four lines, the padding
+/// around them, and the spacing the style adds. The headless and native
+/// session-row checks both hold the drawn row to it.
+#[cfg(any(test, all(feature = "integration-test", target_os = "macos")))]
+pub(crate) fn four_line_height(view: &HerdrWindow) -> f32 {
+    let look = super::layout::for_config(&view.config, view.fill());
+    4. * session_line_height(view) + 2. * look.row_padding() + look.spacing()
 }
 
 /// This machine and a connected remote ("Remote"), each listing the
@@ -488,6 +503,39 @@ pub(crate) fn two_endpoint_window(
     cx.run_until_parked();
     (view, cx)
 }
+
+/// Marks every host of `view` as one that accepts session actions, which is
+/// what opens the session menu instead of the pane menu.
+#[cfg(test)]
+pub(crate) fn make_hosts_v2(view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext) {
+    view.update(cx, |view, _| {
+        view.live.snapshot_v2 = true;
+        for endpoint in &mut view.endpoints {
+            endpoint.live.snapshot_v2 = true;
+        }
+    });
+}
+
+/// Every agent status, for tests that check each one.
+#[cfg(test)]
+pub(crate) const AGENT_STATUSES: &[AgentStatus] = &[
+    AgentStatus::Idle,
+    AgentStatus::Working,
+    AgentStatus::Blocked,
+    AgentStatus::Done,
+    AgentStatus::Unknown,
+];
+
+// Stops compiling when `AgentStatus` gains a variant, so `AGENT_STATUSES`
+// cannot silently miss it: add the new variant to both.
+#[cfg(test)]
+const _: fn(AgentStatus) = |status| match status {
+    AgentStatus::Idle
+    | AgentStatus::Working
+    | AgentStatus::Blocked
+    | AgentStatus::Done
+    | AgentStatus::Unknown => {}
+};
 
 /// This machine with the fixture's two working agents, and a remote host
 /// with one blocked agent, both connected, in the Devices layout.
@@ -651,6 +699,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         arrival: None,
         strip_navigation_fits: true,
         pending_toast: None,
+        session_notices: Default::default(),
         toasts_hidden: false,
         pending_releases: Vec::new(),
         selected_generation: 0,
@@ -713,6 +762,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         sidebar_modified: false,
         agent_sort: Default::default(),
         agent_sort_modified: false,
+        session_ages: Default::default(),
         avatars: None,
         #[cfg(feature = "integration-test")]
         input_probe: crate::smoke::InputProbe::default(),

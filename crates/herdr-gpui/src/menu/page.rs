@@ -69,7 +69,11 @@ pub(crate) enum Page {
     RemoveWsl,
     RenameDevice,
     RenamePane,
+    /// Names the agent row's pane, from the session menu.
+    RenameSession,
     RenameTab,
+    /// An agent row's menu on a host that accepts session actions.
+    SessionMenu,
     /// Local sessions and remote devices, with the state of each.
     Sessions,
     Tab,
@@ -139,6 +143,8 @@ impl Page {
                 | Self::Group
                 | Self::Pane
                 | Self::RenamePane
+                | Self::SessionMenu
+                | Self::RenameSession
                 | Self::MovePane
                 | Self::CarryPane
                 | Self::PaneProcesses
