@@ -71,6 +71,7 @@ fn drop_above_api(
     let mut peer = MockPeer::advertising(advertised);
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
         peer.prepare(&mut view, cx);
         // Every peer here advertises a single move, as its welcome would set.
         view.live.supports_workspace_move = true;

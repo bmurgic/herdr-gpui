@@ -20,6 +20,7 @@ mod session_age;
 mod session_row;
 mod session_text;
 mod sticky;
+mod tabs;
 mod tokens;
 mod view;
 mod wash;
@@ -43,6 +44,7 @@ pub(crate) use {
     row::{compact, github_mark, label_text, styled as styled_token},
     search::SidebarSearch,
     session_age::{SessionAges, now_ms},
+    tabs::SidebarTab,
     view::SidebarView,
     workspaces::workspace_label,
 };

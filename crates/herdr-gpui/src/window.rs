@@ -301,6 +301,15 @@ pub(crate) struct HerdrWindow {
     pub(crate) tab_drag: Option<tab_drag::TabDrag>,
     pub(crate) sidebar_split: Option<f32>,
     pub(crate) sidebar_split_modified: bool,
+    /// The list the tabbed sidebar shows. Client UI state: never saved, and
+    /// kept while the setting turns off and on again.
+    pub(crate) sidebar_tab: sidebar::SidebarTab,
+    /// The list the sidebar drew last: `None` in the stacked layout and
+    /// before the first draw. A list that was not drawn has stale bounds.
+    pub(crate) sidebar_drawn_tab: std::cell::Cell<Option<sidebar::SidebarTab>>,
+    /// What `reconnecting()` was when `render` last ran, so the cached
+    /// sidebar redraws when the reconnect card goes away without a notify.
+    pub(crate) reconnect_seen: std::cell::Cell<bool>,
     pub(crate) sidebar_preferences: Option<preferences::Preferences>,
     pub(crate) sidebar_modified: bool,
     pub(crate) agent_sort: preferences::AgentSort,
@@ -782,6 +791,9 @@ impl HerdrWindow {
             tab_drag: None,
             sidebar_split: None,
             sidebar_split_modified: false,
+            sidebar_tab: Default::default(),
+            sidebar_drawn_tab: Default::default(),
+            reconnect_seen: Default::default(),
             sidebar_preferences: None,
             sidebar_modified: false,
             agent_sort: preferences::AgentSort::default(),

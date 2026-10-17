@@ -19,6 +19,7 @@ fn washed(
     let (_fixture, cx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| {
             let mut view = fixture_window(window, cx);
+            old_agent_rows(&mut view);
             view.config.layout.mode = mode;
             view.config.sidebar_style.select = select;
             view.config.sidebar_style.hosts = hosts;
@@ -123,6 +124,7 @@ fn the_wash_paints_beneath_the_highlight(cx: &mut gpui::TestAppContext) {
     let (_fixture, cx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| {
             let mut view = fixture_window(window, cx);
+            show_spaces_tab(&mut view);
             view.config.sidebar_style.hosts =
                 BTreeMap::from([(view.endpoints[0].label.clone(), 0x336699)]);
             view

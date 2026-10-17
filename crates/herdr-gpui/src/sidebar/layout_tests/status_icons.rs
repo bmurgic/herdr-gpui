@@ -6,7 +6,11 @@ use super::*;
 #[gpui::test]
 fn status_icons_fit_every_layout(cx: &mut gpui::TestAppContext) {
     use crate::config::{LayoutMode, StatusIcons};
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(900.)));
     // Devices draws Herdr's rows under device headers, which this fixture has none of.
     let modes = LayoutMode::ALL

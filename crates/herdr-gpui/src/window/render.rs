@@ -90,6 +90,14 @@ impl Render for HerdrWindow {
         // presented before it: the terminal area never blanks between two
         // projections. What the client knows to be current stays in `live`.
         let picture = self.presentation.picture(&self.live);
+        // Painting is what ends the card once the replacement frame lands, and
+        // the cached sidebar swaps layouts with it. A notification made while
+        // drawing never reaches the observer that wakes the sidebar, so ask
+        // for the next frame to make it, on the change only.
+        let reconnecting = self.reconnecting();
+        if self.reconnect_seen.replace(reconnecting) != reconnecting {
+            window.request_animation_frame();
+        }
         let surface = picture.as_ref().map(|picture| picture.frame.clone());
         let images = picture.as_ref().map(|picture| picture.images.clone());
         // A group picking the tab another shows paints this same frame.

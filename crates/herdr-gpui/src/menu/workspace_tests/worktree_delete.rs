@@ -136,7 +136,11 @@ fn dismissed_removal_reports_refusals(cx: &mut gpui::TestAppContext) {
 #[gpui::test]
 fn pending_removal_shows_loading_only_on_its_worktree(cx: &mut gpui::TestAppContext) {
     for state in 0..7 {
-        let (view, cx) = cx.add_window_view(sidebar::layout_tests::fixture_window);
+        let (view, cx) = cx.add_window_view(|window, cx| {
+            let mut view = sidebar::layout_tests::fixture_window(window, cx);
+            sidebar::layout_tests::show_spaces_tab(&mut view);
+            view
+        });
         cx.update(|window, cx| {
             view.update(cx, |view, cx| {
                 view.live.status = crate::state::ConnectionStatus::Connected;

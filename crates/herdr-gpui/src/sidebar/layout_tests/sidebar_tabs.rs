@@ -1,0 +1,423 @@
+use super::*;
+use crate::herdr_settings::Settings;
+use crate::sidebar::{SidebarTab, glyph_width, layout, line_height};
+use gpui::{MouseButton, ScrollDelta, ScrollWheelEvent};
+
+const TAB_SELECTORS: [&str; 5] = [
+    "sidebar-tabs",
+    "sidebar-tab-agents",
+    "sidebar-tab-spaces",
+    "sidebar-tab-label-agents",
+    "sidebar-tab-label-spaces",
+];
+
+/// The fixture window, 800 by 600, with `edit` applied before the first frame.
+fn tabbed_window(
+    cx: &mut gpui::TestAppContext,
+    edit: impl FnOnce(&mut HerdrWindow) + 'static,
+) -> (Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        edit(&mut view);
+        view
+    });
+    cx.simulate_resize(size(px(800.), px(600.)));
+    cx.run_until_parked();
+    draw(cx);
+    (view, cx)
+}
+
+fn draw(cx: &mut gpui::VisualTestContext) {
+    cx.update(|window, cx| full_draw(window, cx).clear(cx));
+}
+
+fn select(selector: &'static str, cx: &mut gpui::VisualTestContext) {
+    let tab = cx.debug_bounds(selector).unwrap();
+    cx.simulate_click(tab.center(), Modifiers::default());
+}
+
+/// A snapshot whose agents and workspaces both overflow the list area.
+fn tall_lists(view: &mut HerdrWindow) {
+    let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
+    listing.agents = (0..40)
+        .map(|i| {
+            let mut agent = listing.agents[0].clone();
+            agent.pane_id = format!("p{i}");
+            agent
+        })
+        .collect();
+}
+
+fn set_session_sidebar(view: &Entity<HerdrWindow>, on: bool, cx: &mut gpui::VisualTestContext) {
+    view.update(cx, |view, cx| {
+        view.settings.shared =
+            Some(Settings::parse_text(&format!("[ui]\nsession_sidebar = {on}\n")).unwrap());
+        cx.notify();
+    });
+    draw(cx);
+}
+
+/// The focused workspace, tab, and pane of the selected host's snapshot.
+fn focus_of(view: &HerdrWindow) -> (Option<String>, Option<String>, Option<String>) {
+    let listing = view.live.snapshot.as_ref().unwrap();
+    (
+        listing
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.focused)
+            .map(|workspace| workspace.workspace_id.clone()),
+        listing
+            .tabs
+            .iter()
+            .find(|tab| tab.focused)
+            .map(|tab| tab.tab_id.clone()),
+        listing
+            .panes
+            .iter()
+            .find(|pane| pane.focused)
+            .map(|pane| pane.pane_id.clone()),
+    )
+}
+
+#[gpui::test]
+fn setting_on_draws_the_tab_bar_with_agents_selected(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = tabbed_window(cx, |_| {});
+    let bar = cx.debug_bounds("sidebar-tabs").unwrap();
+    for selector in ["sidebar-tab-agents", "sidebar-tab-spaces"] {
+        assert!(cx.debug_bounds(selector).is_some(), "{selector}");
+    }
+    assert_eq!(
+        cx.debug_bounds("agents-scroll").unwrap().top(),
+        bar.bottom()
+    );
+    assert!(cx.debug_bounds("sidebar-tab-selected-agents").is_some());
+    assert!(cx.debug_bounds("sidebar-tab-selected-spaces").is_none());
+    for hidden in [
+        "spaces-scroll",
+        "sidebar-search",
+        "sidebar-split-resize",
+        "header-agents",
+        "header-spaces",
+    ] {
+        assert!(cx.debug_bounds(hidden).is_none(), "{hidden}");
+    }
+    view.read_with(cx, |view, _| {
+        assert_eq!(view.sidebar_tab, SidebarTab::Agents)
+    });
+}
+
+#[gpui::test]
+fn setting_off_keeps_the_stacked_sections(cx: &mut gpui::TestAppContext) {
+    let (_view, cx) = tabbed_window(cx, old_agent_rows);
+    for selector in TAB_SELECTORS {
+        assert!(cx.debug_bounds(selector).is_none(), "{selector}");
+    }
+    let spaces = cx.debug_bounds("spaces-section").unwrap();
+    let agents = cx.debug_bounds("agents-section").unwrap();
+    assert!(cx.debug_bounds("sidebar-split-resize").is_some());
+    assert!(spaces.bottom() <= agents.top());
+}
+
+#[gpui::test]
+fn a_reloaded_setting_switches_layout_without_a_restart(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = tabbed_window(cx, old_agent_rows);
+    assert!(cx.debug_bounds("sidebar-tabs").is_none());
+    set_session_sidebar(&view, true, cx);
+    assert!(cx.debug_bounds("sidebar-tabs").is_some());
+    set_session_sidebar(&view, false, cx);
+    assert!(cx.debug_bounds("sidebar-tabs").is_none());
+    assert!(cx.debug_bounds("sidebar-split-resize").is_some());
+
+    set_session_sidebar(&view, true, cx);
+    select("sidebar-tab-spaces", cx);
+    draw(cx);
+    set_session_sidebar(&view, false, cx);
+    set_session_sidebar(&view, true, cx);
+    assert!(cx.debug_bounds("spaces-scroll").is_some());
+    assert!(cx.debug_bounds("agents-scroll").is_none());
+    view.read_with(cx, |view, _| {
+        assert_eq!(view.sidebar_tab, SidebarTab::Spaces)
+    });
+}
+
+#[gpui::test]
+fn the_painted_tabs_match_the_column_geometry(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = tabbed_window(cx, |_| {});
+    // A width whose content box holds 26 columns and a bit more, which the
+    // bar must floor.
+    let (width, glyph, line, header_padding, content_x) = view.read_with(cx, |view, _| {
+        let font = &view.config.sidebar;
+        let look = layout::for_config(&view.config, view.fill());
+        let glyph = glyph_width(font);
+        (
+            1. + 2. * look.content_x() + 26.4 * glyph,
+            glyph,
+            line_height(font),
+            look.density.header_padding(),
+            look.content_x(),
+        )
+    });
+    view.update(cx, |view, cx| {
+        view.sidebar_width = Some(width);
+        cx.notify();
+    });
+    draw(cx);
+
+    let sidebar = cx.debug_bounds("sidebar").unwrap();
+    let bar = cx.debug_bounds("sidebar-tabs").unwrap();
+    let agents = cx.debug_bounds("sidebar-tab-agents").unwrap();
+    let spaces = cx.debug_bounds("sidebar-tab-spaces").unwrap();
+    // Layout snaps edges to the display's pixel grid, a half pixel at the
+    // test window's scale, so a width can differ from the columns by that.
+    let close = |actual: Pixels, expected: f32, what: &str| {
+        assert!(
+            (f32::from(actual) - expected).abs() <= 0.5,
+            "{what}: {actual:?} is not {expected}"
+        );
+    };
+    close(bar.size.height, line + 2. * header_padding, "bar height");
+    close(bar.left() - sidebar.left(), content_x, "bar start");
+    close(agents.size.width, 12. * glyph, "agents tab width");
+    close(spaces.size.width, 12. * glyph, "spaces tab width");
+    close(spaces.left() - agents.right(), glyph, "gap");
+    close(bar.size.width, 26. * glyph, "bar width");
+    close(bar.right() - spaces.right(), glyph, "unpainted leftover");
+    for (tab, label) in [
+        (agents, "sidebar-tab-label-agents"),
+        (spaces, "sidebar-tab-label-spaces"),
+    ] {
+        let label = cx.debug_bounds(label).unwrap();
+        assert!(
+            (f32::from(label.center().x - tab.center().x)).abs() <= glyph,
+            "{label:?} is not centered in {tab:?}"
+        );
+    }
+}
+
+#[gpui::test]
+fn selecting_spaces_swaps_the_list_without_moving_focus(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = tabbed_window(cx, |_| {});
+    let before = view.read_with(cx, |view, _| focus_of(view));
+    select("sidebar-tab-spaces", cx);
+    draw(cx);
+    assert!(cx.debug_bounds("spaces-scroll").is_some());
+    assert!(cx.debug_bounds("sidebar-tab-selected-spaces").is_some());
+    assert!(cx.debug_bounds("sidebar-tab-selected-agents").is_none());
+    assert!(cx.debug_bounds("agents-scroll").is_none());
+    for agent in ["row-agent-p0", "row-agent-p1"] {
+        assert!(cx.debug_bounds(agent).is_none(), "{agent}");
+    }
+    // With search on, the field is the first line under the bar.
+    let bar = cx.debug_bounds("sidebar-tabs").unwrap();
+    let field = cx.debug_bounds("sidebar-search").unwrap();
+    assert_eq!(field.top(), bar.bottom());
+    view.read_with(cx, |view, _| {
+        assert!(view.pending_navigation.is_none());
+        assert_eq!(focus_of(view), before);
+        assert_eq!(view.menu.page, None);
+        assert_eq!(view.sidebar_tab, SidebarTab::Spaces);
+    });
+}
+
+#[gpui::test]
+fn each_tab_keeps_its_scroll_position(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = tabbed_window(cx, tall_lists);
+    view.update(cx, |view, _| {
+        view.sidebar_scroll[1].set_offset(point(px(0.), px(-50.)));
+    });
+    draw(cx);
+    let before = view.read_with(cx, |view, _| view.sidebar_scroll[1].offset());
+    assert_eq!(before.y, px(-50.));
+    for tab in ["sidebar-tab-spaces", "sidebar-tab-agents"] {
+        select(tab, cx);
+        draw(cx);
+        draw(cx);
+    }
+    view.read_with(cx, |view, _| {
+        assert_eq!(view.sidebar_scroll[1].offset(), before)
+    });
+}
+
+#[gpui::test]
+fn a_click_where_a_hidden_workspace_row_would_be_does_nothing(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = tabbed_window(cx, |view| {
+        // No agent rows, so nothing of Agents lies under the point.
+        Arc::make_mut(view.live.snapshot.as_mut().unwrap())
+            .agents
+            .clear();
+        show_spaces_tab(view);
+    });
+    let row = cx
+        .debug_bounds("row-herdr-gpui-sidebar-rendering-regression-investigation")
+        .unwrap()
+        .center();
+    let before = view.read_with(cx, |view, _| focus_of(view));
+    select("sidebar-tab-agents", cx);
+    draw(cx);
+    assert!(
+        cx.debug_bounds("row-herdr-gpui-sidebar-rendering-regression-investigation")
+            .is_none()
+    );
+    cx.simulate_click(row, Modifiers::default());
+    view.read_with(cx, |view, _| {
+        assert!(view.pending_navigation.is_none());
+        assert_eq!(focus_of(view), before);
+    });
+    // The same point under Spaces is a workspace row.
+    select("sidebar-tab-spaces", cx);
+    draw(cx);
+    draw(cx);
+    cx.simulate_click(row, Modifiers::default());
+    view.read_with(cx, |view, _| assert!(view.pending_navigation.is_some()));
+}
+
+#[gpui::test]
+fn the_wheel_scrolls_only_the_visible_list(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = tabbed_window(cx, tall_lists);
+    for (shown, selector, index) in [
+        ("sidebar-tab-agents", "agents-scroll", 1),
+        ("sidebar-tab-spaces", "spaces-scroll", 0),
+    ] {
+        select(shown, cx);
+        draw(cx);
+        draw(cx);
+        let before = view.read_with(cx, |view, _| {
+            view.sidebar_scroll.each_ref().map(|scroll| scroll.offset())
+        });
+        let position = cx.debug_bounds(selector).unwrap().center();
+        cx.simulate_event(ScrollWheelEvent {
+            position,
+            delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
+            ..Default::default()
+        });
+        draw(cx);
+        view.read_with(cx, |view, _| {
+            assert!(view.sidebar_scroll[index].offset().y < before[index].y);
+            assert_eq!(view.sidebar_scroll[1 - index].offset(), before[1 - index]);
+        });
+    }
+}
+
+/// The fixture window with `peer` as its daemon, and `edit` applied.
+fn connected_window<'a>(
+    cx: &'a mut gpui::TestAppContext,
+    peer: &crate::window::MockPeer,
+    edit: fn(&mut HerdrWindow),
+) -> (Entity<HerdrWindow>, &'a mut gpui::VisualTestContext) {
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        peer.prepare(&mut view, cx);
+        edit(&mut view);
+        view
+    });
+    cx.simulate_resize(size(px(800.), px(600.)));
+    cx.run_until_parked();
+    draw(cx);
+    (view, cx)
+}
+
+#[gpui::test]
+fn footer_controls_work_under_both_tabs(cx: &mut gpui::TestAppContext) {
+    // The page `new` opens needs a daemon that can create workspaces.
+    let peer = crate::window::MockPeer::advertising(&["workspace.create"]);
+    let new_page = |view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext| {
+        let new = cx.debug_bounds("new-workspace").unwrap().center();
+        cx.simulate_click(new, Modifiers::default());
+        view.read_with(cx, |view, _| view.menu.page)
+    };
+    // What the same click opens with the setting off.
+    let (stacked, stacked_cx) = connected_window(cx, &peer, old_agent_rows);
+    let expected = new_page(&stacked, stacked_cx);
+    assert_eq!(expected, Some(crate::menu::Page::NewWorkspace));
+
+    let (view, tab_cx) = connected_window(cx, &peer, |_| {});
+    assert_eq!(new_page(&view, tab_cx), expected, "agents");
+    let (view, tab_cx) = connected_window(cx, &peer, show_spaces_tab);
+    assert_eq!(new_page(&view, tab_cx), expected, "spaces");
+
+    let (view, cx) = tabbed_window(cx, |_| {});
+    let menu = cx.debug_bounds("sidebar-menu").unwrap().center();
+    cx.simulate_click(menu, Modifiers::default());
+    view.read_with(cx, |view, _| {
+        assert_eq!(view.menu.page, Some(crate::menu::Page::Menu))
+    });
+
+    let (view, cx) = tabbed_window(cx, show_spaces_tab);
+    let toggle = cx.debug_bounds("toggle-sidebar").unwrap().center();
+    cx.simulate_click(toggle, Modifiers::default());
+    draw(cx);
+    assert!(cx.debug_bounds("sidebar-rail").is_some());
+    assert!(view.read_with(cx, |view, _| !view.sidebar_visible));
+}
+
+#[gpui::test]
+fn the_saved_split_is_untouched_while_tabs_show(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = tabbed_window(cx, |view| view.sidebar_split = Some(0.3));
+    assert!(cx.debug_bounds("sidebar-split-resize").is_none());
+    // A drag from the bar into the list crosses where the handle would be.
+    let bar = cx.debug_bounds("sidebar-tabs").unwrap();
+    let start = point(bar.center().x, bar.bottom() - px(1.));
+    let end = start + point(px(0.), px(120.));
+    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::default());
+    cx.simulate_mouse_move(end, MouseButton::Left, Modifiers::default());
+    draw(cx);
+    cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::default());
+    draw(cx);
+    view.read_with(cx, |view, _| {
+        assert_eq!(view.sidebar_split, Some(0.3));
+        assert!(!view.sidebar_split_modified);
+        assert!(view.sidebar_drag.is_none());
+    });
+
+    view.update(cx, |view, cx| {
+        old_agent_rows(view);
+        cx.notify();
+    });
+    draw(cx);
+    let spaces = cx.debug_bounds("spaces-section").unwrap();
+    let agents = cx.debug_bounds("agents-section").unwrap();
+    let both = f32::from(spaces.size.height + agents.size.height);
+    assert!((f32::from(spaces.size.height) - 0.3 * both).abs() <= 1.);
+}
+
+#[gpui::test]
+fn show_agents_off_draws_spaces_alone(cx: &mut gpui::TestAppContext) {
+    let (_view, cx) = tabbed_window(cx, |view| view.config.show_agents = false);
+    for selector in TAB_SELECTORS {
+        assert!(cx.debug_bounds(selector).is_none(), "{selector}");
+    }
+    assert!(cx.debug_bounds("spaces-scroll").is_some());
+    assert!(cx.debug_bounds("agents-scroll").is_none());
+}
+
+#[gpui::test]
+fn hiding_agents_keeps_the_spaces_scroll(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = tabbed_window(cx, show_spaces_tab);
+    // The first reveal has landed by now; the offset below is the user's.
+    draw(cx);
+    view.update(cx, |view, _| {
+        view.sidebar_scroll[0].set_offset(point(px(0.), px(-50.)));
+    });
+    draw(cx);
+    let before = view.read_with(cx, |view, _| view.sidebar_scroll[0].offset());
+    assert_eq!(before.y, px(-50.));
+    view.update(cx, |view, cx| {
+        view.config.show_agents = false;
+        cx.notify();
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("sidebar-tabs").is_none());
+    assert!(cx.debug_bounds("spaces-scroll").is_some());
+    view.read_with(cx, |view, _| {
+        assert_eq!(view.sidebar_scroll[0].offset(), before)
+    });
+}
+
+#[gpui::test]
+fn the_collapsed_sidebar_has_no_tab_bar(cx: &mut gpui::TestAppContext) {
+    let (_view, cx) = tabbed_window(cx, |view| view.sidebar_visible = false);
+    assert!(cx.debug_bounds("sidebar-rail").is_some());
+    for selector in TAB_SELECTORS {
+        assert!(cx.debug_bounds(selector).is_none(), "{selector}");
+    }
+}

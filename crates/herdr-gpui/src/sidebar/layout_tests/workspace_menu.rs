@@ -9,6 +9,7 @@ fn workspace_right_click_survives_redraw_release_and_pointer_movement(
     let (view, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
         let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
         view.live.status = crate::state::ConnectionStatus::Connected;
         view
     });
@@ -70,6 +71,7 @@ fn workspace_popover_header_and_right_click_retargeting(cx: &mut gpui::TestAppCo
     let (view, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         view.live.status = crate::state::ConnectionStatus::Connected;
         view
     });
@@ -222,6 +224,7 @@ fn resting_on_a_workspace_opens_its_menu_once(cx: &mut gpui::TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
         let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
         view.live.status = crate::state::ConnectionStatus::Connected;
         view.active = true;
         view.config.features.sidebar_hover_menu = true;
@@ -374,6 +377,7 @@ fn resting_on_a_workspace_opens_nothing_by_default(cx: &mut gpui::TestAppContext
     let (view, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
         let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
         view.live.status = crate::state::ConnectionStatus::Connected;
         view.active = true;
         view

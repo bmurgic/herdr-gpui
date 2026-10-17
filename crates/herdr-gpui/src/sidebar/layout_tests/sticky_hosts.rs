@@ -1,7 +1,7 @@
 use super::*;
 use gpui::{Pixels, ScrollDelta, ScrollWheelEvent, VisualTestContext};
 
-const WORKSPACES: usize = 12;
+const WORKSPACES: usize = 20;
 /// Past a header's own edge, so it is unambiguously above the list's top.
 const PAST: f32 = 5.;
 
@@ -35,6 +35,7 @@ fn open(
 ) -> (Entity<HerdrWindow>, &mut VisualTestContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot(WORKSPACES)));
         if remote {
             view.endpoints.push(endpoint("ssh:test", "Remote"));

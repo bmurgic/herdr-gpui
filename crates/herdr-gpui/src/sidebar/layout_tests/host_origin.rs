@@ -6,6 +6,7 @@ use super::*;
 fn host_headers_lead_with_the_device_origin_mark(cx: &mut gpui::TestAppContext) {
     let (_view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot(1)));
         let mut remote = crate::endpoint::Endpoint::new(
             "ssh:test".into(),
@@ -63,6 +64,7 @@ fn host_headers_lead_with_the_device_origin_mark(cx: &mut gpui::TestAppContext) 
 
 fn remote_fixture(window: &mut Window, cx: &mut Context<HerdrWindow>) -> HerdrWindow {
     let mut view = fixture_window(window, cx);
+    show_spaces_tab(&mut view);
     view.live.snapshot = Some(Arc::new(snapshot(1)));
     let mut remote = crate::endpoint::Endpoint::new(
         "ssh:test".into(),

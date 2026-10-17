@@ -7,6 +7,7 @@ mod scrolling;
 fn connected(window: &mut Window, cx: &mut Context<HerdrWindow>) -> HerdrWindow {
     crate::bind_keys(cx);
     let mut view = fixture_window(window, cx);
+    show_spaces_tab(&mut view);
     view.live.snapshot = Some(Arc::new(snapshot(6)));
     view.live.status = crate::state::ConnectionStatus::Connected;
     view.live.supports_surface = true;

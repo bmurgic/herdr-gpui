@@ -33,6 +33,7 @@ fn right_clicking_a_cloud_device_offers_rename_settings_and_removal(cx: &mut Tes
     let (view, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
         let mut view = fixture_window(window, cx);
+        crate::sidebar::layout_tests::show_spaces_tab(&mut view);
         add_cloud(&mut view);
         view
     });
