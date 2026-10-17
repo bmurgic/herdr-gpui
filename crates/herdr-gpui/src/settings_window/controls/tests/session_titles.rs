@@ -1,7 +1,8 @@
 use super::*;
 #[cfg(unix)]
 use crate::herdr_settings::TitleAgent;
-use herdr_client::{ClientEvent, protocol::endpoint::EndpointServerWelcome};
+use crate::test_snapshots::welcome;
+use herdr_client::ClientEvent;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -19,20 +20,6 @@ fn draw(cx: &mut VisualTestContext) {
 
 fn painted(cx: &mut VisualTestContext, selector: &'static str) -> bool {
     cx.debug_bounds(selector).is_some()
-}
-
-fn welcome(capabilities: &[&str]) -> ClientEvent {
-    ClientEvent::Connected(EndpointServerWelcome {
-        generation: 1,
-        server_version: "test".into(),
-        snapshot_codec: String::new(),
-        surface_codec: String::new(),
-        input_codec: String::new(),
-        blob_codec: String::new(),
-        methods: Vec::new(),
-        capabilities: capabilities.iter().map(|value| (*value).into()).collect(),
-        error: None,
-    })
 }
 
 #[cfg(unix)]
@@ -130,7 +117,7 @@ fn title_rows_follow_the_welcome_after_opening(cx: &mut TestAppContext) {
             .unwrap();
         cx.run_until_parked();
     };
-    advertise(cx, welcome(&["session_titles"]));
+    advertise(cx, welcome(&[], &["session_titles"]));
     assert!(repaints.load(Ordering::SeqCst) > 0);
     draw(cx);
     for selector in TITLE_SELECTORS {
