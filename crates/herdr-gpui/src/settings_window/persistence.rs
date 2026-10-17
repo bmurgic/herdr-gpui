@@ -262,6 +262,7 @@ impl SettingsWindow {
                 }
                 self.shared = loaded.shared;
                 self.error = loaded.error;
+                self.sync_title_model_field(true, cx);
                 self.sync_code_field(cx);
                 // The saved volume reaches the shared sound worker now, not when
                 // a main window's watcher next reloads, which waits for its
@@ -273,7 +274,8 @@ impl SettingsWindow {
             Err(error) => {
                 self.error = Some(format!(
                     "Could not reload settings; keeping current preferences: {error}"
-                ))
+                ));
+                self.sync_title_model_field(false, cx);
             }
         }
         // Appearance may have changed while the loader was running. Resolve
@@ -338,18 +340,35 @@ impl SettingsWindow {
     }
 
     pub(super) fn save_shared(&mut self, edit: Edit, cx: &mut Context<Self>) {
+        self.save_shared_then(edit, |_, _| {}, cx);
+    }
+
+    /// `save_shared`, running `on_saved` after a successful write.
+    pub(super) fn save_shared_then(
+        &mut self,
+        edit: Edit,
+        on_saved: impl FnOnce(&mut Self, &mut Context<Self>) + 'static,
+        cx: &mut Context<Self>,
+    ) {
         let Some(shared) = self.shared.clone() else {
             return;
         };
         #[cfg(all(test, unix))]
         if let Some(io) = self.shared_io.clone() {
-            self.save_with(move || (io.write)(edit), move || (io.load)(), true, cx);
+            self.save_with_completion(
+                move || (io.write)(edit),
+                move || (io.load)(),
+                true,
+                on_saved,
+                cx,
+            );
             return;
         }
-        self.save_with(
+        self.save_with_completion(
             move || shared.save(edit).map(|_| ()),
             self.loader(cx),
             true,
+            on_saved,
             cx,
         );
     }
@@ -361,7 +380,7 @@ impl SettingsWindow {
         shared: bool,
         cx: &mut Context<Self>,
     ) {
-        self.save_with_completion(operation, load, shared, |_| {}, cx);
+        self.save_with_completion(operation, load, shared, |_, _| {}, cx);
     }
 
     pub(super) fn save_with_completion(
@@ -369,7 +388,7 @@ impl SettingsWindow {
         operation: impl FnOnce() -> crate::Result<()> + Send + 'static,
         load: impl FnOnce() -> crate::Result<Loaded> + Send + 'static,
         shared: bool,
-        on_saved: impl FnOnce(&mut Context<Self>) + 'static,
+        on_saved: impl FnOnce(&mut Self, &mut Context<Self>) + 'static,
         cx: &mut Context<Self>,
     ) {
         if self.busy() {
@@ -409,7 +428,7 @@ impl SettingsWindow {
                 this.save_completion = None;
                 this.saved_sample = written;
                 if saved.is_ok() {
-                    on_saved(cx);
+                    on_saved(this, cx);
                 }
                 if this.quitting {
                     return;

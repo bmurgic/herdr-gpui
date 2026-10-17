@@ -14,16 +14,16 @@ const TITLE_SELECTORS: [&str; 3] = [
     "settings-title-agent-codex",
 ];
 
-fn draw(cx: &mut VisualTestContext) {
+pub(super) fn draw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| crate::sidebar::layout_tests::full_draw(window, cx).clear(cx));
 }
 
-fn painted(cx: &mut VisualTestContext, selector: &'static str) -> bool {
+pub(super) fn painted(cx: &mut VisualTestContext, selector: &'static str) -> bool {
     cx.debug_bounds(selector).is_some()
 }
 
 #[cfg(unix)]
-fn click(cx: &mut VisualTestContext, selector: &'static str) {
+pub(super) fn click(cx: &mut VisualTestContext, selector: &'static str) {
     let control = cx.debug_bounds(selector).unwrap();
     cx.simulate_click(control.center(), Default::default());
     cx.run_until_parked();
@@ -229,7 +229,7 @@ fn invalid_section_after_a_save_keeps_the_shown_values(cx: &mut TestAppContext) 
     draw(cx);
     click(cx, "settings-session-sidebar");
     view.read_with(cx, |view, _| {
-        let titles = view.shared.as_ref().unwrap().session_titles;
+        let titles = view.shared.as_ref().unwrap().session_titles.clone();
         assert!(!titles.enabled);
         assert_eq!(titles.agent, TitleAgent::Codex);
     });

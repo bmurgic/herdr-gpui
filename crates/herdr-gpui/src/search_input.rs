@@ -42,6 +42,9 @@ struct Editing {
     anchor: usize,
     cursor: usize,
     marked: Option<Range<usize>>,
+    /// Whether line breaks and tabs in inserted text become spaces instead of
+    /// line breaks being dropped.
+    breaks_as_spaces: bool,
 }
 
 fn from_utf16(text: &str, offset: usize) -> usize {
@@ -77,10 +80,28 @@ fn unmasked_offset(text: &str, offset: usize) -> usize {
         .map_or(text.len(), |(byte, _)| byte)
 }
 
-fn single_line(text: &str) -> String {
-    text.chars()
-        .filter(|ch| !matches!(ch, '\r' | '\n'))
-        .collect()
+/// The text as one line: line breaks dropped, or with `breaks_as_spaces`
+/// each CRLF, CR, LF, and tab replaced by one space.
+fn single_line(text: &str, breaks_as_spaces: bool) -> String {
+    if !breaks_as_spaces {
+        return text
+            .chars()
+            .filter(|ch| !matches!(ch, '\r' | '\n'))
+            .collect();
+    }
+    let mut line = String::with_capacity(text.len());
+    let mut characters = text.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character {
+            '\r' => {
+                characters.next_if_eq(&'\n');
+                line.push(' ');
+            }
+            '\n' | '\t' => line.push(' '),
+            other => line.push(other),
+        }
+    }
+    line
 }
 
 impl Editing {
@@ -121,7 +142,7 @@ impl Editing {
             .map(|r| byte_range(&self.text, r))
             .or_else(|| self.marked.clone())
             .unwrap_or_else(|| self.selection());
-        let inserted = single_line(text);
+        let inserted = single_line(text, self.breaks_as_spaces);
         let changed = self.text[range.clone()] != inserted;
         self.text.replace_range(range.clone(), &inserted);
         self.marked = (composing && !inserted.is_empty())
@@ -131,9 +152,18 @@ impl Editing {
         if composing && let Some(selection) = selection {
             // IME selection is relative to the supplied text, not the whole buffer.
             // Map through newline removal as well as UTF-16 conversion.
-            self.anchor =
-                range.start + single_line(&text[..from_utf16(text, selection.start)]).len();
-            self.cursor = range.start + single_line(&text[..from_utf16(text, selection.end)]).len();
+            self.anchor = range.start
+                + single_line(
+                    &text[..from_utf16(text, selection.start)],
+                    self.breaks_as_spaces,
+                )
+                .len();
+            self.cursor = range.start
+                + single_line(
+                    &text[..from_utf16(text, selection.end)],
+                    self.breaks_as_spaces,
+                )
+                .len();
         }
         changed
     }
@@ -168,6 +198,13 @@ impl SearchInput {
         cx.notify();
     }
 
+    /// Turns each CRLF, CR, LF, and tab in inserted and pasted text into one
+    /// space, where the default drops line breaks and keeps tabs. For a field
+    /// whose value is one line of words, such as a model name.
+    pub(crate) fn set_breaks_as_spaces(&mut self, on: bool) {
+        self.edit.breaks_as_spaces = on;
+    }
+
     /// Draw only the text, inside a frame the owner draws.
     pub(crate) fn set_frameless(&mut self, cx: &mut Context<Self>) {
         self.framed = false;
@@ -188,11 +225,12 @@ impl SearchInput {
     }
 
     pub(super) fn set_text_selected(&mut self, text: &str, cx: &mut Context<Self>) {
-        let text = single_line(text);
+        let text = single_line(text, self.edit.breaks_as_spaces);
         let changed = self.edit.text != text;
         self.edit = Editing {
             cursor: text.len(),
             text,
+            breaks_as_spaces: self.edit.breaks_as_spaces,
             ..Editing::default()
         };
         self.scroll = px(0.);
@@ -221,7 +259,10 @@ impl SearchInput {
 
     pub fn clear(&mut self, cx: &mut Context<Self>) {
         let changed = !self.edit.text.is_empty();
-        self.edit = Editing::default();
+        self.edit = Editing {
+            breaks_as_spaces: self.edit.breaks_as_spaces,
+            ..Editing::default()
+        };
         self.scroll = px(0.);
         self.selecting = false;
         self.did_edit(changed, cx);
@@ -702,6 +743,7 @@ mod tests {
     use super::*;
 
     mod completion;
+    mod line_breaks;
 
     #[test]
     fn masked_offsets_count_characters_both_ways() {

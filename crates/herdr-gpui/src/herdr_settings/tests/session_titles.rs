@@ -155,3 +155,52 @@ fn title_agent_clears_the_model_in_one_write() -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn title_model_reads_and_defaults() -> anyhow::Result<()> {
+    assert_eq!(parsed("[session_titles]\n")?.session_titles.model, "");
+    assert_eq!(parsed("[ui]\n")?.session_titles.model, "");
+    assert_eq!(
+        parsed("[session_titles]\nmodel = \"sonnet\"\n")?
+            .session_titles
+            .model,
+        "sonnet"
+    );
+
+    // The agent and switch differ from the defaults, so a section read
+    // half-way would not look like them.
+    let invalid = parsed("[session_titles]\nenabled = false\nagent = \"codex\"\nmodel = 5\n")?;
+    assert!(invalid.session_titles_invalid);
+    assert_eq!(invalid.session_titles, SessionTitles::default());
+
+    assert_eq!(TitleAgent::Claude.default_model(), "haiku");
+    assert_eq!(TitleAgent::Codex.default_model(), "gpt-6-luna");
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn title_model_edit_reads_back_as_written() -> anyhow::Result<()> {
+    for (model, line) in [
+        ("my-model", "model = \"my-model\"\n"),
+        // toml_edit picks the quoting; the text must survive either way.
+        ("a\"b\\c", ""),
+        ("", "model = \"\"\n"),
+    ] {
+        let temp = tempfile::tempdir()?;
+        let path = temp.path().join("config.toml");
+        let original = "# keep\n[session_titles]\nenabled = false # on\nagent = \"codex\"\n";
+        fs::write(&path, original)?;
+        let saved = Settings::load_path(path.clone())?.save(Edit::TitleModel(model.into()))?;
+        assert_eq!(saved.session_titles.model, model);
+
+        let text = fs::read_to_string(&path)?;
+        assert!(text.starts_with(original), "{text}");
+        assert!(text.contains(line), "{text}");
+        let reloaded = Settings::load_path(path)?;
+        assert!(!reloaded.session_titles_invalid);
+        assert_eq!(reloaded.session_titles.model, model);
+        assert_eq!(reloaded.session_titles.agent, TitleAgent::Codex);
+    }
+    Ok(())
+}

@@ -19,6 +19,7 @@ use persistence::SharedIo;
 use persistence::SizeIo;
 use persistence::{Loaded, SaveCompletion};
 mod themes;
+mod title_model_suggestions;
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 pub(crate) use native::verify_native;
 pub(crate) use themes::{
@@ -427,6 +428,7 @@ impl SettingsWindow {
         if matches!(self.section, Section::Integrations | Section::Plugins) {
             cx.notify();
         }
+        self.end_title_model_edit_when_hidden(cx);
         if self.section == Section::General {
             self.sync_remote_history(false, cx);
             // The title rows depend on the local daemon's welcome, which no
@@ -750,6 +752,7 @@ impl SettingsWindow {
 
 impl Render for SettingsWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.ensure_title_model_field(window, cx);
         let content = match self.section {
             Section::Appearance => self.render_appearance(window, cx),
             Section::Integrations => self.render_integration_controls(cx),

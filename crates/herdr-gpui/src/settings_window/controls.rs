@@ -581,7 +581,7 @@ impl SettingsWindow {
             operation,
             load,
             false,
-            move |cx| AgentSkill::choose(choice, cx),
+            move |_, cx| AgentSkill::choose(choice, cx),
             cx,
         );
     }

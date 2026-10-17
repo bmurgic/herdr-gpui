@@ -258,6 +258,7 @@ pub(crate) enum Edit {
     SessionSidebar(bool),
     SessionTitlesEnabled(bool),
     TitleAgent(TitleAgent),
+    TitleModel(String),
     /// Adds `token` (config spelling, such as `$summary`) as its own row of
     /// `[ui.sidebar.<scope>].rows`, or removes every occurrence of it there.
     SidebarToken {
@@ -541,8 +542,8 @@ impl Settings {
             right_click_passthrough: parsed.ui.right_click_passthrough_modifier,
             pane_history: parsed.experimental.pane_history,
             session_sidebar: parsed.ui.session_sidebar.unwrap_or(true),
-            session_titles: titles.unwrap_or_default(),
             session_titles_invalid: titles.is_none(),
+            session_titles: titles.unwrap_or_default(),
             palettes,
             original,
         })
@@ -610,6 +611,7 @@ impl Settings {
                     session_titles::edit_enabled(&mut document, enabled)?
                 }
                 Edit::TitleAgent(agent) => session_titles::edit_agent(&mut document, agent)?,
+                Edit::TitleModel(model) => session_titles::edit_model(&mut document, &model)?,
                 Edit::Toasts(delivery) => {
                     set(
                         &mut document,
@@ -671,7 +673,7 @@ impl Settings {
     /// myherdr does, so a reload never snaps the rows back to the defaults.
     pub(crate) fn keep_session_titles(&mut self, previous: &Settings) {
         if self.session_titles_invalid {
-            self.session_titles = previous.session_titles;
+            self.session_titles = previous.session_titles.clone();
         }
     }
 

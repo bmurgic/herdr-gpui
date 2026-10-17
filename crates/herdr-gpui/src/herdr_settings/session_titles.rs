@@ -20,13 +20,24 @@ impl TitleAgent {
             Self::Codex => "codex",
         }
     }
+
+    /// The model the daemon uses when `session_titles.model` is empty.
+    pub(crate) fn default_model(self) -> &'static str {
+        match self {
+            Self::Claude => "haiku",
+            Self::Codex => "gpt-6-luna",
+        }
+    }
 }
 
 /// myherdr's defaults, also used before the shared config has loaded.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SessionTitles {
     pub enabled: bool,
     pub agent: TitleAgent,
+    /// The model name as written, empty when absent: the daemon then uses the
+    /// agent's own default.
+    pub model: String,
 }
 
 impl Default for SessionTitles {
@@ -34,6 +45,7 @@ impl Default for SessionTitles {
         Self {
             enabled: true,
             agent: TitleAgent::Claude,
+            model: String::new(),
         }
     }
 }
@@ -41,9 +53,9 @@ impl Default for SessionTitles {
 impl SessionTitles {
     /// `None` when a present section has a shape the daemon would refuse:
     /// not a table, `enabled` not a boolean, `agent` not `claude` or `codex`,
-    /// or `claude_path`/`codex_path` not a string. Those two paths are checked
-    /// for type only; this client never reads their values. Keys it does not
-    /// know are allowed. The model joins this check once the card shows it.
+    /// `model` not a string, or `claude_path`/`codex_path` not a string. Those
+    /// two paths are checked for type only; this client never reads their
+    /// values. Keys it does not know are allowed.
     pub(super) fn read(section: Option<&toml::Value>) -> Option<Self> {
         let Some(section) = section else {
             return Some(Self::default());
@@ -58,12 +70,20 @@ impl SessionTitles {
             Some(value) => TitleAgent::deserialize(value.clone()).ok()?,
             None => defaults.agent,
         };
+        let model = match table.get("model") {
+            Some(value) => value.as_str()?.to_owned(),
+            None => defaults.model,
+        };
         for path in ["claude_path", "codex_path"] {
             if table.get(path).is_some_and(|value| !value.is_str()) {
                 return None;
             }
         }
-        Some(Self { enabled, agent })
+        Some(Self {
+            enabled,
+            agent,
+            model,
+        })
     }
 }
 
@@ -86,4 +106,9 @@ pub(super) fn edit_agent(document: &mut DocumentMut, agent: TitleAgent) -> Resul
         agent.as_str().into(),
     )?;
     set(document, &["session_titles", "model"], "".into())
+}
+
+/// Writes the text as given; the field has already trimmed it.
+pub(super) fn edit_model(document: &mut DocumentMut, model: &str) -> Result<(), Error> {
+    set(document, &["session_titles", "model"], model.into())
 }

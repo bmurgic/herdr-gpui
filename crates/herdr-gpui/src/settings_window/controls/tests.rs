@@ -11,6 +11,7 @@ mod sidebar_search;
 mod sound_volume;
 mod status_icons;
 mod terminal_padding;
+mod title_model;
 mod update_channel;
 
 pub(super) fn skill_fixture(
