@@ -59,6 +59,7 @@ impl HerdrWindow {
 impl Render for HerdrWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.restore_menu_focus(window, cx);
+        self.release_hidden_search_focus(window, cx);
         self.sync_backdrop(window, cx);
         self.tick_chrome(window, cx);
         self.sync_device_themes(cx);

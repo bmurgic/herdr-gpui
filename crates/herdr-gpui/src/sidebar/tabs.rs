@@ -302,8 +302,7 @@ impl HerdrWindow {
             .child(tab(SidebarTab::Spaces, "Spaces", "spaces").ml(px(glyph)))
     }
 
-    /// Shows `tab`. Agents has no search field, so a field still holding the
-    /// keyboard hands it back to the terminal; the query stays for Spaces.
+    /// Shows `tab`.
     pub(crate) fn select_sidebar_tab(
         &mut self,
         tab: SidebarTab,
@@ -311,9 +310,19 @@ impl HerdrWindow {
         cx: &mut Context<Self>,
     ) {
         self.sidebar_tab = tab;
-        if tab == SidebarTab::Agents && self.sidebar_search.focus(cx).is_focused(window) {
+        self.release_hidden_search_focus(window, cx);
+        cx.notify();
+    }
+
+    /// Hands the keyboard back to the terminal when the search field holds
+    /// it but the sidebar shows Agents, which has no field. A tab click gets
+    /// there, and so does a stacked sidebar turning tabbed, as when the
+    /// reconnect card ends or the setting is reloaded; the window checks for
+    /// that as each frame starts. The query stays for Spaces.
+    pub(crate) fn release_hidden_search_focus(&self, window: &mut Window, cx: &mut App) {
+        let hidden = self.sidebar_tabbed() && self.shown_sidebar_tab() == SidebarTab::Agents;
+        if hidden && self.sidebar_search.focus(cx).contains_focused(window, cx) {
             window.focus(&self.focus, cx);
         }
-        cx.notify();
     }
 }

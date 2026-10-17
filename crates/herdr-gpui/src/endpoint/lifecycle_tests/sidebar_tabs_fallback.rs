@@ -31,6 +31,27 @@ fn frame(cx: &mut gpui::VisualTestContext) {
     });
 }
 
+/// Ends the card as the replacement connection does: the next revision of
+/// `first`, the frame painted before the outage, lands while the card is up,
+/// and two frames paint it and redraw what the card's end changed.
+fn land_replacement(
+    view: &gpui::Entity<HerdrWindow>,
+    first: &PaneSurfaceFrame,
+    cx: &mut gpui::VisualTestContext,
+) {
+    view.update(cx, |view, cx| {
+        let mut replacement = first.clone();
+        replacement.surface_revision += 1;
+        view.live.surface = Some(Arc::new(replacement));
+        assert!(view.live.surface_ready());
+        assert!(view.presentation.stale(), "stale until painted");
+        assert!(view.reconnecting());
+        view.redraw_terminal(cx);
+    });
+    frame(cx);
+    frame(cx);
+}
+
 fn sidebar_renders(view: &gpui::Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext) -> usize {
     cx.update(|_, cx| view.read(cx).sidebar_view.read(cx).renders)
 }
@@ -68,23 +89,47 @@ fn the_reconnect_card_keeps_the_stacked_sidebar(cx: &mut gpui::TestAppContext) {
     // The frame lands. The window paints it, and only that paint learns the
     // card is gone, so it is what has to wake the cached sidebar.
     let before = sidebar_renders(&view, cx);
-    view.update(cx, |view, cx| {
-        let mut replacement = (*first).clone();
-        replacement.surface_revision += 1;
-        view.live.surface = Some(Arc::new(replacement));
-        assert!(view.live.surface_ready());
-        assert!(view.presentation.stale(), "stale until painted");
-        assert!(view.reconnecting());
-        view.redraw_terminal(cx);
-    });
-    frame(cx);
-    frame(cx);
+    land_replacement(&view, &first, cx);
     view.read_with(cx, |view, _| assert!(!view.reconnecting()));
     assert!(sidebar_renders(&view, cx) > before);
 
     draw(cx);
     assert!(cx.debug_bounds("sidebar-tabs").is_some());
     assert!(cx.debug_bounds("sidebar-split-resize").is_none());
+}
+
+/// The stacked fallback shows the search field, and the tabbed sidebar that
+/// returns shows Agents, which has none.
+#[gpui::test]
+fn the_card_ending_hands_a_focused_search_field_back(cx: &mut gpui::TestAppContext) {
+    let (endpoint, _server) = connected_endpoint("ssh:remote");
+    let (view, cx) = window_drawn_over(cx, endpoint);
+    let first = view.update(cx, |view, _| {
+        view.presentation.picture(&view.live).unwrap().frame
+    });
+    lose_connection(&view, cx);
+    draw(cx);
+    assert!(cx.debug_bounds("sidebar-search").is_some());
+    cx.update(|window, cx| {
+        let field = view.read(cx).sidebar_search.focus(cx);
+        window.focus(&field, cx);
+        crate::sidebar::layout_tests::full_draw(window, cx).clear(cx);
+    });
+    view.update(cx, |view, cx| {
+        view.endpoints[1].outage = None;
+        view.poll_endpoints(cx);
+        view.live.surface = None;
+    });
+
+    land_replacement(&view, &first, cx);
+    view.read_with(cx, |view, _| assert!(!view.reconnecting()));
+    draw(cx);
+    assert!(cx.debug_bounds("sidebar-tabs").is_some());
+    cx.update(|window, cx| {
+        let view = view.read(cx);
+        assert!(view.focus.is_focused(window));
+        assert!(!view.sidebar_search.focus(cx).is_focused(window));
+    });
 }
 
 #[gpui::test]

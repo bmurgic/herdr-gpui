@@ -103,6 +103,29 @@ fn a_reloaded_setting_switches_layout_without_a_restart(cx: &mut gpui::TestAppCo
     });
 }
 
+/// The stacked sidebar's search field holds the keyboard when the setting
+/// comes on, and the tabbed layout shows Agents, which has no field.
+#[gpui::test]
+fn a_reloaded_setting_hands_a_focused_search_field_back(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = tabbed_window(cx, old_agent_rows);
+    assert!(cx.debug_bounds("sidebar-search").is_some());
+    cx.update(|window, cx| {
+        let field = view.read(cx).sidebar_search.focus(cx);
+        window.focus(&field, cx);
+        full_draw(window, cx).clear(cx);
+    });
+    cx.update(|window, cx| assert!(view.read(cx).sidebar_search.focus(cx).is_focused(window)));
+
+    set_session_sidebar(&view, true, cx);
+    draw(cx);
+    assert!(cx.debug_bounds("sidebar-search").is_none());
+    cx.update(|window, cx| {
+        let view = view.read(cx);
+        assert!(view.focus.is_focused(window));
+        assert!(!view.sidebar_search.focus(cx).is_focused(window));
+    });
+}
+
 #[gpui::test]
 fn the_painted_tabs_match_the_column_geometry(cx: &mut gpui::TestAppContext) {
     let (view, cx) = tabbed_window(cx, |_| {});
