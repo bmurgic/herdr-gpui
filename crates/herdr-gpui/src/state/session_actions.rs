@@ -41,7 +41,7 @@ pub(crate) enum SessionOutcome {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Pending {
+struct Pending {
     id: String,
     method: Method,
     boot: String,
@@ -134,12 +134,12 @@ impl SessionActions {
         std::mem::take(&mut self.outcomes)
     }
 
-    pub(crate) fn take_pending(&mut self) -> Vec<Pending> {
+    fn take_pending(&mut self) -> Vec<Pending> {
         std::mem::take(&mut self.pending)
     }
 
     /// Records the requests of an ended connection as interrupted.
-    pub(crate) fn interrupted(&mut self, pending: Vec<Pending>) {
+    fn interrupted(&mut self, pending: Vec<Pending>) {
         self.outcomes.extend(
             pending
                 .into_iter()

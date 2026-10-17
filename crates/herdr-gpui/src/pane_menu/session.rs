@@ -74,7 +74,7 @@ pub(crate) fn session_items(target: &SessionTarget) -> impl Iterator<Item = Sess
 
 /// How a problem is told apart from an earlier one of the same sort.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum NoticeKind {
+enum NoticeKind {
     Unavailable,
     Unsupported,
     Timeout,
@@ -84,7 +84,7 @@ pub(crate) enum NoticeKind {
 /// A notice's identity: the server boot it is about, its kind, and a code
 /// that separates problems of one kind.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct NoticeKey {
+struct NoticeKey {
     boot: String,
     kind: NoticeKind,
     code: String,
@@ -101,15 +101,15 @@ impl NoticeKey {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct SessionNotice {
-    pub(crate) title: String,
-    pub(crate) body: String,
+pub(super) struct SessionNotice {
+    pub(super) title: String,
+    pub(super) body: String,
     key: NoticeKey,
 }
 
 /// What to do with a request, as `route` decides.
 #[derive(Debug, PartialEq)]
-pub(crate) enum Route {
+pub(super) enum Route {
     Send {
         endpoint: String,
         method: Method,
@@ -119,26 +119,26 @@ pub(crate) enum Route {
 }
 
 /// What `route` reads about the host the request is for.
-pub(crate) struct HostState<'a> {
-    pub(crate) label: &'a str,
+pub(super) struct HostState<'a> {
+    pub(super) label: &'a str,
     /// The boot id of the host's connected snapshot, absent when it has none.
-    pub(crate) boot: Option<&'a str>,
-    pub(crate) methods: &'a [String],
-    pub(crate) supports_background: bool,
+    pub(super) boot: Option<&'a str>,
+    pub(super) methods: &'a [String],
+    pub(super) supports_background: bool,
 }
 
-pub(crate) struct RouteInput<'a> {
-    pub(crate) shown_endpoint: &'a str,
-    pub(crate) shown_boot: Option<&'a str>,
-    pub(crate) target: &'a SessionTarget,
-    pub(crate) host: HostState<'a>,
-    pub(crate) method: Method,
-    pub(crate) params: Value,
+pub(super) struct RouteInput<'a> {
+    pub(super) shown_endpoint: &'a str,
+    pub(super) shown_boot: Option<&'a str>,
+    pub(super) target: &'a SessionTarget,
+    pub(super) host: HostState<'a>,
+    pub(super) method: Method,
+    pub(super) params: Value,
 }
 
 /// Where a request for `input.target` goes, or the notice that says why it
 /// cannot. The rules apply in order, as myherdr applies them.
-pub(crate) fn route(input: RouteInput<'_>) -> Route {
+pub(super) fn route(input: RouteInput<'_>) -> Route {
     let RouteInput {
         shown_endpoint,
         shown_boot,
@@ -210,7 +210,7 @@ fn rejected_notice(boot: &str, method: Method, code: &str, body: String) -> Sess
 }
 
 /// What showing an outcome comes to.
-pub(crate) enum Effect {
+pub(super) enum Effect {
     Show(SessionNotice),
     /// A success re-arms the timeout notice for its method.
     RearmTimeout {
@@ -220,7 +220,7 @@ pub(crate) enum Effect {
 }
 
 impl Effect {
-    pub(crate) fn of(outcome: SessionOutcome) -> Self {
+    pub(super) fn of(outcome: SessionOutcome) -> Self {
         match outcome {
             SessionOutcome::Rejected {
                 boot,
@@ -264,7 +264,7 @@ impl NoticeMemory {
     /// Starts afresh when the shown host's boot differs from the one the
     /// memory belongs to, including a switch to another host. `None` is a
     /// shown host with no connected snapshot.
-    pub(crate) fn observe(&mut self, shown_boot: Option<&str>) {
+    pub(super) fn observe(&mut self, shown_boot: Option<&str>) {
         let boot = shown_boot.unwrap_or(DISCONNECTED);
         if self.boot.as_deref() == Some(boot) {
             return;
@@ -276,7 +276,7 @@ impl NoticeMemory {
 
     /// Whether `notice` should be shown. `visible` is the title and body of
     /// every toast on screen.
-    pub(crate) fn admit<'a>(
+    pub(super) fn admit<'a>(
         &mut self,
         notice: &SessionNotice,
         visible: impl IntoIterator<Item = (&'a str, &'a str)>,
@@ -298,7 +298,7 @@ impl NoticeMemory {
         true
     }
 
-    pub(crate) fn rearm_timeout(&mut self, boot: &str, method: Method) {
+    pub(super) fn rearm_timeout(&mut self, boot: &str, method: Method) {
         self.seen
             .remove(&NoticeKey::new(boot, NoticeKind::Timeout, method.as_str()));
     }
@@ -446,7 +446,7 @@ impl HerdrWindow {
 
     /// Sends `method` for `target` to its host, or shows why it cannot. The
     /// reply arrives later as an outcome.
-    pub(crate) fn session_request(
+    pub(super) fn session_request(
         &mut self,
         target: &SessionTarget,
         method: Method,
