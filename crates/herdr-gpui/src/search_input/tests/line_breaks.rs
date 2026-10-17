@@ -1,5 +1,3 @@
-#![allow(clippy::unwrap_used)]
-
 use super::*;
 
 /// Pastes `text` into an empty input through the platform's text-entry

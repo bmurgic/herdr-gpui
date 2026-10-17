@@ -296,7 +296,6 @@ fn hiding_the_rows_ends_editing(cx: &mut TestAppContext) {
             })
             .unwrap();
         cx.run_until_parked();
-        draw(cx);
     };
     apply(
         cx,
@@ -305,14 +304,45 @@ fn hiding_the_rows_ends_editing(cx: &mut TestAppContext) {
             ssh: None,
         },
     );
+    draw(cx);
     assert_eq!(phase(&view, cx), ModelPhase::NotEditing);
     assert_eq!(text(&view, cx), "sonnet");
 
     // The field is drawn again, and must not take the focus it kept as a new one.
     apply(cx, crate::test_snapshots::welcome(&[], &["session_titles"]));
+    draw(cx);
     assert!(painted(cx, "settings-title-model"));
     assert_eq!(text(&view, cx), "sonnet");
     assert_eq!(phase(&view, cx), ModelPhase::NotEditing);
+}
+
+/// Inside one update no effect has run, so no redraw and no blur has reached
+/// the field: only `end_title_model_edit_when_hidden` can end the edit here.
+#[cfg(unix)]
+#[gpui::test]
+fn the_hidden_edit_ends_without_waiting_for_a_redraw(cx: &mut TestAppContext) {
+    let (source, view, cx) = sessions_fixture(cx, Some(SONNET), &[Host::Local { titles: true }]);
+    activate(cx);
+    focus_field(&view, cx);
+    type_text(cx, "opus");
+    cx.update(|_, cx| {
+        source
+            .update(cx, |source, _, _| {
+                source.endpoints[0]
+                    .live
+                    .apply(herdr_client::ClientEvent::Disconnected {
+                        reason: "gone".into(),
+                        ssh: None,
+                    });
+            })
+            .unwrap();
+        let editing = view.read_with(cx, |view, _| view.title_model_phase());
+        assert_eq!(editing, Some(ModelPhase::Editing(TitleAgent::Claude)));
+        view.update(cx, |view, cx| view.end_title_model_edit_when_hidden(cx));
+        let ended = view.read_with(cx, |view, _| view.title_model_phase());
+        assert_eq!(ended, Some(ModelPhase::NotEditing));
+    });
+    assert_eq!(text(&view, cx), "sonnet");
 }
 
 #[cfg(unix)]
@@ -326,7 +356,11 @@ fn enter_while_composing_saves_nothing(cx: &mut TestAppContext) {
             input.replace_and_mark_text_in_range(None, "二十四", Some(3..3), window, cx)
         })
     });
+    // Enter and Esc belong to the input method while it composes, and so does
+    // a click on Apply.
     press(cx, "enter");
+    press(cx, "escape");
+    click(cx, "settings-title-model-apply");
     assert!(edits.lock().unwrap().is_empty());
     assert_eq!(phase(&view, cx), ModelPhase::Editing(TitleAgent::Claude));
 }
@@ -414,6 +448,19 @@ fn suggestions_fill_without_saving(cx: &mut TestAppContext) {
     press(cx, "tab");
     assert_eq!(text(&view, cx), "gpt");
     assert!(edits.lock().unwrap().is_empty());
+}
+
+#[cfg(unix)]
+#[gpui::test]
+fn placeholder_follows_the_agent_after_a_reload(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "[session_titles]\nagent = \"claude\"\n");
+    let placeholder = |view: &Entity<SettingsWindow>, cx: &mut VisualTestContext| {
+        input(view, cx).read_with(cx, |input, _| input.placeholder().to_owned())
+    };
+    assert_eq!(placeholder(&view, cx), "haiku (default)");
+
+    reload(&view, cx, "[session_titles]\nagent = \"codex\"\n");
+    assert_eq!(placeholder(&view, cx), "gpt-6-luna (default)");
 }
 
 #[cfg(unix)]
