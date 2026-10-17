@@ -13,6 +13,8 @@ mod native;
 mod persistence;
 mod remote_history;
 mod scrollbar;
+#[cfg(all(test, unix))]
+use persistence::SharedIo;
 #[cfg(test)]
 use persistence::SizeIo;
 use persistence::{Loaded, SaveCompletion};
@@ -248,6 +250,8 @@ struct SettingsWindow {
     new_window_target: Option<herdr_client::ConnectTarget>,
     #[cfg(test)]
     size_io: Option<SizeIo>,
+    #[cfg(all(test, unix))]
+    shared_io: Option<SharedIo>,
     _source: Option<Subscription>,
     _appearance: Option<Subscription>,
     _watch: Option<Task<()>>,
@@ -352,6 +356,8 @@ impl SettingsWindow {
             new_window_target,
             #[cfg(test)]
             size_io: None,
+            #[cfg(all(test, unix))]
+            shared_io: None,
             _source: subscription,
             _appearance: None,
             _watch: None,
@@ -423,6 +429,11 @@ impl SettingsWindow {
         }
         if self.section == Section::General {
             self.sync_remote_history(false, cx);
+            // The title rows depend on the local daemon's welcome, which no
+            // other state here reflects.
+            if self.title_rows_changed(cx) {
+                cx.notify();
+            }
         }
     }
 

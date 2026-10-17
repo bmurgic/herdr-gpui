@@ -6,6 +6,7 @@ mod device_icons;
 mod focus_follows_mouse;
 mod repository_icons;
 mod session_restore;
+mod session_titles;
 mod sidebar_search;
 mod sound_volume;
 mod status_icons;
@@ -29,6 +30,105 @@ pub(super) fn skill_load() -> crate::Result<super::super::Loaded> {
         shared: None,
         error: None,
     })
+}
+
+/// One host of the source window, in list order, with whether its welcome
+/// advertised `session_titles`.
+#[derive(Clone, Copy)]
+pub(super) enum Host {
+    Local { titles: bool },
+    Ssh { titles: bool },
+}
+
+/// A source window listing `hosts`, the first of them shown, and a Settings
+/// window on General that watches it. `shared` is the loaded shared config,
+/// or absent. Unlike `skill_fixture`, the source stays alive, so the title
+/// rows' gate can read its endpoints.
+pub(super) fn sessions_fixture<'a>(
+    cx: &'a mut TestAppContext,
+    shared: Option<&str>,
+    hosts: &[Host],
+) -> (
+    WindowHandle<crate::HerdrWindow>,
+    Entity<SettingsWindow>,
+    &'a mut VisualTestContext,
+) {
+    let hosts = hosts.to_vec();
+    let source = cx.add_window(move |window, cx| {
+        let mut source = crate::sidebar::layout_tests::fixture_window(window, cx);
+        source.endpoints = hosts
+            .iter()
+            .map(|host| {
+                let (id, label, target, titles) = match *host {
+                    Host::Local { titles } => (
+                        crate::endpoint::LOCAL,
+                        "Local",
+                        herdr_client::ConnectTarget::Socket("/unused-sessions-fixture.sock".into()),
+                        titles,
+                    ),
+                    Host::Ssh { titles } => (
+                        "ssh:test",
+                        "Remote",
+                        herdr_client::ConnectTarget::Ssh {
+                            target: "unused".into(),
+                            session: "default".into(),
+                        },
+                        titles,
+                    ),
+                };
+                let mut endpoint =
+                    crate::endpoint::Endpoint::new(id.into(), label.into(), target, true);
+                endpoint.live.supports_session_titles = titles;
+                endpoint
+            })
+            .collect();
+        source.selected_endpoint = 0;
+        source.live = source.endpoints[0].live.clone();
+        source
+    });
+    let weak = cx.update(|cx| source.update(cx, |_, _, cx| cx.weak_entity()).unwrap());
+    let shared = shared.map(|text| crate::herdr_settings::Settings::parse_text(text).unwrap());
+    let (view, cx) = cx.add_window_view(move |_, cx| {
+        let mut view = SettingsWindow::new(weak, cx);
+        view.section = Section::General;
+        view.shared = shared;
+        view
+    });
+    cx.simulate_resize(size(px(960.), px(2200.)));
+    (source, view, cx)
+}
+
+/// Shared saves that record each `Edit` instead of writing the user's config.
+/// The write after `fail_first` fails once; every reload answers with
+/// `load_text`, never with absent settings, so later clicks still have a
+/// loaded config to edit.
+#[cfg(unix)]
+pub(super) fn recording_shared(
+    load_text: &'static str,
+    fail_first: bool,
+) -> (
+    super::super::SharedIo,
+    std::sync::Arc<std::sync::Mutex<Vec<Edit>>>,
+) {
+    let edits = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let recorded = edits.clone();
+    let io = super::super::SharedIo {
+        write: std::sync::Arc::new(move |edit| {
+            let mut recorded = recorded.lock().unwrap();
+            let first = recorded.is_empty();
+            recorded.push(edit);
+            if fail_first && first {
+                return Err(crate::Error::MissingHome);
+            }
+            Ok(())
+        }),
+        load: std::sync::Arc::new(move || {
+            let mut loaded = skill_load()?;
+            loaded.shared = Some(crate::herdr_settings::Settings::parse_text(load_text)?);
+            Ok(loaded)
+        }),
+    };
+    (io, edits)
 }
 
 #[gpui::test]

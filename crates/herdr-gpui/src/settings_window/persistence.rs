@@ -82,6 +82,15 @@ pub(super) struct SizeIo {
     pub(super) load: fn() -> crate::Result<Loaded>,
 }
 
+/// Replaces the shared settings write and the reload after it. Only tests on
+/// Unix build one, because shared saves are refused on Windows.
+#[cfg(all(test, unix))]
+#[derive(Clone)]
+pub(super) struct SharedIo {
+    pub(super) write: std::sync::Arc<dyn Fn(Edit) -> crate::Result<()> + Send + Sync>,
+    pub(super) load: std::sync::Arc<dyn Fn() -> crate::Result<Loaded> + Send + Sync>,
+}
+
 impl SettingsWindow {
     pub(super) fn watch_config(&mut self, cx: &mut Context<Self>) {
         let Some(paths) = watched_paths() else {
@@ -233,7 +242,11 @@ impl SettingsWindow {
         self.load_revision = self.load_revision.wrapping_add(1);
         let valid = loaded.is_ok();
         match loaded {
-            Ok(loaded) => {
+            Ok(mut loaded) => {
+                // A section the reload could not read keeps what was shown.
+                if let (Some(previous), Some(next)) = (&self.shared, &mut loaded.shared) {
+                    next.keep_session_titles(previous);
+                }
                 let live = self
                     .theme_intent
                     .as_ref()
@@ -328,6 +341,11 @@ impl SettingsWindow {
         let Some(shared) = self.shared.clone() else {
             return;
         };
+        #[cfg(all(test, unix))]
+        if let Some(io) = self.shared_io.clone() {
+            self.save_with(move || (io.write)(edit), move || (io.load)(), true, cx);
+            return;
+        }
         self.save_with(
             move || shared.save(edit).map(|_| ()),
             self.loader(cx),
@@ -436,10 +454,7 @@ impl SettingsWindow {
                     // Direct loads here can overwrite its active picker preview.
                     if shared && saved.is_ok() {
                         // Use the existing connection, without stealing its response lane.
-                        if let Some(endpoint) = source
-                            .endpoints
-                            .iter()
-                            .find(|endpoint| !endpoint.connection.target.is_remote())
+                        if let Some(endpoint) = source.local_endpoint()
                             && let (Some(handle), Some(snapshot)) =
                                 (&endpoint.connection.handle, &endpoint.live.snapshot)
                             && endpoint.live.status.is_connected()

@@ -113,6 +113,10 @@ pub struct LiveState {
     /// `pane.rename` and `pane.mark_unread` from a client whose surface is
     /// inactive, so the agent-row menu can act on a host that is not shown.
     pub(crate) supports_background_pane_commands: bool,
+    /// The welcome advertised `session_titles`: the daemon names agent panes
+    /// from their first prompt and reads `[session_titles]`, so Settings may
+    /// show those rows.
+    pub(crate) supports_session_titles: bool,
     /// The agent-row menu's requests in flight, and their untaken outcomes.
     pub(crate) session_actions: SessionActions,
     pub dirty: bool,
@@ -234,6 +238,7 @@ impl Default for LiveState {
             supports_copy_motion: false,
             supports_edit_scrollback: false,
             supports_background_pane_commands: false,
+            supports_session_titles: false,
             session_actions: SessionActions::default(),
             dirty: true,
             dialog_response: None,
@@ -297,6 +302,7 @@ impl LiveState {
             supports_copy_motion,
             supports_edit_scrollback,
             supports_background_pane_commands,
+            supports_session_titles,
             session_actions,
             dirty: _,
             dialog_response,
@@ -360,6 +366,7 @@ impl LiveState {
             && *supports_copy_motion == self.supports_copy_motion
             && *supports_edit_scrollback == self.supports_edit_scrollback
             && *supports_background_pane_commands == self.supports_background_pane_commands
+            && *supports_session_titles == self.supports_session_titles
             && *session_actions == self.session_actions
             && match (dialog_response, &self.dialog_response) {
                 (Some((a, None)), Some((b, None))) => a == b,
@@ -540,6 +547,10 @@ impl LiveState {
                     .capabilities
                     .iter()
                     .any(|value| value == herdr_client::protocol::BACKGROUND_PANE_COMMANDS_CAPABILITY);
+                self.supports_session_titles = welcome
+                    .capabilities
+                    .iter()
+                    .any(|value| value == herdr_client::protocol::SESSION_TITLES_CAPABILITY);
                 self.missing_installation = false;
                 self.version_mismatch = None;
                 // The daemon reports the mode to each new connection.
@@ -619,6 +630,7 @@ impl LiveState {
             ClientEvent::Disconnected { reason, ssh } => {
                 self.session_actions.interrupt_all();
                 self.supports_background_pane_commands = false;
+                self.supports_session_titles = false;
                 self.ssh_failure = ssh;
                 self.settings_reload = false;
                 self.notifications.clear();

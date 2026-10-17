@@ -20,20 +20,6 @@ fn reply(state: &mut LiveState, id: &str, response: serde_json::Value) {
     });
 }
 
-fn welcome_with(capabilities: &[&str]) -> ClientEvent {
-    ClientEvent::Connected(herdr_client::protocol::endpoint::EndpointServerWelcome {
-        generation: 1,
-        server_version: "test".into(),
-        snapshot_codec: String::new(),
-        surface_codec: String::new(),
-        input_codec: String::new(),
-        blob_codec: String::new(),
-        methods: Vec::new(),
-        capabilities: capabilities.iter().map(|value| (*value).into()).collect(),
-        error: None,
-    })
-}
-
 fn bridge() -> ConnectionBridge {
     ConnectionBridge::new(ConnectTarget::Socket("/unused-session-actions.sock".into()))
 }
@@ -178,7 +164,7 @@ fn session_replies_become_outcomes() {
 #[test]
 fn background_capability_follows_the_welcome() {
     let mut state = LiveState::default();
-    state.apply(welcome_with(&[BACKGROUND_PANE_COMMANDS_CAPABILITY]));
+    state.apply(welcome(&[], &[BACKGROUND_PANE_COMMANDS_CAPABILITY]));
     assert!(state.supports_background_pane_commands);
     state.apply(ClientEvent::Disconnected {
         reason: "gone".into(),
@@ -186,9 +172,9 @@ fn background_capability_follows_the_welcome() {
     });
     assert!(!state.supports_background_pane_commands);
 
-    state.apply(welcome_with(&[BACKGROUND_PANE_COMMANDS_CAPABILITY]));
+    state.apply(welcome(&[], &[BACKGROUND_PANE_COMMANDS_CAPABILITY]));
     assert!(state.supports_background_pane_commands);
-    state.apply(welcome_with(&["surface_interest"]));
+    state.apply(welcome(&[], &["surface_interest"]));
     assert!(!state.supports_background_pane_commands);
 }
 

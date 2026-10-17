@@ -13,9 +13,24 @@ mod local_peer_warning;
 mod refused_focus;
 mod requests;
 mod session_actions;
+mod session_titles;
 mod surfaces;
 mod version_mismatch;
 mod workspace_move;
+
+fn welcome(methods: &[&str], capabilities: &[&str]) -> ClientEvent {
+    ClientEvent::Connected(herdr_client::protocol::endpoint::EndpointServerWelcome {
+        generation: 1,
+        server_version: "test".into(),
+        snapshot_codec: String::new(),
+        surface_codec: String::new(),
+        input_codec: String::new(),
+        blob_codec: String::new(),
+        methods: methods.iter().map(|method| (*method).into()).collect(),
+        capabilities: capabilities.iter().map(|value| (*value).into()).collect(),
+        error: None,
+    })
+}
 
 fn snapshot() -> Arc<ClientShellSnapshotV2> {
     Arc::new(

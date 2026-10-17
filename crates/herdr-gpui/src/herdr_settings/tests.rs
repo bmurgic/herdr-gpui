@@ -13,6 +13,7 @@ mod permissions;
 mod reading;
 mod save_safety;
 mod session_sidebar;
+mod session_titles;
 // Saving is Unix-only; Windows refuses every shared edit.
 #[cfg(unix)]
 mod sidebar_rows;

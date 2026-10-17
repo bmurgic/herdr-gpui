@@ -5,6 +5,7 @@ mod fonts;
 mod indicators;
 pub(super) mod plugins;
 mod preferences;
+mod session_titles;
 mod sidebar_layout;
 mod status_bar;
 mod updates;
@@ -46,6 +47,7 @@ pub(super) struct Controls {
     pending_sizes: Vec<(FontFace, f32)>,
     saving_sizes: Vec<(FontFace, f32)>,
     size_editor: Option<SizeEditor>,
+    session_titles: session_titles::Card,
     local_path: String,
     ruler: backdrop::Ruler,
     _search_changed: Subscription,
@@ -107,6 +109,7 @@ impl Controls {
             pending_sizes: Vec::new(),
             saving_sizes: Vec::new(),
             size_editor: None,
+            session_titles: Default::default(),
             local_path: Config::local_path()
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|error| format!("Unavailable ({error})")),
@@ -632,6 +635,7 @@ impl SettingsWindow {
             .children(self.merged_worktree_controls(cx));
         div().flex().flex_col().gap(px(24.)).child(general)
             .child(self.render_tab_bar_controls(cx))
+            .child(self.render_session_titles_controls(cx))
             .child(self.render_session_controls(cx))
             .child(self.render_skill_controls(cx))
             .child(self.render_update_controls(cx))
