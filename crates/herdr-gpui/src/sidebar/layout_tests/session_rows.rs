@@ -1,4 +1,5 @@
 use super::*;
+use crate::pane_menu::session::{SessionItem, session_items};
 use crate::{
     NavigationTarget,
     config::LayoutMode,
@@ -190,7 +191,41 @@ fn an_open_menu_highlights_the_row(cx: &mut gpui::TestAppContext) {
     cx.simulate_mouse_down(position, MouseButton::Right, Modifiers::default());
     redraw(cx);
     view.read_with(cx, |view, _| {
-        assert_eq!(view.pane_menu_target(), Some("p0"));
+        assert_eq!(view.agent_menu_target(), Some(("local", "p0")));
+        assert_eq!(view.menu.page, Some(crate::menu::Page::Pane));
+    });
+    let highlight = cx.debug_bounds("highlight-agent-p0").unwrap();
+    let lines = 4. * line_height_of(&view, cx);
+    assert!(f32::from(highlight.size.height) >= lines, "{highlight:?}");
+    assert!(cx.debug_bounds("open-agent-p0").is_some());
+    assert!(cx.debug_bounds("open-agent-p1").is_none());
+}
+
+/// On a host that accepts session actions the same row is marked while its
+/// session menu is open, with the menu's one item listed first.
+#[gpui::test]
+fn session_menu_lists_rename_first_and_highlights_its_row(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = session_window(cx, 240., |listing| {
+        listing.panes = vec![labeled_pane("p0", "review")];
+    });
+    view.update(cx, |view, _| {
+        view.live.status = crate::state::ConnectionStatus::Connected;
+        view.live.snapshot_v2 = true;
+    });
+    redraw(cx);
+    let position = cx.debug_bounds("row-agent-p0").unwrap().center();
+    cx.simulate_mouse_down(position, MouseButton::Right, Modifiers::default());
+    redraw(cx);
+    view.read_with(cx, |view, _| {
+        assert_eq!(view.menu.page, Some(crate::menu::Page::SessionMenu));
+        assert_eq!(view.agent_menu_target(), Some(("local", "p0")));
+    });
+    assert!(cx.debug_bounds("session-menu-0").is_some());
+    assert!(cx.debug_bounds("session-menu-1").is_none());
+    view.read_with(cx, |view, _| {
+        let target = &view.menu.session.as_ref().unwrap().target;
+        let labels: Vec<_> = session_items(target).map(SessionItem::label).collect();
+        assert_eq!(labels, ["Rename session..."]);
     });
     let highlight = cx.debug_bounds("highlight-agent-p0").unwrap();
     let lines = 4. * line_height_of(&view, cx);

@@ -12,6 +12,7 @@ mod focus_acks;
 mod local_peer_warning;
 mod refused_focus;
 mod requests;
+mod session_actions;
 mod surfaces;
 mod version_mismatch;
 mod workspace_move;

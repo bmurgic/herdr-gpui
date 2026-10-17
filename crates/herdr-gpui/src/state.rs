@@ -5,8 +5,10 @@ use herdr_client::{
 use std::sync::Arc;
 
 mod agent_recency;
+mod session_actions;
 
 use agent_recency::AgentRecency;
+pub(crate) use session_actions::{SESSION_ACTION_LIMIT, SessionActions, SessionOutcome};
 
 pub(crate) type DialogResponse = Result<serde_json::Value, Arc<crate::Error>>;
 
@@ -107,6 +109,12 @@ pub struct LiveState {
     pub(crate) supports_copy_motion: bool,
     /// `pane.edit_scrollback` opens a pane's history in the user's editor.
     pub(crate) supports_edit_scrollback: bool,
+    /// The welcome advertised `background_pane_commands`: the daemon accepts
+    /// `pane.rename` and `pane.mark_unread` from a client whose surface is
+    /// inactive, so the agent-row menu can act on a host that is not shown.
+    pub(crate) supports_background_pane_commands: bool,
+    /// The agent-row menu's requests in flight, and their untaken outcomes.
+    pub(crate) session_actions: SessionActions,
     pub dirty: bool,
     pub(crate) dialog_response: Option<(String, Option<DialogResponse>)>,
     /// The one request a worktree script is waiting on (`worktree.list` or
@@ -225,6 +233,8 @@ impl Default for LiveState {
             supports_selection_read: false,
             supports_copy_motion: false,
             supports_edit_scrollback: false,
+            supports_background_pane_commands: false,
+            session_actions: SessionActions::default(),
             dirty: true,
             dialog_response: None,
             script_response: None,
@@ -286,6 +296,8 @@ impl LiveState {
             supports_selection_read,
             supports_copy_motion,
             supports_edit_scrollback,
+            supports_background_pane_commands,
+            session_actions,
             dirty: _,
             dialog_response,
             script_response,
@@ -347,6 +359,8 @@ impl LiveState {
             && *supports_selection_read == self.supports_selection_read
             && *supports_copy_motion == self.supports_copy_motion
             && *supports_edit_scrollback == self.supports_edit_scrollback
+            && *supports_background_pane_commands == self.supports_background_pane_commands
+            && *session_actions == self.session_actions
             && match (dialog_response, &self.dialog_response) {
                 (Some((a, None)), Some((b, None))) => a == b,
                 (a, b) => a.is_none() && b.is_none(),
@@ -404,6 +418,7 @@ impl LiveState {
                 .flatten()
                 .any(|rename| rename.request == request_id)
             || self.dismissal_request(request_id)
+            || self.session_actions.is_pending(request_id)
     }
 
     fn dismissal_request(&self, request_id: &str) -> bool {
@@ -521,6 +536,10 @@ impl LiveState {
                             welcome.capabilities.iter().any(|value| value == capability)
                         });
                 self.snapshot_v2 = welcome.snapshot_codec == SNAPSHOT_CODEC_V2;
+                self.supports_background_pane_commands = welcome
+                    .capabilities
+                    .iter()
+                    .any(|value| value == herdr_client::protocol::BACKGROUND_PANE_COMMANDS_CAPABILITY);
                 self.missing_installation = false;
                 self.version_mismatch = None;
                 // The daemon reports the mode to each new connection.
@@ -595,10 +614,11 @@ impl LiveState {
             ClientEvent::SurfaceImages(images) => self.surface_images = images,
             // The `Disconnected` that follows carries the reason text.
             ClientEvent::VersionMismatch(mismatch) => self.version_mismatch = Some(mismatch),
-            // Recorded by the agent-row menu; the `Disconnected` that follows
-            // already ends the connection.
-            ClientEvent::RequestTimedOut { .. } => {}
+            // The `Disconnected` that follows already ends the connection.
+            ClientEvent::RequestTimedOut { request_id } => self.session_actions.timed_out(&request_id),
             ClientEvent::Disconnected { reason, ssh } => {
+                self.session_actions.interrupt_all();
+                self.supports_background_pane_commands = false;
                 self.ssh_failure = ssh;
                 self.settings_reload = false;
                 self.notifications.clear();
@@ -627,6 +647,9 @@ impl LiveState {
                     .is_some_and(|id| self.has_operation_result(id))
                 {
                     self.error = Some(reason.to_string());
+                }
+                if let Some(id) = &request_id {
+                    self.session_actions.rejected(id, &reason);
                 }
                 let reason = Arc::new(crate::Error::Client(reason));
                 for (id, result) in [
@@ -714,6 +737,7 @@ impl LiveState {
                 {
                     self.announcement_dismissal = None;
                 }
+                self.session_actions.reply(&request_id, &response);
                 for (id, result) in [
                     &mut self.script_response,
                     &mut self.editor_response,

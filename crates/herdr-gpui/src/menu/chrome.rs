@@ -392,6 +392,8 @@ impl HerdrWindow {
                         | Page::Group
                         | Page::Pane
                         | Page::RenamePane
+                        | Page::SessionMenu
+                        | Page::RenameSession
                         | Page::MovePane
                         | Page::CarryPane
                         | Page::PaneProcesses
@@ -405,7 +407,11 @@ impl HerdrWindow {
                     // A list of actions takes its longest label's width, which
                     // the UI font and size decide, so no fixed width fits all.
                     let forwards = page == Page::Host && self.host_menu_lists_forwards();
-                    if matches!(page, Page::Tab | Page::Pane | Page::Host) && !forwards {
+                    if matches!(
+                        page,
+                        Page::Tab | Page::Pane | Page::SessionMenu | Page::Host
+                    ) && !forwards
+                    {
                         return panel
                             .min_w(px(180.).min(room))
                             .max_w(room)
@@ -654,6 +660,8 @@ impl HerdrWindow {
             Page::Pane | Page::RenamePane | Page::PaneProcesses | Page::KillProcesses
         ) {
             panel = panel.child(self.render_pane_menu(cx));
+        } else if matches!(page, Page::SessionMenu | Page::RenameSession) {
+            panel = panel.child(self.render_session_menu(cx));
         } else if page == Page::Keybinds {
             panel = panel.child(self.render_keybinds(cx));
         } else if page == Page::Themes {
