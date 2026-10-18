@@ -1,7 +1,7 @@
 use super::super::add_device::{LocalSpace, enter};
 use super::*;
 use crate::{NavigationTarget, state::ConnectionStatus};
-use herdr_client::protocol::{ClientMessage, ClientPaneInputEvent, ClientShellSnapshot};
+use herdr_client::protocol::{ClientMessage, ClientPaneInputEvent, ClientShellSnapshotV2};
 use std::sync::Arc;
 
 #[gpui::test]
@@ -43,7 +43,7 @@ fn install_needs_a_connected_local_daemon(cx: &mut gpui::TestAppContext) {
 fn created_space_runs_setup_in_its_root_pane(cx: &mut gpui::TestAppContext) {
     let mut peer = crate::window::MockPeer::new();
     let (view, cx) = cx.add_window_view(fixture_window);
-    let snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

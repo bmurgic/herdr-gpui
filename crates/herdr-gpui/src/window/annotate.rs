@@ -14,7 +14,7 @@ use crate::{
     terminal_notes::{self, MAX_NOTES, Note},
 };
 use gpui::{prelude::*, *};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 
 mod offer;
 mod render;
@@ -58,7 +58,7 @@ impl TerminalNotes {
 
 /// The agent a note on `pane_id` goes to: the pane's own, or else the first in
 /// its workspace. Also where the pane is, as `workspace / tab`.
-fn destination(snapshot: &ClientShellSnapshot, pane_id: &str) -> (Option<String>, String) {
+fn destination(snapshot: &ClientShellSnapshotV2, pane_id: &str) -> (Option<String>, String) {
     let Some(pane) = snapshot.panes.iter().find(|pane| pane.pane_id == pane_id) else {
         return (None, String::new());
     };

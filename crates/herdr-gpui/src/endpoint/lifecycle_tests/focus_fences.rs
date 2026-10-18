@@ -189,6 +189,20 @@ fn every_focus_changing_command_fences_immediate_input_until_ack_and_surface(
                         );
                         crate::menu::workspace_tests::submit_dialog(view, window, cx);
                     }
+                    // New Workspace asks for a directory first; submitting an
+                    // absolute one on this remote v1 host creates at once.
+                    Command::Workspace if method == Method::WorkspaceCreate => {
+                        assert_eq!(view.menu.page, Some(crate::menu::Page::NewWorkspace));
+                        view.menu.input =
+                            Some(crate::dialog_input::DialogInput::new("/srv/new".into()));
+                        assert!(crate::menu::workspace_tests::new_workspace_key(
+                            view,
+                            &key("enter"),
+                            window,
+                            cx
+                        ));
+                        assert!(view.menu.page.is_none(), "the page sent and closed");
+                    }
                     Command::ClosePane | Command::CloseTab if confirm_close => {
                         view.close_confirmation_key(&key("tab"), window, cx);
                         view.close_confirmation_key(&key("enter"), window, cx);

@@ -4,7 +4,7 @@ use crate::sidebar::layout_tests::{fixture_window, snapshot};
 use gpui::{
     Entity, Modifiers, MouseButton, Pixels, Point, TestAppContext, VisualTestContext, point, px,
 };
-use herdr_client::protocol::{AgentStatus, ClientShellSnapshot};
+use herdr_client::protocol::{AgentStatus, ClientShellSnapshotV2};
 use std::sync::Arc;
 
 mod delayed_origin;
@@ -19,7 +19,7 @@ mod shift_selection;
 /// Workspace `w0` with pane `w0:p1`, and an agent in it with
 /// `status` when one is given; otherwise the workspace's agent, if any, is in
 /// `w0:p2`.
-fn shown(status: Option<&str>, workspace_agent: bool) -> ClientShellSnapshot {
+fn shown(status: Option<&str>, workspace_agent: bool) -> ClientShellSnapshotV2 {
     let mut shown = serde_json::to_value(snapshot(2)).unwrap();
     shown["focused_workspace_id"] = "w0".into();
     shown["focused_pane_id"] = "w0:p1".into();
@@ -50,7 +50,7 @@ fn shown(status: Option<&str>, workspace_agent: bool) -> ClientShellSnapshot {
 
 fn window(
     cx: &mut TestAppContext,
-    snapshot: ClientShellSnapshot,
+    snapshot: ClientShellSnapshotV2,
 ) -> (Entity<HerdrWindow>, &mut VisualTestContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);

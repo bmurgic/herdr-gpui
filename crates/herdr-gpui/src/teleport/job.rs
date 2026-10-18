@@ -14,7 +14,7 @@ use super::{
         PaneInfoResult, SnapshotResult, TabCreated, TabList, WorkspaceCreated, WorktreeCreated,
     },
 };
-use herdr_client::{protocol::ClientShellSnapshot, shell_quote};
+use herdr_client::{protocol::ClientShellSnapshotV2, shell_quote};
 use std::{collections::HashMap, io::Seek, sync::atomic::AtomicBool, time::Duration};
 
 mod discover;
@@ -118,7 +118,7 @@ pub(crate) struct Outcome {
 
 /// The repositories open in `snapshot`, one per Git common directory, each
 /// reached through its main checkout's workspace when that is open.
-pub(crate) fn open_repositories(snapshot: &ClientShellSnapshot) -> Vec<Repository> {
+pub(crate) fn open_repositories(snapshot: &ClientShellSnapshotV2) -> Vec<Repository> {
     let mut found: Vec<Repository> = Vec::new();
     for workspace in &snapshot.workspaces {
         let Some(tree) = &workspace.worktree else {

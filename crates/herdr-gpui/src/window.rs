@@ -12,6 +12,7 @@ mod config_diagnostic;
 mod copy_mode;
 mod device_themes;
 mod double_shift;
+pub(crate) mod empty_workspace;
 mod file_drop;
 mod file_links;
 mod find;
@@ -23,6 +24,9 @@ mod image_source;
 mod images;
 mod input;
 mod lifecycle;
+// Only the Unix-only endpoint lifecycle tests read it.
+#[cfg(all(test, unix))]
+pub(crate) use lifecycle::RESIZE_SETTLE;
 mod links;
 mod monitors;
 pub(crate) use links::PressedLink;
@@ -183,6 +187,10 @@ pub(crate) struct HerdrWindow {
     pub(crate) device_themes: device_themes::DeviceThemes,
     /// The terminal grid's cached regions; see `regions`.
     pub(crate) regions: Vec<regions::RegionLayers>,
+    /// The empty-workspace screen's rows as the last draw laid them out, in
+    /// drawn order; empty when the screen is not shown. A click is checked
+    /// against the row it hit, not against whatever the next draw would show.
+    pub(crate) empty_workspace_rows: Vec<empty_workspace::DrawnRow>,
     pub(crate) marked: String,
     /// Where the IME's caret or converted clause is within `marked`, in
     /// UTF-16; `None` puts the caret after it.
@@ -708,6 +716,7 @@ impl HerdrWindow {
             backdrop: Default::default(),
             device_themes: Default::default(),
             regions: Vec::new(),
+            empty_workspace_rows: Vec::new(),
             marked: String::new(),
             marked_selection: None,
             hover: None,

@@ -38,7 +38,7 @@ fn agent_rows_name_their_place_then_their_agent() {
     // Host first when there is one, then the workspace, then the tab. Only
     // the workspace is primary; upstream mutes what sits around it.
     fn labels<'a>(
-        snapshot: &'a ClientShellSnapshot,
+        snapshot: &'a ClientShellSnapshotV2,
         host: Option<&'a str>,
     ) -> (Vec<(&'a str, bool)>, &'a str) {
         let agent = &snapshot.agents[0];

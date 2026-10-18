@@ -42,6 +42,7 @@ fn keyboard_report_all_releases_sent_keys(cx: &mut gpui::TestAppContext) {
                 failed: false,
                 focus: None,
                 active: true,
+                focus_request: None,
             });
             view.live.keyboard_report_all = true;
             view.key_down(&down("ctrl-c"), window, cx);
@@ -111,7 +112,7 @@ fn custom_command_and_resize_mode_keys_send_endpoint_requests(cx: &mut gpui::Tes
                 view.reset_selected(cx);
                 view.activation_deadline = None;
                 // The fixture's `prefix+x` is Close Pane's chord, which wins.
-                let relabel = |snapshot: &mut Arc<ClientShellSnapshot>| {
+                let relabel = |snapshot: &mut Arc<ClientShellSnapshotV2>| {
                     Arc::make_mut(snapshot).commands[0].binding_labels = vec!["prefix+y".into()];
                 };
                 relabel(view.live.snapshot.as_mut().unwrap());

@@ -1,6 +1,6 @@
 //! Whether a window's agents are still working, as its daemons report them.
 
-use herdr_client::protocol::{AgentStatus, ClientShellSnapshot};
+use herdr_client::protocol::{AgentStatus, ClientShellSnapshotV2};
 
 /// What one window's agents are doing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,7 +17,7 @@ impl Work {
     /// Takes each enabled endpoint's snapshot, `None` while it is not
     /// connected. A blocked agent waits on the user, so it keeps nothing awake.
     pub(crate) fn of<'a>(
-        snapshots: impl IntoIterator<Item = Option<&'a ClientShellSnapshot>>,
+        snapshots: impl IntoIterator<Item = Option<&'a ClientShellSnapshotV2>>,
     ) -> Self {
         let mut work = Self::Idle;
         for snapshot in snapshots {

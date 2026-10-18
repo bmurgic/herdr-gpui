@@ -13,7 +13,7 @@ use crate::{
         sidebar::ConfiguredToken,
     },
 };
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::collections::{BTreeMap, btree_map::Entry};
 
 #[cfg(test)]
@@ -52,7 +52,7 @@ fn sample(text: &str) -> Option<String> {
 }
 
 /// Plugin output in `snapshot`, bounded and safe to display.
-pub(crate) fn host_report(host: &str, snapshot: &ClientShellSnapshot) -> HostReport {
+pub(crate) fn host_report(host: &str, snapshot: &ClientShellSnapshotV2) -> HostReport {
     let mut reported = BTreeMap::<(SidebarScope, &str), String>::new();
     let agents = snapshot
         .agents

@@ -19,6 +19,7 @@ mod github_listings;
 mod local_listings;
 mod name_field;
 mod open_remove_shortcuts;
+mod v2_checkouts;
 
 fn origin() -> Origin {
     Origin {

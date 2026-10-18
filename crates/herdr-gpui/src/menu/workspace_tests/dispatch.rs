@@ -2,7 +2,7 @@ use super::*;
 
 /// A window on a scriptable local daemon showing `snapshot(7)`, with a
 /// second connected host, "Box", that has the same repository open.
-fn two_hosts(view: &mut HerdrWindow) {
+pub(in crate::menu) fn two_hosts(view: &mut HerdrWindow) {
     let snapshot = std::sync::Arc::make_mut(view.live.snapshot.as_mut().unwrap());
     snapshot.workspaces = sidebar::layout_tests::snapshot(7).workspaces;
     view.live.status = crate::state::ConnectionStatus::Connected;
@@ -27,7 +27,7 @@ fn add_host(view: &mut HerdrWindow, name: &str, label: &str) {
 
 // Only POSIX clients can script another host, so only they dispatch.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-fn dispatched(view: &HerdrWindow) -> Option<String> {
+pub(in crate::menu) fn dispatched(view: &HerdrWindow) -> Option<String> {
     view.menu
         .dispatch
         .as_ref()?

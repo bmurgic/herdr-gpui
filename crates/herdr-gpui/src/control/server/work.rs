@@ -17,7 +17,7 @@ use crate::{
     control::protocol::{Call, Caller, ErrorCode, Response, work::WorkOp},
 };
 use gpui::App;
-use herdr_client::protocol::{ClientShellSnapshot, ClientShellWorkspace};
+use herdr_client::protocol::{ClientShellSnapshotV2, ClientShellWorkspaceV2};
 
 pub(super) fn serve(call: Call<WorkOp>, incoming: socket::Incoming, _: &mut Watches, cx: &mut App) {
     let Call { caller, op } = call;
@@ -45,8 +45,8 @@ pub(super) fn serve(call: Call<WorkOp>, incoming: socket::Incoming, _: &mut Watc
 pub(super) struct Found<'a> {
     /// The endpoint showing it, by index into the window's endpoints.
     pub index: usize,
-    pub snapshot: &'a ClientShellSnapshot,
-    pub workspace: &'a ClientShellWorkspace,
+    pub snapshot: &'a ClientShellSnapshotV2,
+    pub workspace: &'a ClientShellWorkspaceV2,
 }
 
 /// Finds the caller's workspace in `view`: on the caller's own daemon only
@@ -108,7 +108,7 @@ pub(super) fn selected_workspace(view: &HerdrWindow, caller: &Caller) -> Result<
 }
 
 /// The repository a workspace's checkout belongs to, for messages.
-pub(super) fn repository(workspace: &ClientShellWorkspace) -> &str {
+pub(super) fn repository(workspace: &ClientShellWorkspaceV2) -> &str {
     workspace
         .worktree
         .as_ref()

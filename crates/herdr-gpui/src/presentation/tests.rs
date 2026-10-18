@@ -1,9 +1,9 @@
 #![allow(clippy::unwrap_used)]
 use super::*;
 use crate::state::ConnectionStatus;
-use herdr_client::protocol::{ClientShellSnapshot, FrameData};
+use herdr_client::protocol::{ClientShellSnapshotV2, FrameData};
 
-fn snapshot(boot: &str, revision: u64) -> Arc<ClientShellSnapshot> {
+fn snapshot(boot: &str, revision: u64) -> Arc<ClientShellSnapshotV2> {
     let mut snapshot = crate::sidebar::layout_tests::snapshot(1);
     snapshot.boot_id = boot.into();
     snapshot.revision = revision;

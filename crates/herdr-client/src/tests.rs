@@ -35,6 +35,7 @@ mod host_theme_order;
 mod host_themes;
 mod liveness;
 mod session_state;
+mod snapshot_codec;
 mod surface_encoding;
 mod surfaces;
 mod version_mismatch;

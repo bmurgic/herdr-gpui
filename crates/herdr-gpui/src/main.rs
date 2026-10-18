@@ -145,6 +145,8 @@ mod performance;
 mod smoke;
 #[cfg(all(test, unix))]
 mod test_executable;
+#[cfg(test)]
+mod test_snapshots;
 
 pub use error::{Error, Result};
 

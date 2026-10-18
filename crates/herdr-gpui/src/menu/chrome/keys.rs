@@ -15,15 +15,22 @@ impl HerdrWindow {
     /// take the action themselves before it bubbles here. Handlers that act
     /// without stopping propagation are never called, so a shortcut the
     /// overlay leaves unhandled cannot run twice through the menu bar.
-    pub(super) fn menu_edit(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::menu) fn menu_edit(
+        &mut self,
+        key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let event = actions::edit_key(key);
         if self.menu.page == Some(Page::Dialog(WorkspaceAction::OpenWorktree))
             || self.worktree_listing()
         {
             return;
         }
+        let before = self.new_workspace_text();
         if let Some(input) = self.menu.input.as_mut() {
             if input.key(&event.keystroke, cx) {
+                self.new_workspace_edited(before, cx);
                 cx.notify();
             }
             return;
@@ -84,8 +91,14 @@ impl HerdrWindow {
         {
             return;
         }
+        // The page takes Up, Down, Tab, and Enter before the field sees them.
+        if self.menu.page == Some(Page::NewWorkspace) && self.new_workspace_key(event, window, cx) {
+            return;
+        }
+        let before = self.new_workspace_text();
         if let Some(input) = self.menu.input.as_mut().filter(|_| !listing && !naming) {
             if input.key(&event.keystroke, cx) {
+                self.new_workspace_edited(before, cx);
                 cx.stop_propagation();
                 window.prevent_default();
                 cx.notify();

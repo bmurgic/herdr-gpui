@@ -3,7 +3,7 @@ use super::*;
 use crate::{sidebar::layout_tests::fixture_window, state::ConnectionStatus, window::MockPeer};
 use gpui::{Entity, VisualTestContext, point, px};
 use herdr_client::protocol::{
-    CellData, ClientShellSnapshot, FrameData, PaneSurfaceFrame, PaneSurfacePane, SurfaceRect,
+    CellData, ClientShellSnapshotV2, FrameData, PaneSurfaceFrame, PaneSurfacePane, SurfaceRect,
 };
 use serde_json::json;
 
@@ -12,7 +12,7 @@ mod file_handlers;
 
 const URL: &str = "https://example.com/wrapped/path";
 
-fn snapshot() -> ClientShellSnapshot {
+fn snapshot() -> ClientShellSnapshotV2 {
     serde_json::from_str(include_str!(
         "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))

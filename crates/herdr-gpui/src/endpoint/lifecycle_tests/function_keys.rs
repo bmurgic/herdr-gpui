@@ -62,6 +62,7 @@ fn f20_window(
                 failed: false,
                 focus: None,
                 active: true,
+                focus_request: None,
             });
             let keys: toml::Table = "prefix = \"f20\"".parse().unwrap();
             view.config.keybindings = crate::keymap::Keymap::with_overrides(

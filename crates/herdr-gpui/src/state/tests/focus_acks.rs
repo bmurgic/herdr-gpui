@@ -34,7 +34,7 @@ fn previous_pane_follows_focus_within_one_boot() {
     assert_eq!(state.previous_pane, None);
 }
 
-fn activating(snapshot: &ClientShellSnapshot) -> SurfaceActivation {
+fn activating(snapshot: &ClientShellSnapshotV2) -> SurfaceActivation {
     SurfaceActivation {
         request: "activate-1".into(),
         boot: snapshot.boot_id.clone(),
@@ -42,6 +42,7 @@ fn activating(snapshot: &ClientShellSnapshot) -> SurfaceActivation {
         failed: false,
         focus: None,
         active: true,
+        focus_request: None,
     }
 }
 

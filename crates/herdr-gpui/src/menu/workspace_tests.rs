@@ -7,14 +7,16 @@ use herdr_client::Method;
 mod close;
 mod close_unconfirmed;
 mod dialog_layout;
-mod dispatch;
+pub(in crate::menu) mod dispatch;
 mod issues;
 mod merged_removal;
 mod naming;
 mod pull_requests;
+mod repository_record;
 mod scripts;
 mod targets;
 mod tiles;
+mod v2_rename;
 mod worktree_create;
 mod worktree_delete;
 mod worktree_delete_keys;
@@ -28,6 +30,18 @@ pub(crate) fn submit_dialog(
     cx: &mut gpui::Context<HerdrWindow>,
 ) {
     view.submit_workspace_dialog(window, cx);
+}
+
+/// Hands `event` to the open New Workspace page's key handler, for
+/// `endpoint::lifecycle_tests`, and says whether the page used it.
+#[cfg(unix)]
+pub(crate) fn new_workspace_key(
+    view: &mut HerdrWindow,
+    event: &gpui::KeyDownEvent,
+    window: &mut gpui::Window,
+    cx: &mut gpui::Context<HerdrWindow>,
+) -> bool {
+    view.new_workspace_key(event, window, cx)
 }
 
 /// Whether the open workspace menu offers a note, for tests outside this module.
@@ -112,7 +126,9 @@ pub(crate) fn submit_focus_change(
             assert_eq!(view.menu.page, Some(super::Page::Dialog(action)));
             view.removal.as_ref().unwrap().pending.clone()
         }
-        WorkspaceAction::NewWorktree | WorkspaceAction::OpenWorktree => view.menu.creation.clone(),
+        WorkspaceAction::NewWorktree | WorkspaceAction::OpenWorktree => {
+            view.menu.creation.clone().map(|(id, _)| id)
+        }
         _ => None,
     };
     if pending.is_some() {

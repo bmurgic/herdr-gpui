@@ -394,7 +394,7 @@ pub(super) fn check_keybinds_panel(view: &Entity<HerdrWindow>, cx: &mut gpui::Vi
 pub(super) fn check_install_modal(
     view: &Entity<HerdrWindow>,
     cx: &mut gpui::VisualTestContext,
-) -> Option<Arc<ClientShellSnapshot>> {
+) -> Option<Arc<ClientShellSnapshotV2>> {
     let before_install = cx.update(|_, cx| view.read(cx).live.snapshot.clone());
     cx.update(|window, cx| {
         view.update(cx, |view, cx| view.show_install_modal(window, cx));
@@ -415,7 +415,7 @@ pub(super) fn check_install_modal(
 
 pub(super) fn check_app_update(
     view: &Entity<HerdrWindow>,
-    before_install: &Option<Arc<ClientShellSnapshot>>,
+    before_install: &Option<Arc<ClientShellSnapshotV2>>,
     cx: &mut gpui::VisualTestContext,
 ) -> Result<()> {
     // Fixtures have no updater worker, and unavailable updates use the shared panel.

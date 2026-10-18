@@ -8,6 +8,7 @@ use crate::{
     menu::{Page, Removal, Submission, WorkspaceAction, endpoint_error},
 };
 use gpui::*;
+use herdr_client::Method;
 
 impl HerdrWindow {
     /// Track the response even if the user dismisses the confirmation while
@@ -96,6 +97,7 @@ impl HerdrWindow {
     /// Apply the daemon's answer to whichever worktree dialog is waiting for it,
     /// and to a removal whose dialog has already closed.
     pub(crate) fn update_workspace_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.update_new_workspace(window, cx);
         self.update_pending_removal(window, cx);
         if let Some(check) = &mut self.menu.close_check
             && check.poll()
@@ -154,12 +156,15 @@ impl HerdrWindow {
             self.read_archive_script(cx);
             return;
         }
-        if self.menu.creation.as_deref() != Some(id.as_str()) {
+        let Some((_, method)) = self
+            .menu
+            .creation
+            .take_if(|(creation_id, _)| creation_id == id)
+        else {
             return;
-        }
+        };
         let result = result.clone();
-        self.menu.creation = None;
-        self.apply_creation_response(result, window, cx);
+        self.apply_creation_response(method, result, window, cx);
     }
 
     /// Follow the checkout the daemon created or opened. The daemon switches its own
@@ -168,6 +173,7 @@ impl HerdrWindow {
     /// client focuses it.
     pub(in crate::menu) fn apply_creation_response(
         &mut self,
+        method: Method,
         result: crate::state::DialogResponse,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -190,17 +196,12 @@ impl HerdrWindow {
             return release(self, format!("{code}: {message}"), cx);
         }
         let result = &response["result"];
-        let opening = self.menu.page == Some(Page::Dialog(WorkspaceAction::OpenWorktree))
-            || self
-                .menu
-                .worktree
-                .as_ref()
-                .and_then(|source| source.pending.as_ref())
-                .is_some_and(|pending| pending.opens());
-        let expected = if opening {
-            "worktree_opened"
-        } else {
-            "worktree_created"
+        // The reply type is the one the sent method gets, so a `.v2` request
+        // is not satisfied by the v1 reply, or the other way round.
+        let (opening, expected) = match method {
+            Method::WorktreeOpenV2 => (true, "worktree_opened_v2"),
+            Method::WorktreeOpen => (true, "worktree_opened"),
+            _ => (false, "worktree_created"),
         };
         let created = (result["type"] == expected)
             .then(|| result["workspace"]["workspace_id"].as_str())
@@ -333,17 +334,16 @@ impl HerdrWindow {
                     .map(|input| input.text.as_str())
                     .unwrap_or("")
             };
-            let (method, mut params) = target.request(snapshot, action, text)?;
+            let (method, mut params) =
+                target.request(snapshot, action, text, &self.live.methods)?;
             // The daemon names the workspace as it creates it, so no rename follows.
             if action == WorkspaceAction::NewWorktree
                 && let Some(name) = name
             {
                 params["label"] = name.into();
             }
-            if matches!(
-                action,
-                WorkspaceAction::NewTab | WorkspaceAction::NewWorkspace
-            ) && let Some(label) = chosen_label(text, self.menu.suggested_name.as_deref())
+            if action == WorkspaceAction::NewTab
+                && let Some(label) = chosen_label(text, self.menu.suggested_name.as_deref())
             {
                 params["label"] = label.into();
             }
@@ -435,7 +435,7 @@ impl HerdrWindow {
                 let id = self.endpoints[self.selected_endpoint]
                     .connection
                     .request_dialog(&target.boot_id, method, params)?;
-                self.menu.creation = Some(id);
+                self.menu.creation = Some((id, method));
                 self.menu.error = None;
                 if let Some(source) = &mut self.menu.worktree {
                     source.superseded();

@@ -6,7 +6,7 @@ fn deletion_schema_and_target_validation() {
     let target = WorkspaceTarget::new(&snapshot, &snapshot.workspaces[4]);
     assert_eq!(
         target
-            .request(&snapshot, WorkspaceAction::DeleteWorktree, "")
+            .request(&snapshot, WorkspaceAction::DeleteWorktree, "", &[])
             .unwrap(),
         (
             Method::WorktreeRemove,
@@ -16,28 +16,28 @@ fn deletion_schema_and_target_validation() {
     for index in [0, 3] {
         assert!(
             WorkspaceTarget::new(&snapshot, &snapshot.workspaces[index])
-                .request(&snapshot, WorkspaceAction::DeleteWorktree, "")
+                .request(&snapshot, WorkspaceAction::DeleteWorktree, "", &[])
                 .is_err()
         );
     }
     snapshot.workspaces[4].worktree = None;
     assert!(
         target
-            .request(&snapshot, WorkspaceAction::DeleteWorktree, "")
+            .request(&snapshot, WorkspaceAction::DeleteWorktree, "", &[])
             .is_err()
     );
     snapshot.workspaces[4].worktree = target.worktree.clone();
     snapshot.boot_id = "replacement".into();
     assert!(
         target
-            .request(&snapshot, WorkspaceAction::DeleteWorktree, "")
+            .request(&snapshot, WorkspaceAction::DeleteWorktree, "", &[])
             .is_err()
     );
     snapshot.boot_id = target.boot_id.clone();
     snapshot.workspaces.remove(4);
     assert!(
         target
-            .request(&snapshot, WorkspaceAction::DeleteWorktree, "")
+            .request(&snapshot, WorkspaceAction::DeleteWorktree, "", &[])
             .is_err()
     );
 }

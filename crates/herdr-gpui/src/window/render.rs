@@ -231,6 +231,10 @@ impl Render for HerdrWindow {
                 **shown == Shown::Terminal && primary.is_none_or(|group| group == slot.id)
             })
             .map(|(slot, _)| *slot);
+        // The empty workspace screen replaces the frame, which is the last
+        // content of a workspace or tab that no longer exists.
+        let screen = self.render_empty_workspace(terminal_slot.is_some(), cx);
+        let paints_frame = screen.is_none();
         let find_bar = self.render_find_bar(surface.as_deref(), cx);
         let terminal_note = self.render_terminal_note(surface.as_deref(), cx);
         let copy_badge = self.render_copy_mode_badge(surface.as_deref(), cx);
@@ -395,7 +399,7 @@ impl Render for HerdrWindow {
                     .relative()
                     .size_full()
                     .overflow_hidden()
-                    .children(regions)
+                    .when(paints_frame, |cells| cells.children(regions))
                     .child(
                         canvas(
                             move |bounds, _, cx| {
@@ -489,7 +493,7 @@ impl Render for HerdrWindow {
                                     ),
                                     cx,
                                 );
-                                if let Some(surface) = &surface {
+                                if let Some(surface) = surface.as_ref().filter(|_| paints_frame) {
                                     if whole {
                                         painter.borrow_mut().paint_frame(
                                             &surface.frame,
@@ -584,6 +588,7 @@ impl Render for HerdrWindow {
                         .size_full(),
                     );
                 cells
+                    .children(screen)
                     .children(self.render_reconnecting(cx))
                     .when_some(find_bar, |terminal, bar| terminal.child(bar))
                     .when_some(terminal_note, |terminal, note| terminal.child(note))

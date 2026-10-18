@@ -88,6 +88,8 @@ mod update_notes_scrollbar;
 #[cfg(test)]
 mod update_panel;
 #[cfg(test)]
+mod v2_drop;
+#[cfg(test)]
 mod workspace_menu;
 #[cfg(test)]
 mod worktree_notes;
@@ -393,7 +395,7 @@ pub(crate) const REPO_KEY: &str = if cfg!(windows) {
     "/fixture/agent-launcher/.git"
 };
 
-pub(crate) fn snapshot(workspace_count: usize) -> ClientShellSnapshot {
+pub(crate) fn snapshot(workspace_count: usize) -> ClientShellSnapshotV2 {
     serde_json::from_value(serde_json::json!({
         "boot_id": "layout-test", "revision": 1,
         "update_install_command": "", "latest_release_notes_available": false,
@@ -588,6 +590,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         backdrop: Default::default(),
         device_themes: Default::default(),
         regions: Vec::new(),
+        empty_workspace_rows: Vec::new(),
         marked: String::new(),
         marked_selection: None,
         hover: None,

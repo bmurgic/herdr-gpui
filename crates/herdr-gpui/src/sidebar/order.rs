@@ -3,8 +3,8 @@
 //! its own sidebar: every listed host's rows, top to bottom.
 
 use super::{agents::panel_agents, visible_workspace_entries};
-use crate::{HerdrWindow, controls::Command, state::LiveState};
-use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshot};
+use crate::{HerdrWindow, controls::Command, navigation::NavigationTarget, state::LiveState};
+use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshotV2};
 
 /// A listed row: its host, by endpoint index, and the workspace or agent
 /// pane it shows.
@@ -28,7 +28,7 @@ impl HerdrWindow {
     }
 
     /// Each host the sidebar lists, with the snapshot it draws from.
-    fn listed_hosts(&self) -> impl Iterator<Item = (usize, &ClientShellSnapshot)> {
+    fn listed_hosts(&self) -> impl Iterator<Item = (usize, &ClientShellSnapshotV2)> {
         self.listed_lives()
             .filter_map(|(index, live)| live.snapshot.as_deref().map(|snapshot| (index, snapshot)))
     }
@@ -66,6 +66,47 @@ impl HerdrWindow {
             .map(|(index, agent)| (index, agent.pane_id.as_str()))
             .collect()
     }
+
+    /// The host and the workspace or agent pane a previous, next, or
+    /// numbered shortcut lands on, or `None` when `command` is not one of
+    /// those or the step has no row. The window runs it and the empty
+    /// workspace screen lists it, so both read the same destination.
+    pub(crate) fn sidebar_destination(
+        &self,
+        command: Command,
+    ) -> Option<(usize, NavigationTarget<&str>)> {
+        let agents = match command {
+            Command::PreviousAgent | Command::NextAgent | Command::AgentNumber(_) => true,
+            Command::PreviousWorkspace | Command::NextWorkspace | Command::WorkspaceNumber(_) => {
+                false
+            }
+            _ => return None,
+        };
+        let rows = if agents {
+            self.sidebar_agents()
+        } else {
+            self.sidebar_workspaces()
+        };
+        let selected = self.selected_endpoint;
+        let focused = self.live.snapshot.as_ref().and_then(|snapshot| {
+            if agents {
+                snapshot.focused_pane_id.as_deref()
+            } else {
+                snapshot.focused_workspace_id.as_deref()
+            }
+        });
+        let current = rows
+            .iter()
+            .position(|&(host, id)| host == selected && Some(id) == focused);
+        let index = step(&rows, current, selected, command)?;
+        let &(host, id) = rows.get(index)?;
+        let target = if agents {
+            NavigationTarget::Pane(id)
+        } else {
+            NavigationTarget::Workspace(id)
+        };
+        Some((host, target))
+    }
 }
 
 /// Which row a sidebar step lands on. `current` is the focused row, if the
@@ -73,7 +114,7 @@ impl HerdrWindow {
 /// around, and start from an end when nothing listed is focused. A numbered
 /// workspace counts only the selected host's rows and a numbered agent every
 /// host's, as Herdr numbers them.
-pub(crate) fn step(
+fn step(
     rows: &[Row<'_>],
     current: Option<usize>,
     selected: usize,

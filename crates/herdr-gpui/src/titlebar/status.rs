@@ -8,7 +8,7 @@ use crate::{
     state::ConnectionStatus,
 };
 use gpui::{prelude::*, *};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::ops::Range;
 
 const MAX_SEGMENTS: usize = 32;
@@ -22,7 +22,7 @@ struct StatusText {
 }
 
 impl StatusText {
-    fn snapshot(snapshot: &ClientShellSnapshot) -> Self {
+    fn snapshot(snapshot: &ClientShellSnapshotV2) -> Self {
         let mut result = Self::default();
         let separator = safe_text(&snapshot.tab_bar_right_separator, MAX_SEPARATOR_CHARS);
         for segment in snapshot.tab_bar_right.iter().take(MAX_SEGMENTS) {

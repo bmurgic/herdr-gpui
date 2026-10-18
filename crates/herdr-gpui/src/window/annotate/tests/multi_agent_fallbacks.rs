@@ -21,7 +21,7 @@ fn clipboard(cx: &mut VisualTestContext) -> String {
         .unwrap()
 }
 
-fn two_agents() -> ClientShellSnapshot {
+fn two_agents() -> ClientShellSnapshotV2 {
     let mut snapshot = shown(Some("idle"), false);
     let mut second_pane = snapshot.panes[0].clone();
     second_pane.pane_id = "w0:p2".into();

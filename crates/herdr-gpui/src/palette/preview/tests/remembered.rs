@@ -8,7 +8,7 @@ fn streaming(boot: &str, pane: &str) -> Arc<PaneSurfaceFrame> {
 }
 
 /// `snapshot()` plus tabs `w1:t3`.. each holding one pane `w1:p3`...
-fn many_tabs(count: usize) -> ClientShellSnapshot {
+fn many_tabs(count: usize) -> ClientShellSnapshotV2 {
     let mut snapshot = snapshot();
     for n in 3..3 + count {
         let mut tab = snapshot.tabs[0].clone();
@@ -158,7 +158,7 @@ fn heavy(pane: &str) -> Arc<PaneSurfaceFrame> {
 }
 
 /// Leaves the tab of each of `panes` in turn, at times 1, 2, ...
-fn leave_each(snapshot: &ClientShellSnapshot, panes: &[&str]) -> LastSeen {
+fn leave_each(snapshot: &ClientShellSnapshotV2, panes: &[&str]) -> LastSeen {
     let mut seen = LastSeen::default();
     for (at, pane) in (1..).zip(panes) {
         seen.observe(

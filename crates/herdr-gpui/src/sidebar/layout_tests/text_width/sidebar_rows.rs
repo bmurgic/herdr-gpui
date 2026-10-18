@@ -216,7 +216,7 @@ pub(super) fn check_sidebar_resize(
 pub(super) fn check_collapse_toggle(
     view: &Entity<HerdrWindow>,
     cx: &mut gpui::VisualTestContext,
-) -> ClientShellSnapshot {
+) -> ClientShellSnapshotV2 {
     let before = cx.update(|_, cx| {
         view.update(cx, |view, _| {
             let snapshot = Arc::make_mut(view.live.snapshot.as_mut().unwrap());

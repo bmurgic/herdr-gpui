@@ -1,8 +1,8 @@
 use super::*;
 use core::prelude::v1::test;
 
-fn snapshot() -> anyhow::Result<ClientShellSnapshot> {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+fn snapshot() -> anyhow::Result<ClientShellSnapshotV2> {
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))?;
     for agent in &mut snapshot.agents {

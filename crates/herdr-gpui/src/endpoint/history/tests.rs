@@ -2,8 +2,8 @@
 use super::*;
 
 /// A snapshot of `boot` with `panes` open and `focused` focused.
-fn at(boot: &str, panes: &[&str], focused: Option<&str>) -> ClientShellSnapshot {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+fn at(boot: &str, panes: &[&str], focused: Option<&str>) -> ClientShellSnapshotV2 {
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();
@@ -24,14 +24,14 @@ fn at(boot: &str, panes: &[&str], focused: Option<&str>) -> ClientShellSnapshot 
 const PANES: &[&str] = &["a", "b", "c", "d"];
 
 /// A snapshot focusing `focused` while a navigation may still be in flight.
-fn visit(history: &mut History, focused: &str) -> ClientShellSnapshot {
+fn visit(history: &mut History, focused: &str) -> ClientShellSnapshotV2 {
     let snapshot = at("boot", PANES, Some(focused));
     history.observe(Some(&snapshot), true);
     snapshot
 }
 
 /// Starts `step` as the window does once its request is queued.
-fn start(history: &mut History, step: Step, snapshot: &ClientShellSnapshot) -> Option<String> {
+fn start(history: &mut History, step: Step, snapshot: &ClientShellSnapshotV2) -> Option<String> {
     let (index, pane) = history
         .peek(step, snapshot)
         .map(|(index, pane)| (index, pane.to_owned()))?;
@@ -40,7 +40,7 @@ fn start(history: &mut History, step: Step, snapshot: &ClientShellSnapshot) -> O
 }
 
 /// Goes `step`, then reports the focus arriving and the navigation settling.
-fn go(history: &mut History, step: Step, snapshot: &ClientShellSnapshot) -> String {
+fn go(history: &mut History, step: Step, snapshot: &ClientShellSnapshotV2) -> String {
     let pane = start(history, step, snapshot).unwrap();
     history.observe(Some(&at("boot", PANES, Some(&pane))), false);
     pane

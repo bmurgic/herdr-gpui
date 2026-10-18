@@ -3,8 +3,8 @@
 use super::*;
 use herdr_client::ConnectTarget;
 
-fn snapshot() -> ClientShellSnapshot {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+fn snapshot() -> ClientShellSnapshotV2 {
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();
@@ -64,7 +64,7 @@ fn choices_skip_the_own_tab_and_offer_new_tabs_elsewhere() {
     assert!(!choices[2].destination.exists(&gone));
     assert!(Destination::NewWorkspace.exists(&gone));
     // A lone tab in a lone workspace has nowhere to go but new places.
-    let lone: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let lone: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

@@ -1,4 +1,4 @@
-use herdr_client::{Method, protocol::ClientShellSnapshot};
+use herdr_client::{Method, protocol::ClientShellSnapshotV2};
 use serde_json::{Value, json};
 
 mod shortcuts;
@@ -660,7 +660,7 @@ pub const COMMANDS: &[CommandInfo] = &[
     },
 ];
 
-pub fn request(command: Command, snapshot: &ClientShellSnapshot) -> Option<(Method, Value)> {
+pub fn request(command: Command, snapshot: &ClientShellSnapshotV2) -> Option<(Method, Value)> {
     let workspace = snapshot
         .workspaces
         .iter()
@@ -678,13 +678,6 @@ pub fn request(command: Command, snapshot: &ClientShellSnapshot) -> Option<(Meth
         })
     });
     Some(match command {
-        Command::Workspace => {
-            let mut params = json!({"focus": true});
-            if snapshot.focused_workspace_id.is_some() {
-                params["source_workspace_id"] = json!(workspace?.workspace_id);
-            }
-            (Method::WorkspaceCreate, params)
-        }
         Command::Tab => (
             Method::TabCreate,
             json!({"workspace_id": workspace?.workspace_id, "focus": true}),
@@ -796,6 +789,7 @@ pub fn request(command: Command, snapshot: &ClientShellSnapshot) -> Option<(Meth
         }
         Command::NewWindow
         | Command::NewWorktree
+        | Command::Workspace
         | Command::OpenWorktree
         | Command::RemoveWorktree
         | Command::WorktreeNotes

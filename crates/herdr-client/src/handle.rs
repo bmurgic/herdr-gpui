@@ -274,10 +274,19 @@ impl ClientHandle {
     pub fn focus_tab(&self, boot_id: &str, tab_id: &str) -> Result<String> {
         self.request(boot_id, Method::TabFocus, json!({"tab_id": tab_id}))
     }
-    pub fn focus_workspace(&self, boot_id: &str, workspace_id: &str) -> Result<String> {
+    /// Queues the focus as `workspace.focus.v2` when `methods`, the welcome's
+    /// advertised list, holds it, else as `workspace.focus`. Stock Herdr
+    /// advertises no `.v2` method; myherdr refuses the v1 focus for a
+    /// workspace without tabs.
+    pub fn focus_workspace(
+        &self,
+        boot_id: &str,
+        workspace_id: &str,
+        methods: &[String],
+    ) -> Result<String> {
         self.request(
             boot_id,
-            Method::WorkspaceFocus,
+            Method::WorkspaceFocus.preferred_in(methods),
             json!({"workspace_id": workspace_id}),
         )
     }

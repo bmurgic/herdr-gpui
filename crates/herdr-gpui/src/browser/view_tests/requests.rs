@@ -95,9 +95,9 @@ fn requests_open_tabs_only_in_a_workspace_the_window_shows(cx: &mut gpui::TestAp
 
 /// Puts the caller's pane `p0` in Herdr tab `tab` of workspace `w0`.
 fn caller_in(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, tab: &str) {
-    let fixture: herdr_client::protocol::ClientShellSnapshot = serde_json::from_str(include_str!(
-        "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
-    ))
+    let fixture: herdr_client::protocol::ClientShellSnapshotV2 = serde_json::from_str(
+        include_str!("../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"),
+    )
     .unwrap();
     let mut pane = fixture.panes[0].clone();
     pane.pane_id = "p0".into();

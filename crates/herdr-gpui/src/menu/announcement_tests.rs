@@ -7,10 +7,10 @@ use crate::{
     HerdrWindow, sidebar::layout_tests::fixture_window, state::ConnectionStatus, window::MockPeer,
 };
 use gpui::{Entity, TestAppContext, VisualTestContext, px, size};
-use herdr_client::protocol::{ClientMessage, ClientShellSnapshot};
+use herdr_client::protocol::{ClientMessage, ClientShellSnapshotV2};
 use std::sync::Arc;
 
-fn snapshot() -> ClientShellSnapshot {
+fn snapshot() -> ClientShellSnapshotV2 {
     serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
@@ -22,7 +22,7 @@ fn snapshot() -> ClientShellSnapshot {
 fn connected<'a>(
     cx: &'a mut TestAppContext,
     peer: &MockPeer,
-    snapshot: ClientShellSnapshot,
+    snapshot: ClientShellSnapshotV2,
 ) -> (Entity<HerdrWindow>, &'a mut VisualTestContext) {
     let (view, cx) = cx.add_window_view(fixture_window);
     cx.simulate_resize(size(px(900.), px(700.)));

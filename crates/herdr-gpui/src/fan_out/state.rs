@@ -15,7 +15,7 @@ use crate::{
     dispatch::{Candidate, Picker},
     teleport::{AgentKind, FreshOrigin, Host, HostRepositories, Place},
 };
-use herdr_client::protocol::{AgentStatus, ClientShellSnapshot};
+use herdr_client::protocol::{AgentStatus, ClientShellSnapshotV2};
 use std::{
     sync::{
         Arc,
@@ -629,7 +629,7 @@ fn status_text(status: AgentStatus) -> &'static str {
 
 /// What a compared lane's agent is doing, from the daemon's own snapshot.
 pub(super) fn agent_status(
-    snapshot: Option<&ClientShellSnapshot>,
+    snapshot: Option<&ClientShellSnapshotV2>,
     workspace_id: &str,
 ) -> &'static str {
     let Some(snapshot) = snapshot else {

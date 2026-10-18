@@ -3,7 +3,7 @@ use super::*;
 /// [`snapshot`] with the main checkout behind its upstream, one child
 /// diverged, and another in sync.
 #[cfg(test)]
-fn snapshot_with_upstream() -> ClientShellSnapshot {
+fn snapshot_with_upstream() -> ClientShellSnapshotV2 {
     let mut snapshot = snapshot(6);
     for (index, counts) in [(0, (0, 18)), (4, (2, 3)), (5, (0, 0))] {
         snapshot.workspaces[index].git_ahead_behind = Some(counts);

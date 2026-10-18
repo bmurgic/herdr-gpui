@@ -3,18 +3,18 @@
 use crate::endpoint::Endpoint;
 use gpui::{App, Global, WindowId};
 use herdr_client::ConnectTarget;
-use herdr_client::protocol::{AgentStatus, ClientShellSnapshot};
+use herdr_client::protocol::{AgentStatus, ClientShellSnapshotV2};
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Default)]
 struct Contribution {
-    snapshots: Vec<(Option<String>, Arc<ClientShellSnapshot>)>,
+    snapshots: Vec<(Option<String>, Arc<ClientShellSnapshotV2>)>,
 }
 
 impl Contribution {
     fn update<'a>(
         &mut self,
-        snapshots: impl Iterator<Item = (Option<&'a str>, &'a Arc<ClientShellSnapshot>)> + Clone,
+        snapshots: impl Iterator<Item = (Option<&'a str>, &'a Arc<ClientShellSnapshotV2>)> + Clone,
     ) -> bool {
         // Surface-only updates keep the same Arc. Do not rescan agents every tick.
         if self

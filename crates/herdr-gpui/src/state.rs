@@ -1,6 +1,6 @@
 use herdr_client::{
     ClientEvent, Method, SurfaceImages,
-    protocol::{ClientShellSnapshot, PaneSurfaceFrame, ServerMessage},
+    protocol::{ClientShellSnapshotV2, PaneSurfaceFrame, SNAPSHOT_CODEC_V2, ServerMessage},
 };
 use std::sync::Arc;
 
@@ -60,7 +60,7 @@ pub struct LiveState {
     pub(crate) window_title: Option<String>,
     pub(crate) sound_cancel: Arc<std::sync::atomic::AtomicBool>,
     pub(crate) sound_connection_cancel: Arc<std::sync::atomic::AtomicBool>,
-    pub snapshot: Option<Arc<ClientShellSnapshot>>,
+    pub snapshot: Option<Arc<ClientShellSnapshotV2>>,
     /// When each of `snapshot`'s agents last changed, on a clock shared with
     /// every other connection, so the agents panel can merge hosts by recency.
     pub(crate) agent_recency: AgentRecency,
@@ -88,9 +88,12 @@ pub struct LiveState {
     /// `tab.move` reorders a workspace's tabs; daemons that do not offer it
     /// to clients keep their tabs where they are.
     pub(crate) supports_tab_move: bool,
-    /// `workspace.move` takes a single workspace; without it a drop sends
-    /// every reorder as `workspace.move_block`.
+    /// `workspace.move` or `workspace.move.v2` takes a single workspace;
+    /// without either a drop sends every reorder as a block move.
     pub(crate) supports_workspace_move: bool,
+    /// The methods the daemon's welcome advertised; empty when not connected.
+    /// Send sites read it through `Method::preferred_in`.
+    pub(crate) methods: Arc<[String]>,
     /// `pane.link.resolve` and `pane.link.activate` let the daemon find links
     /// across wrapped rows and run plugin link handlers; without them links
     /// are found row by row here and always opened by this client.
@@ -120,7 +123,15 @@ pub struct LiveState {
     pub(crate) notifications_lost: bool,
     outer_focused: Option<bool>,
     pub activation: Option<SurfaceActivation>,
+    /// The daemon refused the workspace focus that raised the last fence, so
+    /// there is no activation to wait for. The window reads it to drop the
+    /// fence's deadline instead of reconnecting when it passes, and consumes
+    /// it there. The next fence and a new session clear it too.
+    pub(crate) focus_refused: bool,
     pub supports_surface: bool,
+    /// The session negotiated `shell.snapshot.v2`, whose daemon expands `~`
+    /// in a `workspace.create` path and checks the folder itself.
+    pub(crate) snapshot_v2: bool,
     // Bounded rename slots survive coalesced snapshots and do not overwrite a
     // worktree operation whose dialog has already closed.
     pub tab_rename: Option<RenameResult>,
@@ -152,7 +163,7 @@ pub(crate) struct AnnouncementDismissal {
 }
 
 impl AnnouncementDismissal {
-    fn covers(&self, snapshot: &ClientShellSnapshot) -> bool {
+    fn covers(&self, snapshot: &ClientShellSnapshotV2) -> bool {
         snapshot
             .product_announcement
             .as_ref()
@@ -174,6 +185,10 @@ pub struct SurfaceActivation {
     pub failed: bool,
     pub focus: Option<crate::OwnedNavigationTarget>,
     pub active: bool,
+    /// The workspace focus request (`workspace.focus` or its `.v2` form) that
+    /// raised this fence, when it was one. A refusal of that request ends the
+    /// activation, because no focus change is coming for the surface to settle on.
+    pub focus_request: Option<String>,
 }
 
 impl Default for LiveState {
@@ -203,6 +218,7 @@ impl Default for LiveState {
             supports_pane_clear: false,
             supports_tab_move: false,
             supports_workspace_move: false,
+            methods: Arc::from([]),
             supports_link_resolve: false,
             supports_link_activate: false,
             supports_copy_search: false,
@@ -219,7 +235,9 @@ impl Default for LiveState {
             keyboard_report_all: false,
             outer_focused: None,
             activation: None,
+            focus_refused: false,
             supports_surface: false,
+            snapshot_v2: false,
             tab_rename: None,
             pane_rename: None,
             drag_request: None,
@@ -261,6 +279,7 @@ impl LiveState {
             supports_pane_clear,
             supports_tab_move,
             supports_workspace_move,
+            methods,
             supports_link_resolve,
             supports_link_activate,
             supports_copy_search,
@@ -276,7 +295,9 @@ impl LiveState {
             notifications_lost,
             outer_focused,
             activation,
+            focus_refused,
             supports_surface,
+            snapshot_v2,
             tab_rename,
             pane_rename,
             drag_request,
@@ -319,6 +340,7 @@ impl LiveState {
             && *supports_pane_clear == self.supports_pane_clear
             && *supports_tab_move == self.supports_tab_move
             && *supports_workspace_move == self.supports_workspace_move
+            && *methods == self.methods
             && *supports_link_resolve == self.supports_link_resolve
             && *supports_link_activate == self.supports_link_activate
             && *supports_copy_search == self.supports_copy_search
@@ -352,10 +374,13 @@ impl LiveState {
                         && a.failed == b.failed
                         && a.focus == b.focus
                         && a.active == b.active
+                        && a.focus_request == b.focus_request
                 }
                 (a, b) => a.is_none() && b.is_none(),
             }
+            && *focus_refused == self.focus_refused
             && *supports_surface == self.supports_surface
+            && *snapshot_v2 == self.snapshot_v2
             && pending_rename(tab_rename, &self.tab_rename)
             && pending_rename(pane_rename, &self.pane_rename)
             && *drag_request == self.drag_request
@@ -471,8 +496,9 @@ impl LiveState {
                 self.settings_reload = false;
                 self.supports_pane_clear = Method::PaneClear.advertised_in(&welcome.methods);
                 self.supports_tab_move = Method::TabMove.advertised_in(&welcome.methods);
-                self.supports_workspace_move =
-                    Method::WorkspaceMove.advertised_in(&welcome.methods);
+                self.supports_workspace_move = Method::WorkspaceMove.advertised_in(&welcome.methods)
+                    || Method::WorkspaceMoveV2.advertised_in(&welcome.methods);
+                self.methods = Arc::from(welcome.methods.as_slice());
                 self.supports_announcement_dismiss =
                     Method::ProductAnnouncementDismiss.advertised_in(&welcome.methods);
                 self.supports_release_notes_dismiss =
@@ -494,10 +520,12 @@ impl LiveState {
                         .all(|capability| {
                             welcome.capabilities.iter().any(|value| value == capability)
                         });
+                self.snapshot_v2 = welcome.snapshot_codec == SNAPSHOT_CODEC_V2;
                 self.missing_installation = false;
                 self.version_mismatch = None;
                 // The daemon reports the mode to each new connection.
                 self.keyboard_report_all = false;
+                self.focus_refused = false;
                 self.status = ConnectionStatus::AwaitingSnapshot;
                 self.error = None;
             }
@@ -576,6 +604,10 @@ impl LiveState {
                 self.bells = 0;
                 self.window_title = None;
                 self.status = ConnectionStatus::Disconnected;
+                self.focus_refused = false;
+                self.methods = Arc::from([]);
+                self.supports_workspace_move = false;
+                self.snapshot_v2 = false;
                 self.error = Some(reason);
                 self.snapshot = None;
                 self.agent_recency = AgentRecency::default();
@@ -619,6 +651,9 @@ impl LiveState {
                     && request_id.as_ref() == Some(&activation.request)
                 {
                     activation.failed = true;
+                }
+                if let Some(id) = &request_id {
+                    self.end_refused_focus(id);
                 }
                 if request_id
                     .as_deref()
@@ -665,9 +700,11 @@ impl LiveState {
                 }
                 if let Some(error) = response.get("error")
                     && !error.is_null()
-                    && !self.has_operation_result(&request_id)
                 {
-                    self.error = Some(crate::Error::DaemonResponse(error.clone()).to_string());
+                    if !self.has_operation_result(&request_id) {
+                        self.error = Some(crate::Error::DaemonResponse(error.clone()).to_string());
+                    }
+                    self.end_refused_focus(&request_id);
                 }
                 if self.dismissal_request(&request_id)
                     && response.get("error").is_some_and(|error| !error.is_null())
@@ -797,6 +834,19 @@ impl LiveState {
         self.dirty = true;
     }
 
+    /// Ends the activation `request_id` raised, when it is a workspace focus
+    /// the daemon refused. Tab and pane focus keep their fence: only a
+    /// workspace focus is ruled to stop waiting. A fence that failed to raise
+    /// has no acknowledgement coming and stays for its deadline's reconnect.
+    fn end_refused_focus(&mut self, request_id: &str) {
+        if self.activation.as_ref().is_some_and(|activation| {
+            !activation.failed && activation.focus_request.as_deref() == Some(request_id)
+        }) {
+            self.activation = None;
+            self.focus_refused = true;
+        }
+    }
+
     pub(crate) fn cancel_sounds(&mut self) {
         self.sound_cancel
             .store(true, std::sync::atomic::Ordering::Release);
@@ -821,7 +871,7 @@ fn sanitize_window_title(title: &str) -> Option<String> {
     (!title.is_empty()).then(|| title.to_owned())
 }
 
-fn coherent(snapshot: &ClientShellSnapshot, surface: &PaneSurfaceFrame) -> bool {
+fn coherent(snapshot: &ClientShellSnapshotV2, surface: &PaneSurfaceFrame) -> bool {
     snapshot.boot_id == surface.boot_id && snapshot.revision == surface.projection_revision
 }
 

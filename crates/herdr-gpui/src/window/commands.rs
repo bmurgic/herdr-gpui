@@ -98,10 +98,11 @@ impl HerdrWindow {
         if !self.input_ready() {
             return false;
         }
+        let methods = self.live.methods.clone();
         let queued =
             self.request_focus_change("Navigate", Some((&target).into()), |handle, boot| {
                 match target {
-                    NavigationTarget::Workspace(id) => handle.focus_workspace(boot, id),
+                    NavigationTarget::Workspace(id) => handle.focus_workspace(boot, id, &methods),
                     NavigationTarget::Tab(id) => handle.focus_tab(boot, id),
                     NavigationTarget::Pane(id) => handle.focus_pane(boot, id),
                 }
@@ -122,32 +123,61 @@ impl HerdrWindow {
             &str,
         ) -> Result<String, herdr_client::SendError>,
     ) -> bool {
-        if let (Some(handle), Some(snapshot)) = (
+        // The inbox stays locked from the enqueue until the fence exists, so
+        // the daemon's reply to a workspace focus cannot be applied before the
+        // fence that must recognize its id.
+        let inbox = self.endpoints[self.selected_endpoint]
+            .connection
+            .inbox
+            .clone();
+        let mut state = inbox.lock().ok();
+        let (Some(handle), Some(snapshot)) = (
             &self.endpoints[self.selected_endpoint].connection.handle,
             &self.live.snapshot,
-        ) {
-            if let Err(error) = enqueue(handle, &snapshot.boot_id) {
+        ) else {
+            return false;
+        };
+        let id = match enqueue(handle, &snapshot.boot_id) {
+            Ok(id) => id,
+            Err(error) => {
                 self.local_error = Some(format!("{label}: {error}"));
-            } else {
-                self.fence_focus_change(focus);
-                return true;
+                return false;
             }
+        };
+        let focus_request =
+            matches!(focus, Some(OwnedNavigationTarget::Workspace(_))).then_some(id);
+        if let Some(state) = state.as_deref_mut() {
+            self.raise_fence(state, focus, focus_request);
         }
-        false
+        true
     }
 
     pub(crate) fn fence_focus_change(&mut self, focus: Option<OwnedNavigationTarget>) {
+        let inbox = self.endpoints[self.selected_endpoint]
+            .connection
+            .inbox
+            .clone();
+        if let Ok(mut state) = inbox.lock() {
+            self.raise_fence(&mut state, focus, None);
+        }
+    }
+
+    /// Records a barrier in `state`, the selected endpoint's locked inbox, and
+    /// starts its deadline. `focus_request` is the id of the workspace focus the
+    /// barrier waits on, when it is one.
+    fn raise_fence(
+        &mut self,
+        state: &mut state::LiveState,
+        focus: Option<OwnedNavigationTarget>,
+        focus_request: Option<String>,
+    ) {
         if !self.live.supports_surface {
             return;
         }
         if let (Some(handle), Some(snapshot)) = (
             &self.endpoints[self.selected_endpoint].connection.handle,
             &self.live.snapshot,
-        ) && let Ok(mut state) = self.endpoints[self.selected_endpoint]
-            .connection
-            .inbox
-            .lock()
-        {
+        ) {
             // An ordered surface barrier prevents input hitting the previous
             // pane while navigation/creation and its projection are in flight.
             // Register the barrier under the inbox lock before input can resume.
@@ -165,7 +195,9 @@ impl HerdrWindow {
                 failed,
                 focus,
                 active: true,
+                focus_request,
             });
+            state.focus_refused = false;
             state.surface = None;
             state.dirty = true;
             self.live = state.clone();
@@ -326,9 +358,14 @@ impl HerdrWindow {
                 self.edit_focused_worktree_note(window, cx);
                 return;
             }
-            // Every interactive creation path ends here, so Herdr's name prompt
+            // Every interactive tab creation ends here, so Herdr's name prompt
             // covers buttons, menus, shortcuts, and the palette alike.
-            Command::Tab | Command::Workspace if self.open_name_prompt(command, window, cx) => {
+            Command::Tab if self.open_name_prompt(command, window, cx) => {
+                return;
+            }
+            // Asks for a directory first, and sends nothing until it is chosen.
+            Command::Workspace => {
+                self.open_new_workspace(window, cx);
                 return;
             }
             Command::Keybinds => {
@@ -537,42 +574,16 @@ impl HerdrWindow {
     /// Focuses the workspace or agent a sidebar step lands on, selecting its
     /// host first when that is another one.
     fn step_sidebar(&mut self, command: Command, cx: &mut Context<Self>) {
-        let agents = matches!(
-            command,
-            Command::PreviousAgent | Command::NextAgent | Command::AgentNumber(_)
-        );
-        let rows = if agents {
-            self.sidebar_agents()
-        } else {
-            self.sidebar_workspaces()
-        };
-        let selected = self.selected_endpoint;
-        let focused = self.live.snapshot.as_ref().and_then(|snapshot| {
-            if agents {
-                snapshot.focused_pane_id.as_deref()
-            } else {
-                snapshot.focused_workspace_id.as_deref()
-            }
-        });
-        let current = rows
-            .iter()
-            .position(|&(host, id)| host == selected && Some(id) == focused);
-        let Some(&(host, id)) = crate::sidebar::sidebar_step(&rows, current, selected, command)
-            .and_then(|index| rows.get(index))
-        else {
+        let Some((host, target)) = self.sidebar_destination(command) else {
             return;
         };
-        let id = id.to_owned();
-        let target = if agents {
-            NavigationTarget::Pane(id.as_str())
-        } else {
-            NavigationTarget::Workspace(id.as_str())
-        };
-        if host == selected {
-            self.navigate(target, cx);
+        // Owned, because navigating borrows the window mutably.
+        let target = OwnedNavigationTarget::from(&target);
+        if host == self.selected_endpoint {
+            self.navigate(target.as_deref(), cx);
         } else {
             let endpoint = self.endpoints[host].id.clone();
-            self.navigate_endpoint(&endpoint, target, cx);
+            self.navigate_endpoint(&endpoint, target.as_deref(), cx);
         }
     }
 

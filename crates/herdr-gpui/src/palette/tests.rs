@@ -30,7 +30,7 @@ fn matches_query(text: &str, query: &str) -> bool {
     .is_empty()
 }
 
-fn snapshot() -> ClientShellSnapshot {
+fn snapshot() -> ClientShellSnapshotV2 {
     serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
@@ -258,7 +258,7 @@ fn go_to_lists_the_selected_host_first_and_switches_host_for_a_remote_row(cx: &m
     });
 }
 
-fn go_to_fixture() -> ClientShellSnapshot {
+fn go_to_fixture() -> ClientShellSnapshotV2 {
     let mut snapshot = snapshot();
     let mut tab = snapshot.tabs[0].clone();
     tab.tab_id = "w1:t2".into();

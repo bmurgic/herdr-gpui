@@ -85,13 +85,19 @@ fn app_window_and_ui_commands() {
         parse(&["ui", "font-size", "99"]).unwrap_err(),
         CliError::InvalidValue("POINTS (8-48)")
     );
-    assert_eq!(
-        parse(&["app", "explode"]).unwrap_err(),
-        CliError::UnknownCommand {
-            family: "app",
-            command: "explode".into()
-        }
-    );
+    // The empty workspace screen adds no command: Herdr's own `herdr` CLI
+    // creates tabs and workspaces, and parsing refuses these verbs before any
+    // connection opens.
+    for verb in ["explode", "new-tab", "new-workspace", "focus-workspace"] {
+        assert_eq!(
+            parse(&["app", verb]).unwrap_err(),
+            CliError::UnknownCommand {
+                family: "app",
+                command: verb.into()
+            },
+            "app {verb}"
+        );
+    }
 }
 
 #[test]

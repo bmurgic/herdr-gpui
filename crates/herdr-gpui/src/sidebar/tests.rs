@@ -16,7 +16,7 @@ use crate::{
     herdr_settings::IndicatorStyle,
 };
 use herdr_client::protocol::{
-    AgentStatus, ClientShellAgent, ClientShellSnapshot, ClientShellWorkspace,
+    AgentStatus, ClientShellAgent, ClientShellSnapshotV2, ClientShellWorkspaceV2,
 };
 
 mod agent_order;

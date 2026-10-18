@@ -10,11 +10,11 @@ use crate::{
 };
 use core::prelude::v1::test;
 use gpui::{TestAppContext, VisualTestContext, px, size};
-use herdr_client::{ConnectTarget, protocol::ClientShellSnapshot};
+use herdr_client::{ConnectTarget, protocol::ClientShellSnapshotV2};
 use std::sync::{Arc, Mutex};
 
 fn connected(live: &mut crate::state::LiveState, summary: &str, ci: Option<&str>) {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

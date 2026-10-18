@@ -14,7 +14,7 @@ use crate::{
     terminal_painter::{Ground, Layer, Part, Span, TerminalPainter},
 };
 use gpui::*;
-use herdr_client::protocol::{ClientShellSnapshot, PaneSurfaceFrame, SurfaceRect};
+use herdr_client::protocol::{ClientShellSnapshotV2, PaneSurfaceFrame, SurfaceRect};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 /// Facts listed for a row with no cells on hand; the rest are left out.
@@ -42,7 +42,7 @@ pub(super) enum Preview {
 /// connection holds and remembers. Nothing from another daemon boot is
 /// ever shown.
 pub(super) fn preview(
-    snapshot: Option<&ClientShellSnapshot>,
+    snapshot: Option<&ClientShellSnapshotV2>,
     surface: Option<&Arc<PaneSurfaceFrame>>,
     last_seen: &LastSeen,
     boot: &str,
@@ -71,7 +71,7 @@ pub(super) fn preview(
 
 /// Where `target` lies within `surface`, if the surface shows it.
 fn screen(
-    snapshot: &ClientShellSnapshot,
+    snapshot: &ClientShellSnapshotV2,
     surface: &Arc<PaneSurfaceFrame>,
     target: NavigationTarget<&str>,
 ) -> Option<SurfaceRect> {
@@ -101,7 +101,7 @@ fn screen(
     }
 }
 
-fn facts(snapshot: &ClientShellSnapshot, target: NavigationTarget<&str>) -> Option<Preview> {
+fn facts(snapshot: &ClientShellSnapshotV2, target: NavigationTarget<&str>) -> Option<Preview> {
     let workspace = |id: &str| snapshot.workspaces.iter().find(|w| w.workspace_id == id);
     let tab = |id: &str| snapshot.tabs.iter().find(|t| t.tab_id == id);
     let agent = |pane: &str| snapshot.agents.iter().find(|a| a.pane_id == pane);

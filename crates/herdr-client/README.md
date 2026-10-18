@@ -79,7 +79,7 @@ set_surface_active(&self, boot_id: &str, active: bool) -> Result<String>
 request(&self, boot_id: &str, method: &str, params: serde_json::Value) -> Result<String>
 focus_pane(&self, boot_id: &str, pane_id: &str) -> Result<String>
 focus_tab(&self, boot_id: &str, tab_id: &str) -> Result<String>
-focus_workspace(&self, boot_id: &str, workspace_id: &str) -> Result<String>
+focus_workspace(&self, boot_id: &str, workspace_id: &str, methods: &[String]) -> Result<String>
 disconnect(&self)
 is_disconnected(&self) -> bool
 ```
@@ -93,7 +93,9 @@ channel capacity; success means queued, not server acknowledgement. Request
 methods return a unique ID. The worker rejects stale boot IDs, requests before
 the first snapshot and unadvertised methods via
 `CommandRejected`. Navigation uses the real `pane.focus`, `tab.focus`, and
-`workspace.focus` API methods, not synthetic terminal keys.
+`workspace.focus` API methods, not synthetic terminal keys. `focus_workspace`
+takes the welcome's advertised `methods` and sends `workspace.focus.v2` when
+they hold it.
 
 `set_host_theme` reports the client's terminal colors and light/dark appearance
 as `ClientShellHostTheme` updates on the ordered command path. Herdr answers OSC
@@ -262,7 +264,7 @@ unsupported there. Ordinary Windows commands retain their existing behavior.
 
 ```text
 Connected(EndpointServerWelcome)
-Snapshot(Arc<ClientShellSnapshot>)
+Snapshot(Arc<ClientShellSnapshotV2>)
 Surface(Arc<PaneSurfaceFrame>)
 SurfaceImages(Arc<SurfaceImages>)
 Response { request_id: String, response: serde_json::Value }
@@ -320,10 +322,17 @@ not execute escape sequences, read graphics file paths, or mutate the clipboard.
 Wire types are re-exported by `herdr_client::protocol` and defined in
 `herdr-protocol`. They retain every gen1 bincode enum variant in source order.
 
-- `ClientShellSnapshot`: `boot_id`, `revision`, focused workspace/tab/pane IDs,
+- `ClientShellSnapshotV2`: `boot_id`, `revision`, focused workspace/tab/pane IDs,
   `workspaces`, `tabs`, `panes`, `agents`, `commands`, diagnostics and updates.
-- `ClientShellWorkspace`: stable ID, active tab ID, number/label, branch,
+  It is the only snapshot shape `ClientEvent::Snapshot` carries. The hello
+  offers `shell.snapshot.v2` before `shell.snapshot.v1`; the session decodes only
+  the codec the welcome selected, converts a v1 snapshot with `From`, and ends
+  with `Error::SnapshotKind` on a snapshot of the other kind.
+- `ClientShellWorkspaceV2`: stable ID, optional active tab ID (absent for a
+  workspace with no tabs), optional repository record, number/label, branch,
   worktree, cwd, focus and agent status. Tabs and panes carry their parent IDs.
+- `ClientShellSnapshot` and `ClientShellWorkspace` remain the v1 shapes that the
+  bincode `ServerMessage::ClientShellSnapshot` carries.
 - `PaneSurfaceFrame`: `boot_id`, `projection_revision`, `surface_revision`,
   `frame`, pane geometry/scroll/mouse metadata, splits, optional popup, graphics.
 - `FrameData`: row-major `cells` of exactly `width * height`, optional cursor,

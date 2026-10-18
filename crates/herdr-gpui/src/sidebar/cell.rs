@@ -20,7 +20,7 @@ use crate::{
     icons::AgentIcon,
 };
 use gpui::{App, ClickEvent, Div, ElementId, ParentElement, Styled, Window};
-use herdr_client::protocol::{AgentStatus, ClientShellWorkspace};
+use herdr_client::protocol::{AgentStatus, ClientShellWorkspaceV2};
 use std::borrow::Cow;
 
 /// Read-only inputs every row of one render shares.
@@ -56,7 +56,7 @@ pub(super) struct Fold {
 }
 
 pub(super) struct WorkspaceRow<'a> {
-    pub(super) workspace: &'a ClientShellWorkspace,
+    pub(super) workspace: &'a ClientShellWorkspaceV2,
     /// What the row is called: a child's branch unless the user renamed it.
     pub(super) label: &'a str,
     pub(super) tree: RowTree,

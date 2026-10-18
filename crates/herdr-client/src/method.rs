@@ -43,12 +43,17 @@ pub enum Method {
     WorkspaceClose,
     WorkspaceCreate,
     WorkspaceFocus,
+    WorkspaceFocusV2,
     WorkspaceMove,
     WorkspaceMoveBlock,
+    WorkspaceMoveBlockV2,
+    WorkspaceMoveV2,
     WorkspaceRename,
+    WorkspaceRenameV2,
     WorktreeCreate,
     WorktreeList,
     WorktreeOpen,
+    WorktreeOpenV2,
     WorktreeRemove,
 }
 
@@ -88,12 +93,17 @@ impl Method {
             Self::WorkspaceClose => "workspace.close",
             Self::WorkspaceCreate => "workspace.create",
             Self::WorkspaceFocus => "workspace.focus",
+            Self::WorkspaceFocusV2 => "workspace.focus.v2",
             Self::WorkspaceMove => "workspace.move",
             Self::WorkspaceMoveBlock => "workspace.move_block",
+            Self::WorkspaceMoveBlockV2 => "workspace.move_block.v2",
+            Self::WorkspaceMoveV2 => "workspace.move.v2",
             Self::WorkspaceRename => "workspace.rename",
+            Self::WorkspaceRenameV2 => "workspace.rename.v2",
             Self::WorktreeCreate => "worktree.create",
             Self::WorktreeList => "worktree.list",
             Self::WorktreeOpen => "worktree.open",
+            Self::WorktreeOpenV2 => "worktree.open.v2",
             Self::WorktreeRemove => "worktree.remove",
         }
     }
@@ -102,6 +112,25 @@ impl Method {
     /// is remote data, so it is compared as text rather than parsed.
     pub fn advertised_in(self, methods: &[String]) -> bool {
         methods.iter().any(|method| method == self.as_str())
+    }
+
+    /// The `.v2` counterpart of this method when it has one and the peer
+    /// advertises it, else this method. Only the myherdr daemon offers the
+    /// `.v2` pairs, so a stock Herdr list keeps the v1 name.
+    pub fn preferred_in(self, methods: &[String]) -> Method {
+        let counterpart = match self {
+            Self::WorkspaceFocus => Self::WorkspaceFocusV2,
+            Self::WorkspaceRename => Self::WorkspaceRenameV2,
+            Self::WorkspaceMove => Self::WorkspaceMoveV2,
+            Self::WorkspaceMoveBlock => Self::WorkspaceMoveBlockV2,
+            Self::WorktreeOpen => Self::WorktreeOpenV2,
+            _ => return self,
+        };
+        if counterpart.advertised_in(methods) {
+            counterpart
+        } else {
+            self
+        }
     }
 }
 

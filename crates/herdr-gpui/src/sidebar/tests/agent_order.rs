@@ -6,7 +6,7 @@ use herdr_client::ClientEvent;
 use std::sync::Arc;
 
 /// A daemon's listing of `(pane, status, state_change_seq)` agents.
-fn listing(agents: &[(&str, AgentStatus, u64)]) -> Arc<ClientShellSnapshot> {
+fn listing(agents: &[(&str, AgentStatus, u64)]) -> Arc<ClientShellSnapshotV2> {
     let mut snapshot = layout_tests::snapshot(1);
     let template = snapshot.agents[0].clone();
     snapshot.agents = agents

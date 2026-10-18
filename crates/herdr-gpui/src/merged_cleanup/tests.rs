@@ -3,7 +3,7 @@ use super::*;
 
 const HEAD: &str = "0123456789abcdef0123456789abcdef01234567";
 
-fn snapshot() -> ClientShellSnapshot {
+fn snapshot() -> ClientShellSnapshotV2 {
     let mut snapshot = crate::sidebar::layout_tests::snapshot(7);
     for workspace in &mut snapshot.workspaces {
         workspace.agent_status = AgentStatus::Idle;
@@ -17,7 +17,7 @@ fn merged(state: State) -> PullRequest {
     pr
 }
 
-fn candidate(snapshot: &ClientShellSnapshot, index: usize) -> Candidate {
+fn candidate(snapshot: &ClientShellSnapshotV2, index: usize) -> Candidate {
     Candidate {
         workspace: snapshot.workspaces[index].workspace_id.clone(),
         input: workspace_input(&snapshot.workspaces[index], &Origin::Local).unwrap(),

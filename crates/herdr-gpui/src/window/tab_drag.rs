@@ -18,7 +18,7 @@ use crate::{
     reorder::{Beside, LIFT_DELAY, LIFT_DISTANCE, SETTLE_TIMEOUT, SLIDE, Slide, preview, slot_for},
 };
 use gpui::{Bounds, Context, Pixels, Point, ScrollHandle, Size, Task, Window, px};
-use herdr_client::{Method, protocol::ClientShellSnapshot};
+use herdr_client::{Method, protocol::ClientShellSnapshotV2};
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -111,7 +111,7 @@ fn landing(kin: &[Pick], dragged: usize, slot: usize) -> Option<Beside<Pick>> {
 }
 
 /// The Herdr tabs of `tab`'s workspace, in the daemon's order.
-fn workspace_tabs<'a>(snapshot: &'a ClientShellSnapshot, tab: &str) -> Vec<&'a str> {
+fn workspace_tabs<'a>(snapshot: &'a ClientShellSnapshotV2, tab: &str) -> Vec<&'a str> {
     let Some(workspace) = snapshot
         .tabs
         .iter()
@@ -132,7 +132,7 @@ fn workspace_tabs<'a>(snapshot: &'a ClientShellSnapshot, tab: &str) -> Vec<&'a s
 /// in the whole workspace's order, counted before the tab leaves its place,
 /// which a strip listing only some of the tabs cannot see.
 fn tab_move(
-    snapshot: &ClientShellSnapshot,
+    snapshot: &ClientShellSnapshotV2,
     tab: &str,
     beside: &Beside<String>,
 ) -> Option<serde_json::Value> {
@@ -159,7 +159,7 @@ impl TabDrag {
 
     /// Whether the strip shows the drop in place: while it floats, and after
     /// it is dropped until the daemon's order replaces the old one.
-    fn previewing(&self, snapshot: Option<&ClientShellSnapshot>) -> bool {
+    fn previewing(&self, snapshot: Option<&ClientShellSnapshotV2>) -> bool {
         let Pick::Herdr(tab) = &self.pick else {
             return self.lifted.is_some();
         };
@@ -581,7 +581,7 @@ mod tests {
 
     #[test]
     fn a_move_counts_its_gap_in_the_whole_workspace_before_the_tab_leaves() {
-        let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+        let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
             "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
         ))
         .unwrap();

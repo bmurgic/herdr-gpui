@@ -8,7 +8,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use gpui::App;
-use herdr_client::protocol::{ClientShellSnapshot, ClientShellWorktree};
+use herdr_client::protocol::{ClientShellSnapshotV2, ClientShellWorktree};
 
 use super::workspace::WorkspaceTarget;
 
@@ -105,7 +105,7 @@ impl Drop for CloseCheck {
     }
 }
 
-fn checkouts(snapshot: &ClientShellSnapshot, target: &WorkspaceTarget) -> Vec<Checkout> {
+fn checkouts(snapshot: &ClientShellSnapshotV2, target: &WorkspaceTarget) -> Vec<Checkout> {
     snapshot
         .workspaces
         .iter()
@@ -121,7 +121,7 @@ fn checkouts(snapshot: &ClientShellSnapshot, target: &WorkspaceTarget) -> Vec<Ch
 impl CloseCheck {
     #[cfg(test)]
     pub(super) fn fixture(
-        snapshot: &ClientShellSnapshot,
+        snapshot: &ClientShellSnapshotV2,
         target: &WorkspaceTarget,
         report: Option<Report>,
     ) -> Self {
@@ -135,7 +135,7 @@ impl CloseCheck {
     }
 
     pub fn start(
-        snapshot: &ClientShellSnapshot,
+        snapshot: &ClientShellSnapshotV2,
         target: &WorkspaceTarget,
         local: bool,
         cx: &App,
@@ -209,7 +209,7 @@ impl CloseCheck {
         true
     }
 
-    pub fn current(&self, snapshot: &ClientShellSnapshot, target: &WorkspaceTarget) -> bool {
+    pub fn current(&self, snapshot: &ClientShellSnapshotV2, target: &WorkspaceTarget) -> bool {
         self.checkouts == checkouts(snapshot, target)
     }
 

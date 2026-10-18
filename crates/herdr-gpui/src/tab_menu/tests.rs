@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 #[test]
 fn tab_target_retains_membership_and_rejects_stale_snapshots() {
-    let original: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let original: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

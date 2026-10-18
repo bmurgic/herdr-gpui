@@ -8,12 +8,18 @@ mod render;
 mod requests;
 mod scripts;
 
+// The New Workspace page's name step words its host picker as this module's
+// dialogs do.
+pub(super) use render::{clone_note, create_label};
+
 use super::{Page, WorkspaceAction, WorkspaceMenuAction, state::Deletion};
 use crate::{HerdrWindow, dialog_input::DialogInput};
 use gpui::{prelude::*, *};
 use herdr_client::{
     Method,
-    protocol::{ClientShellSnapshot, ClientShellWorkspace, ClientShellWorktree},
+    protocol::{
+        ClientShellSnapshotV2, ClientShellWorkspaceV2, ClientShellWorktree, WorkspaceRepositoryInfo,
+    },
 };
 
 pub(crate) struct WorkspaceTarget {
@@ -21,6 +27,9 @@ pub(crate) struct WorkspaceTarget {
     pub(super) id: String,
     pub(super) label: String,
     pub(super) worktree: Option<ClientShellWorktree>,
+    /// The daemon's repository record, which a workspace can have without a
+    /// `worktree` record (a Git checkout Herdr has no worktree membership for).
+    pub(super) repository: Option<WorkspaceRepositoryInfo>,
     pub(super) close_members: Vec<String>,
     /// Whether linked worktrees of this parent's repository are open, so its
     /// row folds a group even when another parent closes on its own.
@@ -33,12 +42,16 @@ pub(crate) struct WorkspaceTarget {
 }
 
 impl WorkspaceTarget {
-    pub(super) fn new(snapshot: &ClientShellSnapshot, workspace: &ClientShellWorkspace) -> Self {
+    pub(crate) fn new(
+        snapshot: &ClientShellSnapshotV2,
+        workspace: &ClientShellWorkspaceV2,
+    ) -> Self {
         Self {
             boot_id: snapshot.boot_id.clone(),
             id: workspace.workspace_id.clone(),
             label: workspace.label.clone(),
             worktree: workspace.worktree.clone(),
+            repository: workspace.repository.clone(),
             close_members: close_members(snapshot, workspace),
             heads_group: heads_group(snapshot, workspace),
             branch: workspace.branch.clone(),
@@ -50,8 +63,8 @@ impl WorkspaceTarget {
     /// checkout resolves to its repository's open main checkout, based on the
     /// linked checkout's branch so the new branch starts where it stands.
     pub(super) fn for_new_worktree(
-        snapshot: &ClientShellSnapshot,
-        workspace: &ClientShellWorkspace,
+        snapshot: &ClientShellSnapshotV2,
+        workspace: &ClientShellWorkspaceV2,
     ) -> Result<Self, NewWorktreeUnavailable> {
         let Some(tree) = workspace
             .worktree
@@ -59,6 +72,10 @@ impl WorkspaceTarget {
             .filter(|tree| tree.is_linked_worktree)
         else {
             let target = Self::new(snapshot, workspace);
+            // The repository record carries no key to find the main checkout by.
+            if target.is_linked_checkout() {
+                return Err(NewWorktreeUnavailable::MainCheckoutClosed);
+            }
             return if target.can_create() {
                 Ok(target)
             } else {
@@ -96,16 +113,35 @@ impl WorkspaceTarget {
 
     pub(super) fn can_create(&self) -> bool {
         // Like the TUI, accept Git branches before worktree metadata is available.
-        (self.worktree.is_some() || self.branch.is_some()) && !self.can_delete()
+        self.is_repository_parent() || (self.branch.is_some() && !self.is_linked_checkout())
     }
 
-    pub(super) fn can_delete(&self) -> bool {
+    pub(crate) fn can_delete(&self) -> bool {
         self.worktree
             .as_ref()
             .is_some_and(|tree| tree.is_linked_worktree)
     }
 
-    pub(super) fn validate_repository(&self, snapshot: &ClientShellSnapshot) -> crate::Result<()> {
+    /// Whether the `worktree` record or the `repository` record says this
+    /// workspace is a linked checkout.
+    pub(super) fn is_linked_checkout(&self) -> bool {
+        self.can_delete()
+            || self
+                .repository
+                .as_ref()
+                .is_some_and(|repository| repository.is_linked_worktree)
+    }
+
+    /// Whether this workspace is a repository's own checkout: it has a
+    /// `worktree` or `repository` record and is not a linked checkout.
+    pub(crate) fn is_repository_parent(&self) -> bool {
+        (self.worktree.is_some() || self.repository.is_some()) && !self.is_linked_checkout()
+    }
+
+    pub(super) fn validate_repository(
+        &self,
+        snapshot: &ClientShellSnapshotV2,
+    ) -> crate::Result<()> {
         let workspace = snapshot
             .workspaces
             .iter()
@@ -114,7 +150,10 @@ impl WorkspaceTarget {
             .ok_or(crate::Error::StaleWorkspace)?;
         if !self.can_create()
             || self.worktree != workspace.worktree
-            || (workspace.worktree.is_none() && workspace.branch.is_none())
+            || self.repository != workspace.repository
+            || (workspace.worktree.is_none()
+                && workspace.repository.is_none()
+                && workspace.branch.is_none())
         {
             return Err(crate::Error::WorkspaceRepositoryChanged);
         }
@@ -139,9 +178,10 @@ impl WorkspaceTarget {
 
     pub(super) fn request(
         &self,
-        snapshot: &ClientShellSnapshot,
+        snapshot: &ClientShellSnapshotV2,
         action: WorkspaceAction,
         text: &str,
+        methods: &[String],
     ) -> crate::Result<(Method, serde_json::Value)> {
         let workspace = snapshot
             .workspaces
@@ -156,7 +196,7 @@ impl WorkspaceTarget {
                     return Err(crate::Error::EmptyWorkspaceLabel);
                 }
                 (
-                    Method::WorkspaceRename,
+                    Method::WorkspaceRename.preferred_in(methods),
                     serde_json::json!({"workspace_id": self.id, "label": label}),
                 )
             }
@@ -190,7 +230,7 @@ impl WorkspaceTarget {
                     return Err(crate::Error::WorktreeSelection);
                 }
                 (
-                    Method::WorktreeOpen,
+                    Method::WorktreeOpen.preferred_in(methods),
                     serde_json::json!({"workspace_id": self.id,
                     "path": text, "focus": true, "trust_repository": false}),
                 )
@@ -201,11 +241,11 @@ impl WorkspaceTarget {
                 Method::TabCreate,
                 serde_json::json!({"workspace_id": self.id, "focus": true}),
             ),
-            WorkspaceAction::NewWorkspace => (
-                Method::WorkspaceCreate,
-                serde_json::json!({"focus": true, "source_workspace_id": self.id}),
-            ),
-            WorkspaceAction::Note => return Err(crate::Error::LocalWorktreeNote),
+            // A note stays in this app, and the New Workspace page sends its own
+            // request, so neither has one to build from a workspace target.
+            WorkspaceAction::Note | WorkspaceAction::NewWorkspace => {
+                return Err(crate::Error::NoWorkspaceRequest);
+            }
             WorkspaceAction::DeleteWorktree => {
                 if !self.can_delete() || self.worktree != workspace.worktree {
                     return Err(crate::Error::WorkspaceCheckoutChanged);
@@ -244,7 +284,7 @@ impl NewWorktreeUnavailable {
 
 /// The workspace focused when the new worktree shortcut is pressed, once it
 /// is known to have a source for one.
-fn new_worktree_source(snapshot: &ClientShellSnapshot) -> Result<String, NewWorktreeUnavailable> {
+fn new_worktree_source(snapshot: &ClientShellSnapshotV2) -> Result<String, NewWorktreeUnavailable> {
     let focused = snapshot
         .workspaces
         .iter()
@@ -257,9 +297,9 @@ fn new_worktree_source(snapshot: &ClientShellSnapshot) -> Result<String, NewWork
 /// The open main checkout of `tree`'s repository, through which the daemon
 /// lists, opens, and creates that repository's worktrees.
 pub(super) fn main_checkout<'a>(
-    snapshot: &'a ClientShellSnapshot,
+    snapshot: &'a ClientShellSnapshotV2,
     tree: &ClientShellWorktree,
-) -> Option<&'a ClientShellWorkspace> {
+) -> Option<&'a ClientShellWorkspaceV2> {
     snapshot.workspaces.iter().find(|w| {
         w.worktree
             .as_ref()
@@ -269,7 +309,7 @@ pub(super) fn main_checkout<'a>(
 
 /// The name a new tab dialog proposes: the next number in its workspace, as
 /// Herdr numbers an unnamed tab.
-pub(super) fn suggested_tab_name(snapshot: &ClientShellSnapshot, workspace: &str) -> String {
+pub(super) fn suggested_tab_name(snapshot: &ClientShellSnapshotV2, workspace: &str) -> String {
     let count = snapshot
         .tabs
         .iter()
@@ -278,9 +318,10 @@ pub(super) fn suggested_tab_name(snapshot: &ClientShellSnapshot, workspace: &str
     (count + 1).to_string()
 }
 
-/// The name a new workspace dialog proposes: the folder it opens in. Herdr
-/// also consults Git there, which only the daemon's host can do, so leaving
-/// this proposal unchanged still lets the daemon choose the real name.
+/// The name the New Workspace page proposes for a host that is not this
+/// computer: the folder it opens in. Herdr also consults Git there, which
+/// only the daemon's host can do, so leaving this proposal unchanged still
+/// lets the daemon choose the real name.
 pub(super) fn suggested_workspace_name(cwd: &str) -> String {
     let trimmed = cwd.trim_end_matches('/');
     match trimmed.rsplit('/').next() {
@@ -300,7 +341,10 @@ pub(super) fn chosen_label<'a>(text: &'a str, suggested: Option<&str>) -> Option
 /// The workspaces closing `workspace` closes: its whole group when it is its
 /// repository's only parent and linked worktrees hang off it, else itself.
 /// Like the TUI, a parent beside another parent closes alone.
-fn close_members(snapshot: &ClientShellSnapshot, workspace: &ClientShellWorkspace) -> Vec<String> {
+fn close_members(
+    snapshot: &ClientShellSnapshotV2,
+    workspace: &ClientShellWorkspaceV2,
+) -> Vec<String> {
     let alone = || vec![workspace.workspace_id.clone()];
     let Some(tree) = workspace
         .worktree
@@ -326,7 +370,7 @@ fn close_members(snapshot: &ClientShellSnapshot, workspace: &ClientShellWorkspac
 }
 
 /// Whether `workspace` is a parent with linked worktrees of its repository open.
-fn heads_group(snapshot: &ClientShellSnapshot, workspace: &ClientShellWorkspace) -> bool {
+fn heads_group(snapshot: &ClientShellSnapshotV2, workspace: &ClientShellWorkspaceV2) -> bool {
     workspace
         .worktree
         .as_ref()
@@ -426,10 +470,11 @@ impl HerdrWindow {
         }
     }
 
-    /// Asks for a name before `command` creates a tab or workspace, when the
-    /// local Herdr config's `ui.prompt_new_tab_name` or
-    /// `ui.prompt_new_workspace_name` says to. Returns whether the dialog
-    /// opened; otherwise the caller creates at once.
+    /// Asks for a name before `command` creates a tab, when the local Herdr
+    /// config's `ui.prompt_new_tab_name` says to. A new workspace asks for
+    /// its directory first and has its own page (`open_new_workspace`).
+    /// Returns whether the dialog opened; otherwise the caller creates at
+    /// once.
     pub(crate) fn open_name_prompt(
         &mut self,
         command: crate::controls::Command,
@@ -445,7 +490,6 @@ impl HerdrWindow {
             .unwrap_or_default();
         let action = match command {
             Command::Tab if prompts.tab => WorkspaceAction::NewTab,
-            Command::Workspace if prompts.workspace => WorkspaceAction::NewWorkspace,
             _ => return false,
         };
         // Only where creating at once would be allowed, so the prompt never
@@ -621,14 +665,11 @@ impl HerdrWindow {
             (WorkspaceAction::NewTab, Some((snapshot, _))) => {
                 Some(suggested_tab_name(snapshot, &target.id))
             }
-            (WorkspaceAction::NewWorkspace, Some((_, workspace))) => {
-                Some(suggested_workspace_name(&workspace.new_workspace_cwd))
-            }
             _ => None,
         };
         self.menu.input = match action {
             WorkspaceAction::Rename => Some(DialogInput::new(target.label.clone())),
-            WorkspaceAction::NewTab | WorkspaceAction::NewWorkspace => Some(DialogInput::new(
+            WorkspaceAction::NewTab => Some(DialogInput::new(
                 self.menu.suggested_name.clone().unwrap_or_default(),
             )),
             // Propose the daemon's own branch shape, selected so typing replaces it.
@@ -636,23 +677,23 @@ impl HerdrWindow {
                 Some(DialogInput::new(crate::worktree::proposed_branch()))
             }
             WorkspaceAction::Note => note.map(DialogInput::new),
+            // The New Workspace page asks for a name, so this dialog never opens
+            // for it.
             WorkspaceAction::Close
             | WorkspaceAction::DeleteWorktree
-            | WorkspaceAction::OpenWorktree => None,
+            | WorkspaceAction::OpenWorktree
+            | WorkspaceAction::NewWorkspace => None,
         };
         self.menu.page = Some(Page::Dialog(action));
-        self.menu.dispatch = matches!(
-            action,
-            WorkspaceAction::NewWorktree | WorkspaceAction::NewWorkspace
-        )
-        .then(|| self.menu.dispatch_repo())
-        .flatten()
-        .and_then(|repo| {
-            crate::dispatch::Picker::opened(
-                &self.endpoints[self.selected_endpoint].id,
-                self.dispatch_candidates(&repo, cx),
-            )
-        });
+        self.menu.dispatch = (action == WorkspaceAction::NewWorktree)
+            .then(|| self.menu.dispatch_repo())
+            .flatten()
+            .and_then(|repo| {
+                crate::dispatch::Picker::opened(
+                    &self.endpoints[self.selected_endpoint].id,
+                    self.dispatch_candidates(&repo, cx),
+                )
+            });
         self.menu.pr.clear();
         self.menu.pr_connection = None;
         self.menu.error = None;

@@ -3,7 +3,7 @@ use herdr_client::protocol::AgentStatus;
 
 /// The daemon aggregates a workspace's and tab's status itself, so a
 /// snapshot carries the same value on all three rows.
-fn agent_snapshot(status: AgentStatus, sequence: u64) -> Arc<ClientShellSnapshot> {
+fn agent_snapshot(status: AgentStatus, sequence: u64) -> Arc<ClientShellSnapshotV2> {
     let mut snapshot = snapshot();
     let next = Arc::make_mut(&mut snapshot);
     next.agents[0].agent_status = status;
@@ -14,7 +14,7 @@ fn agent_snapshot(status: AgentStatus, sequence: u64) -> Arc<ClientShellSnapshot
     snapshot
 }
 
-fn agent_surface(snapshot: &ClientShellSnapshot) -> Arc<PaneSurfaceFrame> {
+fn agent_surface(snapshot: &ClientShellSnapshotV2) -> Arc<PaneSurfaceFrame> {
     let mut frame = surface(snapshot);
     Arc::make_mut(&mut frame).panes.push(
         serde_json::from_value(serde_json::json!({

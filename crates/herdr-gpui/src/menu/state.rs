@@ -7,7 +7,7 @@ use super::endpoint_error;
 use super::{Page, WorkspaceMenuAction, WorkspaceTarget, git, github};
 use crate::dialog_input::DialogInput;
 use gpui::{App, Entity, FocusHandle, Pixels, Point, ScrollHandle, Subscription};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 
 /// What an open menu covers, as its last frame laid it out: the window's
 /// native pages above GPUI would hide it, so the ones it covers step aside.
@@ -85,12 +85,15 @@ pub(crate) struct MenuState {
     pub(crate) error: Option<String>,
     pub(super) deletion: Option<Deletion>,
     pub(super) close_check: Option<super::workspace_close::CloseCheck>,
-    /// The correlated `worktree.create` or `worktree.open` request, so the dialog
-    /// can report the daemon's answer and follow the returned workspace.
-    pub(super) creation: Option<String>,
+    /// The correlated `worktree.create` or `worktree.open` request and the
+    /// method it went out as, so the dialog can report the daemon's answer,
+    /// check it is the reply that method gets, and follow the returned workspace.
+    pub(super) creation: Option<(String, herdr_client::Method)>,
     /// The name a new tab or workspace dialog proposed. Submitting it
     /// unchanged, or nothing, leaves naming to the daemon, as Herdr does.
     pub(super) suggested_name: Option<String>,
+    /// The New Workspace page's suggestions and checks, while it is open.
+    pub(crate) new_workspace: Option<super::new_workspace::NewWorkspaceForm>,
     pub(super) worktree_open: Option<super::worktree_open::Picker>,
     pub(super) keybinds_scroll: ScrollHandle,
     pub(crate) keybinds_search: Option<Entity<crate::search_input::SearchInput>>,
@@ -117,7 +120,7 @@ pub(crate) struct MenuState {
     pub(crate) pr_cache: crate::pull_request::Cache,
     pub(super) pr_cache_connection:
         Option<std::sync::Weak<std::sync::Mutex<crate::state::LiveState>>>,
-    pub(super) pr_snapshot: Option<std::sync::Weak<ClientShellSnapshot>>,
+    pub(super) pr_snapshot: Option<std::sync::Weak<ClientShellSnapshotV2>>,
     pub(crate) github: crate::github::Auth,
     /// Saved SSH devices' own accounts, keyed by endpoint ID. A device without
     /// one signed in looks up pull requests with `github`.
@@ -317,6 +320,7 @@ impl MenuState {
             close_check: None,
             creation: None,
             suggested_name: None,
+            new_workspace: None,
             worktree_open: None,
             keybinds_scroll: ScrollHandle::new(),
             keybinds_search: None,
@@ -396,6 +400,7 @@ impl MenuState {
         self.close_check = None;
         self.creation = None;
         self.suggested_name = None;
+        self.new_workspace = None;
         self.worktree_open = None;
         self.close = None;
         self.worktree = None;

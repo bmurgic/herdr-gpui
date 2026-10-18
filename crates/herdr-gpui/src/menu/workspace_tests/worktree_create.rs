@@ -55,10 +55,10 @@ fn worktree_creation_reports_failures_and_follows_the_created_checkout(
             view.live.status = crate::state::ConnectionStatus::Connected;
             view.open_workspace_menu("w3", Default::default(), window, cx);
             view.open_workspace_dialog(WorkspaceAction::NewWorktree, window, cx);
-            view.menu.creation = Some("create".into());
+            view.menu.creation = Some(("create".into(), Method::WorktreeCreate));
             let dialog = Some(super::super::Page::Dialog(WorkspaceAction::NewWorktree));
 
-            view.apply_creation_response(
+            view.apply_creation_response(Method::WorktreeCreate,
                 Ok(serde_json::json!({"error":{"code":"worktree_create_failed","message":"branch already checked out"}})),
                 window,
                 cx,
@@ -73,7 +73,7 @@ fn worktree_creation_reports_failures_and_follows_the_created_checkout(
             assert_eq!(view.menu.page, dialog);
             assert!(view.pending_navigation.is_none());
 
-            view.apply_creation_response(
+            view.apply_creation_response(Method::WorktreeCreate,
                 Ok(serde_json::json!({"result":{"type":"worktree_list","worktrees":[]}})),
                 window,
                 cx,
@@ -87,7 +87,7 @@ fn worktree_creation_reports_failures_and_follows_the_created_checkout(
             );
             assert_eq!(view.menu.page, dialog);
 
-            view.apply_creation_response(
+            view.apply_creation_response(Method::WorktreeCreate,
                 Err(std::sync::Arc::new(crate::Error::Client(
                     herdr_client::Error::Disconnected,
                 ))),
@@ -101,11 +101,11 @@ fn worktree_creation_reports_failures_and_follows_the_created_checkout(
             let created = serde_json::json!({"result":{"type":"worktree_created","workspace":{"workspace_id":"w6"},"tab":{"tab_id":"t9"}}});
             view.collapsed_repos
                 .insert(sidebar::layout_tests::REPO_KEY.to_owned());
-            view.menu.creation = Some("create".into());
+            view.menu.creation = Some(("create".into(), Method::WorktreeCreate));
             view.live.dialog_response = Some(("unrelated".into(), Some(Ok(created.clone()))));
             view.update_workspace_dialog(window, cx);
             assert_eq!(view.menu.page, dialog);
-            assert_eq!(view.menu.creation.as_deref(), Some("create"));
+            assert_eq!(view.menu.creation.as_ref().map(|(id, _)| id.as_str()), Some("create"));
 
             view.live.dialog_response = Some(("create".into(), Some(Ok(created))));
             view.update_workspace_dialog(window, cx);
@@ -135,7 +135,7 @@ fn linked_checkouts_create_from_their_own_branch() {
     assert_eq!(target.base_label(), "worktree/sidebar-child");
     assert_eq!(
         target
-            .request(&snapshot, WorkspaceAction::NewWorktree, "feature/next")
+            .request(&snapshot, WorkspaceAction::NewWorktree, "feature/next", &[])
             .unwrap(),
         (
             Method::WorktreeCreate,
@@ -149,7 +149,7 @@ fn linked_checkouts_create_from_their_own_branch() {
         ..WorkspaceTarget::new(&snapshot, &snapshot.workspaces[3])
     };
     assert!(matches!(
-        hostile.request(&snapshot, WorkspaceAction::NewWorktree, ""),
+        hostile.request(&snapshot, WorkspaceAction::NewWorktree, "", &[]),
         Err(crate::Error::InvalidBranchName)
     ));
 
@@ -175,7 +175,7 @@ fn branch_only_workspace_can_create_until_git_identity_disappears() {
     assert!(!target.can_delete());
     assert_eq!(
         target
-            .request(&snapshot, WorkspaceAction::NewWorktree, "feature/test")
+            .request(&snapshot, WorkspaceAction::NewWorktree, "feature/test", &[])
             .unwrap(),
         (
             Method::WorktreeCreate,
@@ -187,7 +187,7 @@ fn branch_only_workspace_can_create_until_git_identity_disappears() {
     snapshot.workspaces[3].branch = None;
     assert!(!WorkspaceTarget::new(&snapshot, &snapshot.workspaces[3]).can_create());
     assert!(matches!(
-        target.request(&snapshot, WorkspaceAction::NewWorktree, ""),
+        target.request(&snapshot, WorkspaceAction::NewWorktree, "", &[]),
         Err(crate::Error::WorkspaceRepositoryChanged)
     ));
 
@@ -195,7 +195,7 @@ fn branch_only_workspace_can_create_until_git_identity_disappears() {
     snapshot.workspaces[3].worktree = snapshot.workspaces[4].worktree.clone();
     assert!(!WorkspaceTarget::new(&snapshot, &snapshot.workspaces[3]).can_create());
     assert!(matches!(
-        target.request(&snapshot, WorkspaceAction::NewWorktree, ""),
+        target.request(&snapshot, WorkspaceAction::NewWorktree, "", &[]),
         Err(crate::Error::WorkspaceRepositoryChanged)
     ));
 }

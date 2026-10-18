@@ -9,7 +9,7 @@ fn select_all_highlights_the_focused_pane_for_the_copy_that_follows(cx: &mut Tes
         let mut view = fixture_window(window, cx);
         let mut shown = serde_json::to_value(view.live.snapshot.as_deref().unwrap()).unwrap();
         shown["focused_pane_id"] = "pane".into();
-        let snapshot: ClientShellSnapshot = serde_json::from_value(shown).unwrap();
+        let snapshot: ClientShellSnapshotV2 = serde_json::from_value(shown).unwrap();
         let mut frame = surface(&["hello there", "second row"], 12);
         frame.boot_id = snapshot.boot_id.clone();
         frame.projection_revision = snapshot.revision;
@@ -64,7 +64,7 @@ fn select_all_without_a_focused_pane_selects_nothing(cx: &mut TestAppContext) {
         let mut view = fixture_window(window, cx);
         let mut shown = serde_json::to_value(view.live.snapshot.as_deref().unwrap()).unwrap();
         shown["focused_pane_id"] = serde_json::Value::Null;
-        let snapshot: ClientShellSnapshot = serde_json::from_value(shown).unwrap();
+        let snapshot: ClientShellSnapshotV2 = serde_json::from_value(shown).unwrap();
         let mut frame = surface(&["hello"], 12);
         frame.boot_id = snapshot.boot_id.clone();
         frame.projection_revision = snapshot.revision;

@@ -3,7 +3,7 @@
 //! daemon's snapshots, so focus changed from anywhere (a key, the sidebar,
 //! another client) becomes a step, and pane IDs never outlive their boot.
 
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::collections::VecDeque;
 
 /// How many panes the trail remembers; older ones fall off the back.
@@ -36,7 +36,7 @@ impl History {
     /// travel lives only that long: once the daemon has answered, failed, or
     /// the connection carrying it is gone, whatever focus arrived is the
     /// outcome, and later steps start from where the user really is.
-    pub(crate) fn observe(&mut self, snapshot: Option<&ClientShellSnapshot>, navigating: bool) {
+    pub(crate) fn observe(&mut self, snapshot: Option<&ClientShellSnapshotV2>, navigating: bool) {
         if let Some(snapshot) = snapshot {
             self.record(snapshot);
         }
@@ -45,7 +45,7 @@ impl History {
         }
     }
 
-    fn record(&mut self, snapshot: &ClientShellSnapshot) {
+    fn record(&mut self, snapshot: &ClientShellSnapshotV2) {
         if snapshot.boot_id != self.boot {
             *self = Self {
                 boot: snapshot.boot_id.clone(),
@@ -74,14 +74,18 @@ impl History {
     }
 
     /// Whether `step` has a pane to go to in `snapshot`.
-    pub(crate) fn can(&self, step: Step, snapshot: &ClientShellSnapshot) -> bool {
+    pub(crate) fn can(&self, step: Step, snapshot: &ClientShellSnapshotV2) -> bool {
         self.target(step, snapshot).is_some()
     }
 
     /// The entry `step` would go to and its pane, without going. The caller
     /// asks the daemon to focus the pane and calls [`Self::begin`] only once
     /// the request is queued, so a press that cannot be sent changes nothing.
-    pub(crate) fn peek(&self, step: Step, snapshot: &ClientShellSnapshot) -> Option<(usize, &str)> {
+    pub(crate) fn peek(
+        &self,
+        step: Step,
+        snapshot: &ClientShellSnapshotV2,
+    ) -> Option<(usize, &str)> {
         let index = self.target(step, snapshot)?;
         Some((index, self.entry(index)?))
     }
@@ -96,7 +100,7 @@ impl History {
     /// The nearest entry in `step`'s direction whose pane still exists and is
     /// not the one already focused. Closed panes stay in the trail and are
     /// stepped over, as Herdr's `last_pane` checks its pane.
-    fn target(&self, step: Step, snapshot: &ClientShellSnapshot) -> Option<usize> {
+    fn target(&self, step: Step, snapshot: &ClientShellSnapshotV2) -> Option<usize> {
         if snapshot.boot_id != self.boot {
             return None;
         }

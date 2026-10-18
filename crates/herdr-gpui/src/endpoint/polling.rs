@@ -167,7 +167,10 @@ impl HerdrWindow {
                         failed: false,
                         focus: None,
                         active: true,
+                        focus_request: None,
                     });
+                    // A refusal names the fence it ended, not this new one.
+                    state.focus_refused = false;
                     state.dirty = true;
                     endpoint.initial_surface = true;
                     self.live = state.clone();
@@ -184,6 +187,14 @@ impl HerdrWindow {
                 }
             }
             changed = Redraw::Window;
+        }
+        // A refused workspace focus ended its activation, so there is nothing
+        // left for the deadline to expire on. The refusal is consumed here: it
+        // names that one fence, not whatever activation follows.
+        if self.live.focus_refused {
+            self.activation_deadline = None;
+            self.live.focus_refused = false;
+            self.endpoints[self.selected_endpoint].consume_focus_refusal();
         }
         // Held input precedes any deferred navigation.
         self.flush_pending_input(cx);

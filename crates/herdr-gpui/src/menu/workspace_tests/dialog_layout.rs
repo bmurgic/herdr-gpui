@@ -96,7 +96,7 @@ fn workspace_dialog_sections_and_buttons_stay_inside_the_panel(cx: &mut gpui::Te
                     } else {
                         // The creation waits on the daemon here, so its
                         // waiting note belongs to this frame too.
-                        view.menu.creation = Some("create".into());
+                        view.menu.creation = Some(("create".into(), Method::WorktreeCreate));
                     }
                     view.menu.error = Some("fixture error".into());
                 });

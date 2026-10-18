@@ -3,7 +3,12 @@ use crate::teleport::carry::Choice;
 use crate::{endpoint::Endpoint, state::ConnectionStatus};
 use herdr_client::{ConnectTarget, protocol::AgentStatus};
 
-fn device(id: &str, label: &str, target: ConnectTarget, snapshot: ClientShellSnapshot) -> Endpoint {
+fn device(
+    id: &str,
+    label: &str,
+    target: ConnectTarget,
+    snapshot: ClientShellSnapshotV2,
+) -> Endpoint {
     let mut endpoint = Endpoint::new(id.into(), label.into(), target, true);
     endpoint.live.snapshot = Some(Arc::new(snapshot));
     endpoint.live.status = ConnectionStatus::Connected;

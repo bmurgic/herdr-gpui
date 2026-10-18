@@ -109,7 +109,10 @@ impl Release {
                         failed: false,
                         focus: None,
                         active: false,
+                        focus_request: None,
                     });
+                    // A refusal names the fence it ended, not this new one.
+                    state.focus_refused = false;
                     self.phase = ReleasePhase::Sent(request);
                 }
                 Err(_) => {
@@ -184,6 +187,15 @@ impl Endpoint {
         std::mem::swap(&mut self.live, live);
         self.sync_live();
         self.initial_surface = true;
+    }
+
+    /// Forgets a workspace focus refusal the window has acted on, in the inbox
+    /// and the polled copy, so a later poll cannot read it again.
+    pub(crate) fn consume_focus_refusal(&mut self) {
+        self.live.focus_refused = false;
+        if let Ok(mut state) = self.connection.inbox.lock() {
+            state.focus_refused = false;
+        }
     }
 
     /// Refreshes state derived from `live` after it is replaced.

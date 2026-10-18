@@ -2,7 +2,7 @@ use super::*;
 use herdr_client::protocol::ClientShellAgent;
 
 /// A snapshot from `boot` listing one agent per `(pane, state_change_seq)`.
-fn agents(boot: &str, panes: &[(&str, u64)]) -> Arc<ClientShellSnapshot> {
+fn agents(boot: &str, panes: &[(&str, u64)]) -> Arc<ClientShellSnapshotV2> {
     let mut snapshot = snapshot();
     let next = Arc::make_mut(&mut snapshot);
     next.boot_id = boot.into();

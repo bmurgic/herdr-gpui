@@ -1,6 +1,6 @@
 use super::*;
 
-fn snapshot() -> ClientShellSnapshot {
+fn snapshot() -> ClientShellSnapshotV2 {
     serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
@@ -405,13 +405,9 @@ fn numbered_tabs_use_positions_not_numbers_and_stay_in_workspace() {
 #[test]
 fn creation_uses_daemon_cwd_and_explicit_targets() {
     let s = snapshot();
-    assert_eq!(
-        request(Command::Workspace, &s).unwrap(),
-        (
-            Method::WorkspaceCreate,
-            json!({"source_workspace_id": s.focused_workspace_id, "focus": true})
-        )
-    );
+    // New Workspace asks for a directory first, so the window opens a prompt
+    // instead of asking this table for a request.
+    assert!(request(Command::Workspace, &s).is_none());
     assert_eq!(
         request(Command::Tab, &s).unwrap(),
         (
@@ -431,20 +427,13 @@ fn creation_uses_daemon_cwd_and_explicit_targets() {
 }
 
 #[test]
-fn empty_session_can_create_workspace_only() {
+fn empty_session_has_no_command_with_a_request() {
     let mut s = snapshot();
     s.focused_workspace_id = None;
     s.focused_tab_id = None;
     s.focused_pane_id = None;
     s.tabs.clear();
-    assert_eq!(
-        request(Command::Workspace, &s).unwrap().1,
-        json!({"focus": true})
-    );
-    for info in COMMANDS
-        .iter()
-        .filter(|info| info.command != Command::Workspace)
-    {
+    for info in COMMANDS {
         assert!(request(info.command, &s).is_none(), "{:?}", info.command);
     }
 }

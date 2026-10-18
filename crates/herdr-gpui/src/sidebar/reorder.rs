@@ -1,9 +1,11 @@
 //! Reordering workspaces by dragging their rows. Holding a press on a row, or
 //! moving it a few pixels, lifts the row; the rows around it shift as if it
 //! had already been dropped under the pointer, so the gap they open is where
-//! it lands. Releasing sends the move: a lone workspace as `workspace.move`,
-//! as Herdr's own TUI sends an ungrouped row, and a worktree group as one
-//! `workspace.move_block`. The daemon owns the order, so the preview holds
+//! it lands. Releasing sends the move: a lone workspace without a `worktree`
+//! record as `workspace.move`, as Herdr's own TUI sends an ungrouped row, and
+//! a worktree group, or a lone workspace with a record, as one
+//! `workspace.move_block` (myherdr's rule). Each goes as its `.v2` method
+//! when the daemon advertises it. The daemon owns the order, so the preview holds
 //! until the next snapshot reorders the list, the same for every attached
 //! client.
 //!
@@ -18,7 +20,7 @@ use crate::{
 };
 use gpui::{Context, Pixels, Point, Task};
 use herdr_client::{
-    protocol::ClientShellWorkspace,
+    protocol::ClientShellWorkspaceV2,
     workspaces::{WorkspaceMoveBlockParams, WorkspaceMoveParams, WorkspaceReorder},
 };
 use std::{cell::RefCell, collections::HashMap, time::Instant};
@@ -84,7 +86,7 @@ impl WorkspaceDrag {
 
     /// Whether the list should show the drop in place: while it floats, and
     /// after it is dropped until the daemon's order replaces the old one.
-    pub(super) fn previewing(&self, workspaces: &[ClientShellWorkspace]) -> bool {
+    pub(super) fn previewing(&self, workspaces: &[ClientShellWorkspaceV2]) -> bool {
         self.lifted
             && self.dropped.as_ref().is_none_or(|order| {
                 order.iter().map(String::as_str).eq(workspaces
@@ -127,10 +129,18 @@ impl MoveBlock {
     /// The request that makes this move against `workspaces`, the daemon's
     /// current order. A lone workspace goes as `workspace.move` when the
     /// daemon offers it (`single`), so it announces `workspace.moved` as the
-    /// same drag in Herdr's TUI does. A group's members may sit apart in the
-    /// daemon's order, which only `workspace.move_block` gathers in one step.
-    fn reorder(&self, workspaces: &[ClientShellWorkspace], single: bool) -> WorkspaceReorder {
-        if single && let [workspace_id] = self.workspace_ids.as_slice() {
+    /// same drag in Herdr's TUI does, except a workspace with a `worktree`
+    /// record: myherdr sends that as a one-id `workspace.move_block`, which
+    /// announces `workspace.reordered` and fails with its own error. A group's
+    /// members may sit apart in the daemon's order, which only
+    /// `workspace.move_block` gathers in one step.
+    fn reorder(&self, workspaces: &[ClientShellWorkspaceV2], single: bool) -> WorkspaceReorder {
+        if single
+            && let [workspace_id] = self.workspace_ids.as_slice()
+            && !workspaces.iter().any(|workspace| {
+                &workspace.workspace_id == workspace_id && workspace.worktree.is_some()
+            })
+        {
             // The index counts the workspace still in place, so landing
             // before `before` is `before`'s own index, and last is the length.
             let insert_index = match &self.before {
@@ -165,7 +175,7 @@ pub(super) struct Plan {
 
 impl Plan {
     /// `None` when the pressed row has nowhere else to go.
-    pub(super) fn new(workspaces: &[ClientShellWorkspace], workspace: &str) -> Option<Self> {
+    pub(super) fn new(workspaces: &[ClientShellWorkspaceV2], workspace: &str) -> Option<Self> {
         let pressed = workspaces
             .iter()
             .position(|w| w.workspace_id == workspace)?;
@@ -237,7 +247,7 @@ impl Plan {
     /// `None` for the two gaps around the carried unit, which move nothing.
     pub(super) fn request(
         &self,
-        workspaces: &[ClientShellWorkspace],
+        workspaces: &[ClientShellWorkspaceV2],
         slot: usize,
     ) -> Option<MoveBlock> {
         if slot == self.dragged || slot == self.dragged + 1 || slot > self.units.len() {
@@ -371,7 +381,7 @@ impl HerdrWindow {
         let reorder = target
             .request
             .reorder(&snapshot.workspaces, self.live.supports_workspace_move);
-        match handle.reorder_workspaces(&drag.boot, &reorder) {
+        match handle.reorder_workspaces(&drag.boot, &reorder, &self.live.methods) {
             Ok(_) => {
                 drag.dropped = Some(
                     snapshot

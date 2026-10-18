@@ -53,9 +53,19 @@ impl WorkspaceReorder {
 
 impl ClientHandle {
     /// Queues a workspace reorder, returning the request ID its response
-    /// carries.
-    pub fn reorder_workspaces(&self, boot_id: &str, reorder: &WorkspaceReorder) -> Result<String> {
-        self.request(boot_id, reorder.method(), reorder.params()?)
+    /// carries. It goes as the `.v2` method when `methods`, the welcome's
+    /// advertised list, holds it; the parameters are the same either way.
+    pub fn reorder_workspaces(
+        &self,
+        boot_id: &str,
+        reorder: &WorkspaceReorder,
+        methods: &[String],
+    ) -> Result<String> {
+        self.request(
+            boot_id,
+            reorder.method().preferred_in(methods),
+            reorder.params()?,
+        )
     }
 }
 

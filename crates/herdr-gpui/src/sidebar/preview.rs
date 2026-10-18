@@ -11,7 +11,7 @@ use crate::{
     icons::AgentIcon,
 };
 use gpui::{prelude::*, *};
-use herdr_client::protocol::{AgentStatus, ClientShellWorkspace};
+use herdr_client::protocol::{AgentStatus, ClientShellWorkspaceV2};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Target {
@@ -30,7 +30,7 @@ pub(crate) struct Preview {
     width: u16,
     selected: Target,
     folded: bool,
-    workspaces: Vec<ClientShellWorkspace>,
+    workspaces: Vec<ClientShellWorkspaceV2>,
 }
 
 impl Default for Preview {
@@ -53,9 +53,10 @@ impl Default for Preview {
         ]
         .into_iter()
         .enumerate()
-        .map(|(index, (label, branch, status))| ClientShellWorkspace {
+        .map(|(index, (label, branch, status))| ClientShellWorkspaceV2 {
             workspace_id: format!("preview-{index}"),
-            active_tab_id: String::new(),
+            active_tab_id: Some(String::new()),
+            repository: None,
             new_workspace_cwd: String::new(),
             number: index + 1,
             label: label.into(),

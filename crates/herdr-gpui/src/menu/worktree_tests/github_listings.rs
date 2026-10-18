@@ -125,7 +125,7 @@ fn a_picked_row_names_the_branch_base_and_label_it_creates(cx: &mut gpui::TestAp
         let snapshot = view.live.snapshot.as_ref().unwrap();
         let items = items();
 
-        let (method, params) = item_request(target, snapshot, &items[0]).unwrap();
+        let (method, params) = item_request(target, snapshot, &items[0], &[]).unwrap();
         assert_eq!(method, herdr_client::Method::WorktreeCreate);
         assert_eq!(params["branch"], "worktree/rapid-forest");
         // An existing head may live only on the remote, so the base names the
@@ -134,12 +134,12 @@ fn a_picked_row_names_the_branch_base_and_label_it_creates(cx: &mut gpui::TestAp
         assert_eq!(params["label"], "#48 Centre the worktree dialog");
         assert_eq!(params["trust_repository"], false);
 
-        let (_, params) = item_request(target, snapshot, &items[1]).unwrap();
+        let (_, params) = item_request(target, snapshot, &items[1], &[]).unwrap();
         assert_eq!(params["branch"], "pr/51");
         assert_eq!(params["base"], "refs/herdr/pull/51/head");
         assert_eq!(params["trust_repository"], false);
 
-        let (_, params) = item_request(target, snapshot, &items[2]).unwrap();
+        let (_, params) = item_request(target, snapshot, &items[2], &[]).unwrap();
         assert_eq!(params["branch"], "1255-bug-agent-end-message-is-empty");
         // An issue's branch is new, so it starts from the dialog's own base.
         assert_eq!(params["base"], "HEAD");
@@ -181,8 +181,8 @@ fn picking_a_row_creates_its_checkout(cx: &mut gpui::TestAppContext) {
     // A refusal releases the row so the listing can be used again.
     cx.update(|window, cx| {
         view.update(cx, |view, cx| {
-            view.menu.creation = Some("create".into());
-            view.apply_creation_response(
+            view.menu.creation = Some(("create".into(), herdr_client::Method::WorktreeCreate));
+            view.apply_creation_response(herdr_client::Method::WorktreeCreate,
                 Ok(serde_json::json!({"error":{"code":"worktree_create_failed","message":"branch already checked out"}})),
                 window,
                 cx,

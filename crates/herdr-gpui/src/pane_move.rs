@@ -6,7 +6,7 @@
 //! envelope are authoritative; the snapshot that follows shows the result.
 
 use crate::teleport::Host;
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use serde::Deserialize;
 use std::sync::atomic::AtomicBool;
 
@@ -37,7 +37,7 @@ pub(crate) struct Choice {
 /// The existing tabs a pane in `tab_id` can join, plus a new tab in every
 /// other workspace, in sidebar order. The pane's own tab is left out: Herdr
 /// refuses a move into the tab the pane is already in.
-pub(crate) fn choices(snapshot: &ClientShellSnapshot, tab_id: &str) -> Vec<Choice> {
+pub(crate) fn choices(snapshot: &ClientShellSnapshotV2, tab_id: &str) -> Vec<Choice> {
     let source = snapshot
         .tabs
         .iter()
@@ -73,7 +73,7 @@ pub(crate) fn choices(snapshot: &ClientShellSnapshot, tab_id: &str) -> Vec<Choic
 
 impl Destination {
     /// Whether this destination still exists in `snapshot`.
-    pub(crate) fn exists(&self, snapshot: &ClientShellSnapshot) -> bool {
+    pub(crate) fn exists(&self, snapshot: &ClientShellSnapshotV2) -> bool {
         match self {
             Self::Tab { tab_id } => snapshot.tabs.iter().any(|tab| tab.tab_id == *tab_id),
             Self::NewTab { workspace_id } => snapshot

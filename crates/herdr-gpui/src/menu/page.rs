@@ -52,6 +52,9 @@ pub(crate) enum Page {
     Menu,
     /// Where the pane menu's pane can move: new places, then other tabs.
     MovePane,
+    /// Asks which directory a new workspace opens in, then optionally what to
+    /// call it. The page's state is `MenuState::new_workspace`.
+    NewWorkspace,
     Palette,
     Pane,
     /// The processes under the pane menu's pane.
@@ -93,8 +96,8 @@ pub(crate) enum WorkspaceAction {
     DeleteWorktree,
     /// Names a tab before `tab.create`, when `ui.prompt_new_tab_name` asks.
     NewTab,
-    /// Names a workspace before `workspace.create`, when
-    /// `ui.prompt_new_workspace_name` asks. Targets the source workspace.
+    /// The kind of dispatch job the New Workspace page's host picker starts.
+    /// Never opened as a dialog (`Page::NewWorkspace` asks instead).
     NewWorkspace,
     /// Writes the note this app keeps on the checkout; never a daemon request.
     Note,

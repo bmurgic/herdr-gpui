@@ -4,7 +4,7 @@
 use super::{LocalTarget, ProjectOperation, project_create, projects};
 use crate::{Error, HerdrWindow, NavigationTarget, Result};
 use gpui::{Context, Window};
-use herdr_client::{Method, protocol::ClientShellSnapshot};
+use herdr_client::{Method, protocol::ClientShellSnapshotV2};
 use serde_json::{Value, json};
 use std::sync::Arc;
 
@@ -50,7 +50,7 @@ impl HerdrWindow {
     fn local_project_connection(
         &self,
         target: &LocalTarget,
-    ) -> Result<(usize, Arc<ClientShellSnapshot>)> {
+    ) -> Result<(usize, Arc<ClientShellSnapshotV2>)> {
         let index = self
             .endpoints
             .iter()

@@ -34,8 +34,9 @@ fn dialog_response_survives_initial_surface_activation(cx: &mut gpui::TestAppCon
     });
 }
 
-/// `ui.prompt_new_tab_name` and `ui.prompt_new_workspace_name` decide whether
-/// creating asks for a name first, and a typed name travels as the label.
+/// `ui.prompt_new_tab_name` decides whether creating a tab asks for a name
+/// first, and a typed name travels as the label. A new workspace asks for its
+/// directory first and is covered by the New Workspace page's tests.
 #[gpui::test]
 fn name_prompts_follow_shared_config_and_label_creations(cx: &mut gpui::TestAppContext) {
     use crate::menu::{Page, WorkspaceAction};
@@ -58,27 +59,6 @@ fn name_prompts_follow_shared_config_and_label_creations(cx: &mut gpui::TestAppC
             Some((WorkspaceAction::NewTab, "2")),
             Some(""),
             serde_json::json!({"workspace_id": "w1", "focus": true}),
-        ),
-        (
-            "",
-            Command::Workspace,
-            None,
-            None,
-            serde_json::json!({"focus": true, "source_workspace_id": "w1"}),
-        ),
-        (
-            "[ui]\nprompt_new_workspace_name = true\n",
-            Command::Workspace,
-            Some((WorkspaceAction::NewWorkspace, "repo")),
-            None,
-            serde_json::json!({"focus": true, "source_workspace_id": "w1"}),
-        ),
-        (
-            "[ui]\nprompt_new_workspace_name = true\n",
-            Command::Workspace,
-            Some((WorkspaceAction::NewWorkspace, "repo")),
-            Some("Docs"),
-            serde_json::json!({"focus": true, "source_workspace_id": "w1", "label": "Docs"}),
         ),
         (
             "[ui]\nprompt_new_tab_name = false\n",
@@ -124,11 +104,7 @@ fn name_prompts_follow_shared_config_and_label_creations(cx: &mut gpui::TestAppC
             panic!("missing creation");
         };
         let request: serde_json::Value = serde_json::from_str(&request).unwrap();
-        let method = match command {
-            Command::Tab => Method::TabCreate,
-            _ => Method::WorkspaceCreate,
-        };
-        assert_eq!(request["method"], method.as_str());
+        assert_eq!(request["method"], Method::TabCreate.as_str());
         assert_eq!(request["params"], params, "{config:?} {command:?}");
     }
 }

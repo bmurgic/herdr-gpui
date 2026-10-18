@@ -4,14 +4,14 @@
 //! worktree workspaces.
 
 use super::safe_text;
-use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshot};
+use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshotV2};
 
 const PART_LIMIT: usize = 120;
 
 /// The agent's task on the first line and its place, named as the sidebar
 /// names it, on the second. `None` when the snapshot knows neither, so the
 /// daemon's body stays.
-pub(super) fn describe(snapshot: &ClientShellSnapshot, pane_id: &str) -> Option<String> {
+pub(super) fn describe(snapshot: &ClientShellSnapshotV2, pane_id: &str) -> Option<String> {
     let pane = snapshot.panes.iter().find(|p| p.pane_id == pane_id)?;
     let agent = snapshot.agents.iter().find(|a| a.pane_id == pane_id);
     let task = agent.and_then(task);
@@ -49,7 +49,7 @@ fn task(agent: &ClientShellAgent) -> Option<String> {
 
 /// The workspace as its sidebar row shows it, plus the tab when the
 /// workspace has several or the user named it.
-fn place(snapshot: &ClientShellSnapshot, workspace_id: &str, tab_id: &str) -> Option<String> {
+fn place(snapshot: &ClientShellSnapshotV2, workspace_id: &str, tab_id: &str) -> Option<String> {
     let workspace = snapshot
         .workspaces
         .iter()

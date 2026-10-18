@@ -3,7 +3,7 @@ use super::*;
 use crate::{sidebar::layout_tests::full_draw, titlebar::tests::header_window};
 use core::prelude::v1::test;
 use gpui::{Modifiers, TestAppContext, VisualTestContext, size};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::sync::Arc;
 
 fn draw(cx: &mut VisualTestContext) {
@@ -22,7 +22,7 @@ const PANES: &[&str] = &["a", "b", "c"];
 /// The selected endpoint's daemon, with `PANES` open, focuses each of
 /// `panes` in turn.
 fn visit(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, panes: &[&str]) {
-    let fixture: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let fixture: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

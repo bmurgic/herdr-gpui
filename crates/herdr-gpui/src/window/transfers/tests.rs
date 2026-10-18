@@ -80,6 +80,8 @@ fn fixture(window: &mut Window, cx: &mut Context<Fixture>) -> Fixture {
 pub(crate) struct Peer {
     pub(crate) client: Client,
     stream: Stream,
+    /// What the welcome advertised, which `prepare` hands to the window.
+    methods: Arc<[String]>,
 }
 
 impl Peer {
@@ -97,6 +99,12 @@ impl Peer {
         if let Some(advertised) = welcome["methods"].as_array_mut() {
             advertised.extend(methods.iter().map(|method| serde_json::json!(method)));
         }
+        let advertised: Vec<String> = welcome["methods"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|method| method.as_str().map(String::from))
+            .collect();
         let welcome = welcome.to_string();
         let (stream, mut server) = Stream::pair().unwrap();
         server
@@ -150,6 +158,7 @@ impl Peer {
         Self {
             client,
             stream: server,
+            methods: advertised.into(),
         }
     }
 
@@ -213,12 +222,13 @@ impl Peer {
             target: HOST.into(),
             session: "default".into(),
         };
-        let snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+        let snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
             "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
         ))
         .unwrap();
         view.live.snapshot = Some(Arc::new(snapshot.clone()));
         view.live.status = ConnectionStatus::Connected;
+        view.live.methods = self.methods.clone();
         view.live.surface = Some(Arc::new(PaneSurfaceFrame {
             boot_id: snapshot.boot_id,
             projection_revision: snapshot.revision,

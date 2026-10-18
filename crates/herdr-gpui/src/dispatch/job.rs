@@ -107,6 +107,25 @@ impl Job {
         )
     }
 
+    /// A job for tests, with no script behind it. With `outcome` it reports
+    /// that at once. Without one it stays running until it is dropped.
+    #[cfg(test)]
+    pub(crate) fn scripted(
+        host: &str,
+        repo: &str,
+        outcome: Option<Result<Created, teleport::Error>>,
+    ) -> Self {
+        Self::spawn(host.to_owned(), repo.to_owned(), move |_, cancelled| {
+            if let Some(outcome) = outcome {
+                return outcome;
+            }
+            while !cancelled.load(Ordering::Acquire) {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            Err(teleport::Error::Cancelled)
+        })
+    }
+
     /// Take reported steps. Returns whether the status changed, and the
     /// outcome once, with its failure as display text.
     pub(crate) fn poll(&mut self) -> (bool, Option<Result<Created, String>>) {

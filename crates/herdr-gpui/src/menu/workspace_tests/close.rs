@@ -65,30 +65,34 @@ fn stale_boot_target_and_changed_close_members_are_rejected() {
         WorkspaceAction::Close,
         WorkspaceAction::NewWorktree,
     ] {
-        assert!(target.request(&snapshot, action, "valid label").is_err());
+        assert!(
+            target
+                .request(&snapshot, action, "valid label", &[])
+                .is_err()
+        );
     }
     snapshot.boot_id = target.boot_id.clone();
     snapshot.workspaces.swap(0, 6);
     assert!(
         target
-            .request(&snapshot, WorkspaceAction::Close, "")
+            .request(&snapshot, WorkspaceAction::Close, "", &[])
             .is_ok()
     );
     snapshot.workspaces.retain(|w| w.workspace_id != "w4");
     assert!(
         target
-            .request(&snapshot, WorkspaceAction::Close, "")
+            .request(&snapshot, WorkspaceAction::Close, "", &[])
             .is_err()
     );
     assert!(
         target
-            .request(&snapshot, WorkspaceAction::Rename, "valid label")
+            .request(&snapshot, WorkspaceAction::Rename, "valid label", &[])
             .is_ok()
     );
     snapshot.workspaces.retain(|w| w.workspace_id != "w3");
     assert!(
         target
-            .request(&snapshot, WorkspaceAction::Rename, "valid label")
+            .request(&snapshot, WorkspaceAction::Rename, "valid label", &[])
             .is_err()
     );
 }
@@ -111,7 +115,7 @@ fn a_parent_beside_another_parent_closes_alone_but_still_folds() {
         assert_eq!(target.group_key(), Some(sidebar::layout_tests::REPO_KEY));
         assert_eq!(
             target
-                .request(&snapshot, WorkspaceAction::Close, "")
+                .request(&snapshot, WorkspaceAction::Close, "", &[])
                 .unwrap(),
             (
                 Method::WorkspaceClose,
@@ -124,7 +128,7 @@ fn a_parent_beside_another_parent_closes_alone_but_still_folds() {
     let mut single = snapshot.clone();
     single.workspaces.pop();
     assert!(matches!(
-        target.request(&single, WorkspaceAction::Close, ""),
+        target.request(&single, WorkspaceAction::Close, "", &[]),
         Err(crate::Error::WorkspaceGroupChanged)
     ));
 

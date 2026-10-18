@@ -17,7 +17,7 @@ use crate::{
     window::Flash,
 };
 use gpui::{prelude::*, *};
-use herdr_client::protocol::{AgentStatus, ClientShellSnapshot};
+use herdr_client::protocol::{AgentStatus, ClientShellSnapshotV2};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -43,7 +43,7 @@ pub(super) struct PaneRepository {
 }
 
 impl PaneRepository {
-    pub(super) fn of(snapshot: &ClientShellSnapshot, workspace_id: &str) -> Option<Self> {
+    pub(super) fn of(snapshot: &ClientShellSnapshotV2, workspace_id: &str) -> Option<Self> {
         let worktree = snapshot
             .workspaces
             .iter()
@@ -59,7 +59,7 @@ impl PaneRepository {
 
 /// Whether the agent in pane `id` is mid-task. Its session file is still
 /// being written, so it does not move until it settles.
-pub(super) fn busy(snapshot: &ClientShellSnapshot, id: &str) -> bool {
+pub(super) fn busy(snapshot: &ClientShellSnapshotV2, id: &str) -> bool {
     snapshot
         .agents
         .iter()

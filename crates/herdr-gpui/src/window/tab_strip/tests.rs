@@ -34,7 +34,7 @@ fn shared_symbols_extend_the_tab_without_displacing_its_label(cx: &mut TestAppCo
 fn zoomed_tab_shows_its_mark_within_its_width(cx: &mut TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = crate::sidebar::layout_tests::fixture_window(window, cx);
-        let mut snapshot: herdr_client::protocol::ClientShellSnapshot = serde_json::from_str(
+        let mut snapshot: herdr_client::protocol::ClientShellSnapshotV2 = serde_json::from_str(
             include_str!("../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"),
         )
         .unwrap();
@@ -81,7 +81,7 @@ fn status_layout(cx: &mut TestAppContext, settings: Option<&str>, font_size: f32
         view.settings.shared =
             settings.map(|text| crate::herdr_settings::Settings::parse_text(text).unwrap());
         view.config.tabs.size = font_size;
-        let mut snapshot: herdr_client::protocol::ClientShellSnapshot = serde_json::from_str(
+        let mut snapshot: herdr_client::protocol::ClientShellSnapshotV2 = serde_json::from_str(
             include_str!("../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"),
         )
         .unwrap();
@@ -159,7 +159,7 @@ fn crowded(
     // maximized and then resizing preserves the already-revealed offset.
     let window = cx.open_window(size(px(800.), px(600.)), |window, cx| {
         let mut view = crate::sidebar::layout_tests::fixture_window(window, cx);
-        let mut snapshot: herdr_client::protocol::ClientShellSnapshot = serde_json::from_str(
+        let mut snapshot: herdr_client::protocol::ClientShellSnapshotV2 = serde_json::from_str(
             include_str!("../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"),
         )
         .unwrap();
@@ -335,7 +335,7 @@ fn four_tabs(
 ) -> (Entity<HerdrWindow>, &mut VisualTestContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = crate::sidebar::layout_tests::fixture_window(window, cx);
-        let mut snapshot: herdr_client::protocol::ClientShellSnapshot = serde_json::from_str(
+        let mut snapshot: herdr_client::protocol::ClientShellSnapshotV2 = serde_json::from_str(
             include_str!("../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"),
         )
         .unwrap();
@@ -514,7 +514,7 @@ fn shared_tabs<'a>(
     let shared = crate::herdr_settings::Settings::parse_text(&format!("[ui]\n{ui}")).unwrap();
     let (view, cx) = cx.add_window_view(move |window, cx| {
         let mut view = crate::sidebar::layout_tests::fixture_window(window, cx);
-        let mut snapshot: herdr_client::protocol::ClientShellSnapshot = serde_json::from_str(
+        let mut snapshot: herdr_client::protocol::ClientShellSnapshotV2 = serde_json::from_str(
             include_str!("../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"),
         )
         .unwrap();

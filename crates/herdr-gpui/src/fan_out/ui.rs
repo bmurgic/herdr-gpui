@@ -17,12 +17,12 @@ use crate::{
     window::Flash,
 };
 use gpui::{prelude::*, *};
-use herdr_client::protocol::ClientShellSnapshot;
+use herdr_client::protocol::ClientShellSnapshotV2;
 use std::time::Instant;
 
 impl HerdrWindow {
     /// The snapshot of the host a fan-out runs on, if it is still connected.
-    fn fan_out_snapshot(&self, endpoint_id: &str) -> Option<&ClientShellSnapshot> {
+    fn fan_out_snapshot(&self, endpoint_id: &str) -> Option<&ClientShellSnapshotV2> {
         let (index, endpoint) = self
             .endpoints
             .iter()

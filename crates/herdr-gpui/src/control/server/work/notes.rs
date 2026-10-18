@@ -9,11 +9,11 @@ use crate::{
     worktree_notes::{Checkout, Note, Notes},
 };
 use gpui::App;
-use herdr_client::protocol::ClientShellWorkspace;
+use herdr_client::protocol::ClientShellWorkspaceV2;
 
 /// The checkout a workspace's note is about, once it is a Git checkout on a
 /// branch, as the note dialog requires.
-pub(super) fn checkout_of(endpoint: &str, workspace: &ClientShellWorkspace) -> Option<Checkout> {
+pub(super) fn checkout_of(endpoint: &str, workspace: &ClientShellWorkspaceV2) -> Option<Checkout> {
     Some(Checkout {
         endpoint: endpoint.to_owned(),
         repo_key: workspace.worktree.as_ref()?.key.clone(),

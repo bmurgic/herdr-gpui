@@ -3,11 +3,11 @@ use super::*;
 use crate::connection::ConnectionBridge;
 use herdr_client::{
     ClientEvent, ConnectTarget,
-    protocol::{ClientShellSnapshot, SemanticNotificationSound as Sound, ServerMessage},
+    protocol::{ClientShellSnapshotV2, SemanticNotificationSound as Sound, ServerMessage},
 };
 
 fn live(status: AgentStatus) -> LiveState {
-    let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+    let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
         "../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
     ))
     .unwrap();

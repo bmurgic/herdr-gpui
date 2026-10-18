@@ -6,7 +6,7 @@ use super::{
 };
 use crate::config::{AgentLayout, AgentToken, Rows, SpaceLayout, SpaceToken, TokenStyle};
 use gpui::SharedString;
-use herdr_client::protocol::{AgentStatus, ClientShellAgent, ClientShellSnapshot};
+use herdr_client::protocol::{AgentStatus, ClientShellAgent, ClientShellSnapshotV2};
 use std::collections::HashMap;
 use unicode_width::UnicodeWidthStr;
 
@@ -92,7 +92,7 @@ fn resolve_rows<T>(
 pub(super) fn agent_rows(
     layout: &AgentLayout,
     agent: &ClientShellAgent,
-    snapshot: &ClientShellSnapshot,
+    snapshot: &ClientShellSnapshotV2,
     machine: Option<&str>,
 ) -> Option<Vec<Vec<ResolvedToken>>> {
     let (workspace, tab) = agent_place(agent, snapshot)?;

@@ -62,6 +62,45 @@ impl From<&EndpointServerWelcome> for SurfaceEncodings {
     }
 }
 
+/// The snapshot codec the welcome selected. A session decodes only snapshots of
+/// this kind; the other kind means the two sides disagree about the session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SnapshotCodec {
+    V1,
+    V2,
+}
+
+impl SnapshotCodec {
+    fn from_kind(kind: &str) -> Option<Self> {
+        match kind {
+            SNAPSHOT_CODEC_V1 => Some(Self::V1),
+            SNAPSHOT_CODEC_V2 => Some(Self::V2),
+            _ => None,
+        }
+    }
+
+    fn kind(self) -> &'static str {
+        match self {
+            Self::V1 => SNAPSHOT_CODEC_V1,
+            Self::V2 => SNAPSHOT_CODEC_V2,
+        }
+    }
+
+    /// Decodes a snapshot control into the one shape the interface reads.
+    fn decode(self, received_kind: &str, data: &str) -> Result<ClientShellSnapshotV2> {
+        if received_kind != self.kind() {
+            return Err(Error::SnapshotKind {
+                selected: self.kind().into(),
+                received: received_kind.into(),
+            });
+        }
+        Ok(match self {
+            Self::V1 => serde_json::from_str::<ClientShellSnapshot>(data)?.into(),
+            Self::V2 => serde_json::from_str(data)?,
+        })
+    }
+}
+
 pub(crate) struct Health {
     pub(crate) received: Instant,
     /// The outstanding ping, and the instant it fails the link unanswered.
@@ -116,7 +155,8 @@ pub(crate) struct Session {
     pub(crate) health: Option<Health>,
     pub(crate) welcome: Option<EndpointServerWelcome>,
     pub(crate) encodings: SurfaceEncodings,
-    pub(crate) snapshot: Option<Arc<ClientShellSnapshot>>,
+    snapshot_codec: SnapshotCodec,
+    pub(crate) snapshot: Option<Arc<ClientShellSnapshotV2>>,
     pub(crate) surface: Option<Arc<PaneSurfaceFrame>>,
     pub(crate) images: ImageStore,
     pub(crate) pending: Option<Pending>,
@@ -131,6 +171,9 @@ impl Session {
             health: None,
             welcome: None,
             encodings: SurfaceEncodings::default(),
+            // Replaced when the welcome selects a codec; the welcome precedes
+            // every snapshot, so no snapshot is decoded with this placeholder.
+            snapshot_codec: SnapshotCodec::V1,
             snapshot: None,
             surface: None,
             images: ImageStore::default(),
@@ -216,7 +259,7 @@ pub(crate) fn run_connection(
         surface_reuse: true,
         surface_delta: true,
         surface_scroll: true,
-        snapshot_codecs: vec![SNAPSHOT_CODEC_V1.into()],
+        snapshot_codecs: vec![SNAPSHOT_CODEC_V2.into(), SNAPSHOT_CODEC_V1.into()],
         surface_codecs: vec![SURFACE_CODEC_V1.into()],
         input_codecs: vec![INPUT_CODEC_V1.into()],
         blob_codecs: vec![BLOB_CODEC_V1.into()],
@@ -383,6 +426,7 @@ impl Session {
             health,
             welcome,
             encodings,
+            snapshot_codec,
             snapshot,
             surface,
             images,
@@ -415,8 +459,10 @@ impl Session {
                     message: error.message.clone(),
                 });
             }
-            if w.snapshot_codec != SNAPSHOT_CODEC_V1
-                || w.surface_codec != SURFACE_CODEC_V1
+            let Some(selected_snapshot_codec) = SnapshotCodec::from_kind(&w.snapshot_codec) else {
+                return Err(Error::IncompatibleCodecs);
+            };
+            if w.surface_codec != SURFACE_CODEC_V1
                 || w.input_codec != INPUT_CODEC_V1
                 || w.blob_codec != BLOB_CODEC_V1
             {
@@ -436,14 +482,17 @@ impl Session {
                 *health = Some(Health::new(Instant::now()));
             }
             *encodings = SurfaceEncodings::from(&w);
+            *snapshot_codec = selected_snapshot_codec;
             emit(ClientEvent::Connected(w.clone()))?;
             tracing::info!(?encodings, "endpoint handshake accepted");
             *welcome = Some(w);
             return Ok(());
         }
         match message {
-            ServerMessage::EndpointControl { kind, data } if kind == ENDPOINT_SNAPSHOT_KIND => {
-                let next: ClientShellSnapshot = serde_json::from_str(&data)?;
+            ServerMessage::EndpointControl { kind, data }
+                if SnapshotCodec::from_kind(&kind).is_some() =>
+            {
+                let next = snapshot_codec.decode(&kind, &data)?;
                 if next.boot_id.is_empty()
                     || snapshot
                         .as_ref()
@@ -574,7 +623,7 @@ impl Session {
 /// as the baseline whether or not its projection is current.
 fn accept_surface(
     mut next: PaneSurfaceFrame,
-    snapshot: Option<&ClientShellSnapshot>,
+    snapshot: Option<&ClientShellSnapshotV2>,
     surface: &mut Option<Arc<PaneSurfaceFrame>>,
     images: &mut ImageStore,
     emit: &mut impl FnMut(ClientEvent) -> Result<()>,
@@ -609,7 +658,7 @@ fn accept_surface(
 }
 
 fn emit_patched(
-    snapshot: Option<&ClientShellSnapshot>,
+    snapshot: Option<&ClientShellSnapshotV2>,
     current: &Arc<PaneSurfaceFrame>,
     images: &mut ImageStore,
     emit: &mut impl FnMut(ClientEvent) -> Result<()>,

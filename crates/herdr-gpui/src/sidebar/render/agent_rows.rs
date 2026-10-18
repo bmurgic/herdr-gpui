@@ -12,7 +12,7 @@ use crate::{
     },
 };
 use gpui::{prelude::*, *};
-use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshot};
+use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshotV2};
 
 impl HerdrWindow {
     /// Appends a row for each agent `panel_agents` lists, in that order, and
@@ -83,7 +83,7 @@ impl HerdrWindow {
     pub(super) fn configured_agent_lines(
         &self,
         agent: &ClientShellAgent,
-        snapshot: &ClientShellSnapshot,
+        snapshot: &ClientShellSnapshotV2,
         host: Option<&str>,
     ) -> Option<Vec<Vec<tokens::ResolvedToken>>> {
         if !self.custom_agent_rows() {
@@ -110,7 +110,7 @@ impl HerdrWindow {
         &self,
         index: usize,
         agent: &ClientShellAgent,
-        snapshot: &ClientShellSnapshot,
+        snapshot: &ClientShellSnapshotV2,
         row_cx: &RowContext,
         lines: Vec<Vec<tokens::ResolvedToken>>,
         gap: f32,

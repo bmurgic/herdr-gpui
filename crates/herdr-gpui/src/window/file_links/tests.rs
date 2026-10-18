@@ -5,7 +5,7 @@ use gpui::{Entity, Modifiers, VisualTestContext, point, px};
 use herdr_client::{
     ConnectTarget,
     protocol::{
-        CellData, ClientShellSnapshot, FrameData, PaneSurfaceFrame, PaneSurfacePane, SurfaceRect,
+        CellData, ClientShellSnapshotV2, FrameData, PaneSurfaceFrame, PaneSurfacePane, SurfaceRect,
     },
 };
 use std::sync::Arc;
@@ -126,7 +126,7 @@ fn window<'a>(
     let cwd = cwd.to_str().unwrap().to_owned();
     let (view, cx) = cx.add_window_view(move |window, cx| {
         let mut view = fixture_window(window, cx);
-        let mut snapshot: ClientShellSnapshot = serde_json::from_str(include_str!(
+        let mut snapshot: ClientShellSnapshotV2 = serde_json::from_str(include_str!(
             "../../../../herdr-protocol/tests/fixtures/endpoint-snapshot-v1.json"
         ))
         .unwrap();
