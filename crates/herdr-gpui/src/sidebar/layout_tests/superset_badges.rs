@@ -5,7 +5,11 @@ use super::*;
 #[gpui::test]
 fn superset_badges_leave_the_main_icon_center_visible(cx: &mut gpui::TestAppContext) {
     use crate::config::LayoutMode;
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(900.)));
     for (font_size, style) in [12., 20., 36.]
         .into_iter()
@@ -16,7 +20,7 @@ fn superset_badges_leave_the_main_icon_center_visible(cx: &mut gpui::TestAppCont
             view.config.sidebar.size = font_size;
             view.settings.shared = Some(
                 crate::herdr_settings::Settings::parse_text(&format!(
-                    "[ui]\nstatus_indicators = '{style}'\n"
+                    "[ui]\nsession_sidebar = false\nstatus_indicators = '{style}'\n"
                 ))
                 .unwrap(),
             );

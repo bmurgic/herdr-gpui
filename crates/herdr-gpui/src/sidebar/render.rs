@@ -26,6 +26,10 @@ use gpui::{prelude::*, *};
 
 mod agent_rows;
 mod device_tree;
+mod session_row;
+
+#[cfg(test)]
+pub(super) use session_row::SessionColors;
 
 impl HerdrWindow {
     pub(crate) fn render_sidebar(

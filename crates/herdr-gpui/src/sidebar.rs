@@ -16,6 +16,9 @@ mod render;
 mod reorder;
 mod row;
 mod search;
+mod session_age;
+mod session_row;
+mod session_text;
 mod sticky;
 mod tokens;
 mod view;
@@ -39,6 +42,7 @@ pub(crate) use {
     reorder::WorkspaceDrag,
     row::{compact, github_mark, label_text, styled as styled_token},
     search::SidebarSearch,
+    session_age::{SessionAges, now_ms},
     view::SidebarView,
     workspaces::workspace_label,
 };

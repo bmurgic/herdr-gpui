@@ -5,6 +5,7 @@ pub mod surface_delta;
 pub mod surface_reuse;
 pub mod surface_scroll;
 
+mod agent_tokens;
 mod clipboard;
 mod codec;
 mod error;
@@ -12,6 +13,7 @@ mod frame;
 mod snapshot_v2;
 mod wire;
 
+pub use agent_tokens::ACTIVITY_TOKEN_KEY;
 pub use clipboard::{
     MAX_CLIPBOARD_IMAGE_FRAME_SIZE, MAX_CLIPBOARD_IMAGE_PAYLOAD, MAX_CLIPBOARD_IMAGE_TARGET_BYTES,
     encode_clipboard_image, validate_clipboard_image_target,

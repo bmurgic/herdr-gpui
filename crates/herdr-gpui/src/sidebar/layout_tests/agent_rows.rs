@@ -6,6 +6,7 @@ fn agent_icons_follow_names_and_reserve_narrow_label_width(cx: &mut gpui::TestAp
     let label = "Custom agent name with a deliberately long label";
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         let mut snapshot = snapshot(6);
         for agent in &mut snapshot.agents {
             agent.display_agent = Some(label.into());
@@ -81,6 +82,7 @@ fn agent_status_words_follow_the_daemon_sidebar_config(cx: &mut gpui::TestAppCon
     use crate::config::{Density, LayoutMode};
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot(2)));
         view
     });
@@ -142,6 +144,7 @@ fn agent_status_words_use_the_agents_state_labels(cx: &mut gpui::TestAppContext)
     use crate::config::{Density, LayoutMode};
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         let mut snapshot = snapshot(2);
         snapshot.agents[0].state_labels = vec![
             ("blocked".into(), "stuck".into()),
@@ -185,6 +188,7 @@ fn agent_status_words_stay_inside_narrow_rows(cx: &mut gpui::TestAppContext) {
     use crate::config::{Density, LayoutMode};
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot(2)));
         view
     });
@@ -347,6 +351,14 @@ fn a_plugin_agent_view_orders_and_filters_the_agents(cx: &mut gpui::TestAppConte
     });
 }
 
+/// Whether an agent's name is painted: whole, or as the first or last word
+/// of it when a narrow session row wraps the name over two lines.
+#[cfg(test)]
+fn name_painted(cx: &App, forms: &[&str]) -> bool {
+    let probes = &cx.global::<TextProbes>().0;
+    forms.iter().any(|form| probes.contains_key(*form))
+}
+
 #[cfg(test)]
 #[gpui::test]
 fn hiding_agents_reclaims_sidebar_height(cx: &mut gpui::TestAppContext) {
@@ -365,10 +377,7 @@ fn hiding_agents_reclaims_sidebar_height(cx: &mut gpui::TestAppContext) {
                 full_draw(window, cx).clear(cx);
             });
             cx.update(|_, cx| {
-                assert_eq!(
-                    cx.global::<TextProbes>().0.contains_key("Claude Code"),
-                    show_agents
-                );
+                assert_eq!(name_painted(cx, &["Claude Code", "Claude"]), show_agents);
             });
             let spaces = cx.debug_bounds("spaces-scroll").unwrap();
             if show_agents {
@@ -428,12 +437,8 @@ fn hiding_agents_preserves_scrolled_multi_endpoint_lists(cx: &mut gpui::TestAppC
                 cx.default_global::<TextProbes>().0.clear();
                 window.refresh();
                 full_draw(window, cx).clear(cx);
-                for label in ["Claude Code", "Remote Agent"] {
-                    assert_eq!(
-                        cx.global::<TextProbes>().0.contains_key(label),
-                        show_agents,
-                        "{label}"
-                    );
+                for name in [&["Claude Code", "Claude"], &["Remote Agent", "Agent"]] {
+                    assert_eq!(name_painted(cx, name), show_agents, "{name:?}");
                 }
                 let view = view.read(cx);
                 for scroll in &view.sidebar_scroll {

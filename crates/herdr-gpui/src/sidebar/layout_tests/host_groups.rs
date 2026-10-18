@@ -7,6 +7,7 @@ fn multi_host_rows_scope_duplicate_ids_and_keep_agents_when_host_collapses(
     let (fixture, cx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| {
             let mut view = fixture_window(window, cx);
+            old_agent_rows(&mut view);
             view.live.snapshot = Some(Arc::new(snapshot(1)));
             let mut remote = crate::endpoint::Endpoint::new(
                 "ssh:test".into(),

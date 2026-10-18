@@ -6,7 +6,11 @@ use super::*;
 #[gpui::test]
 fn superset_status_dots_stay_inside_their_icon_slot(cx: &mut gpui::TestAppContext) {
     use crate::config::LayoutMode;
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(900.)));
     for (size, style) in [12., 20., 36.]
         .into_iter()
@@ -28,7 +32,7 @@ fn superset_status_dots_stay_inside_their_icon_slot(cx: &mut gpui::TestAppContex
             view.config.sidebar.size = size;
             view.settings.shared = Some(
                 crate::herdr_settings::Settings::parse_text(&format!(
-                    "[ui]\nstatus_indicators = '{style}'\n"
+                    "[ui]\nsession_sidebar = false\nstatus_indicators = '{style}'\n"
                 ))
                 .unwrap(),
             );
@@ -58,7 +62,11 @@ fn superset_status_dots_stay_inside_their_icon_slot(cx: &mut gpui::TestAppContex
 #[gpui::test]
 fn superset_tiles_tint_the_slot_instead_of_a_badge(cx: &mut gpui::TestAppContext) {
     use crate::config::LayoutMode;
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(900.)));
     view.update(cx, |view, cx| {
         view.config.layout.mode = LayoutMode::Superset;

@@ -338,6 +338,8 @@ impl SidebarLook {
             .top(edge)
             .bottom(edge)
             .rounded(px(self.density.radius));
+        #[cfg(test)]
+        let layer = state_markers(layer, key, state);
         match self.density.highlight {
             Highlight::Fill => {
                 let active = Hsla::from(rgb(theme.active)).opacity(self.mark);
@@ -358,6 +360,16 @@ impl SidebarLook {
             }
         }
     }
+}
+
+/// Marks a highlight layer with the state its row was built with. The fill
+/// is not visible to debug bounds, so tests read the state from these.
+#[cfg(test)]
+fn state_markers(layer: Div, key: &str, state: RowState) -> Div {
+    let marker = |name: &str| div().size_full().debug_selector(|| format!("{name}-{key}"));
+    layer
+        .when(state.selected, |layer| layer.child(marker("selected")))
+        .when(state.highlighted, |layer| layer.child(marker("open")))
 }
 
 impl SidebarLook {

@@ -10,7 +10,11 @@ fn sidebar_allocates_text_width(cx: &mut gpui::TestAppContext) {
     let (fixture, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
         // Deliberately do not call HerdrWindow::new: it connects and starts polling.
-        let view = cx.new(|cx| fixture_window(window, cx));
+        let view = cx.new(|cx| {
+            let mut view = fixture_window(window, cx);
+            old_agent_rows(&mut view);
+            view
+        });
         cx.observe(&view, |_, _, cx| cx.notify()).detach();
         SidebarFixture(view)
     });
