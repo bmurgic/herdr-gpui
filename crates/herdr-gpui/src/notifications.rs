@@ -47,6 +47,11 @@ pub(crate) struct Notice {
     pub(crate) described: bool,
 }
 
+/// How many characters of a toast's title and body are kept. Session notices
+/// compare against the sanitized toast text, so they use these as well.
+pub(crate) const TITLE_LIMIT: usize = 160;
+pub(crate) const BODY_LIMIT: usize = 512;
+
 pub(crate) fn safe_text(text: &str, limit: usize) -> String {
     // Bound scanning as well as output, even for a payload made entirely of controls.
     text.chars()
@@ -94,7 +99,7 @@ impl Notice {
             .take()
             .map(|body| {
                 body.chars()
-                    .take(512)
+                    .take(BODY_LIMIT)
                     .filter(|c| *c == '\n' || !unsafe_char(*c))
                     .collect::<String>()
             })
@@ -116,7 +121,7 @@ impl Notice {
             });
     }
     pub fn new(notification: SemanticNotification, now: Instant) -> Self {
-        let title = safe_text(&notification.title, 160);
+        let title = safe_text(&notification.title, TITLE_LIMIT);
         let suppression_target = notification
             .tab_id
             .clone()
@@ -135,7 +140,7 @@ impl Notice {
             },
             body: notification
                 .body
-                .map(|body| safe_text(&body, 512))
+                .map(|body| safe_text(&body, BODY_LIMIT))
                 .filter(|body| !body.trim().is_empty()),
             kind: notification.kind,
             agent: notification

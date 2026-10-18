@@ -53,7 +53,8 @@ impl HerdrWindow {
         } = *row_cx;
         let key = format!("agent-{}", agent.pane_id);
         let selected = index == self.selected_endpoint;
-        let menu_open = selected && self.pane_menu_target() == Some(agent.pane_id.as_str());
+        let menu_open = self.agent_menu_target()
+            == Some((self.endpoints[index].id.as_str(), agent.pane_id.as_str()));
         let state = RowState {
             selected: selected && agent.focused,
             highlighted: menu_open,

@@ -57,7 +57,12 @@ fn errors_preserve_sources_and_retry_categories() {
         (Error::SshTimeout, io::ErrorKind::TimedOut),
         (Error::PartialFrameTimeout, io::ErrorKind::InvalidData),
         (Error::HandshakeTimeout, io::ErrorKind::InvalidData),
-        (Error::RequestTimeout, io::ErrorKind::InvalidData),
+        (
+            Error::RequestTimeout {
+                request_id: "gpui-7".into(),
+            },
+            io::ErrorKind::InvalidData,
+        ),
         (Error::InvalidSession, io::ErrorKind::InvalidInput),
         (Error::SshUnsupported, io::ErrorKind::Unsupported),
     ] {

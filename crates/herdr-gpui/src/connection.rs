@@ -121,6 +121,15 @@ impl ConnectionBridge {
         let mut state = LiveState::default();
         state.status = status;
         state.set_outer_focus(active);
+        // Computed once, from the old inbox alone: the old reader keeps only
+        // that inbox and must never hold a handle to the new one. A result
+        // is carried over, not an event, so isolation holds. A locked old
+        // inbox loses the notices of its recorded outcomes and pending
+        // requests, the same trade-off as the sound cancellation above.
+        if let Ok(mut old) = self.inbox.try_lock() {
+            state.session_actions.inherit(&mut old.session_actions);
+            state.dirty = true;
+        }
         self.sound_cancel = state.sound_connection_cancel.clone();
         // Old readers and deferred paint acknowledgements retain only the old inbox.
         self.inbox = Arc::new(Mutex::new(state));
@@ -291,6 +300,8 @@ impl ConnectionBridge {
         let reload_sound = std::mem::take(&mut state.reload_sound);
         let clipboard_writes = std::mem::take(&mut state.clipboard_writes);
         let bells = std::mem::take(&mut state.bells);
+        // Pending requests stay: their replies have yet to arrive.
+        let session_outcomes = state.session_actions.take_outcomes();
         // A trust warning belongs to this connection, but the terminal must
         // finish connecting before it is shown. Drain it only once then.
         #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -311,6 +322,7 @@ impl ConnectionBridge {
         update.reload_sound = reload_sound;
         update.clipboard_writes = clipboard_writes;
         update.bells = bells;
+        update.session_actions.put_outcomes(session_outcomes);
         if let Some((_, result)) = &mut update.dialog_response {
             *result = response;
         }
@@ -405,6 +417,34 @@ impl ConnectionBridge {
             .ok_or(crate::Error::NotConnected)?
             .request(boot_id, method, params)?;
         state.cleanup_response = Some((id.clone(), None));
+        Ok(id)
+    }
+
+    /// Queues a request for the agent-row menu and records it as pending
+    /// under the mailbox lock, so even an immediate reply is kept. The bound
+    /// is checked before the handle, as `request_integration` checks its
+    /// pending slot first.
+    pub(crate) fn request_session_action(
+        &self,
+        boot_id: &str,
+        method: Method,
+        params: serde_json::Value,
+    ) -> crate::Result<String> {
+        let mut state = self
+            .inbox
+            .try_lock()
+            .map_err(|_| crate::Error::ConnectionBusy)?;
+        if !state.session_actions.has_room() {
+            return Err(crate::Error::ConnectionBusy);
+        }
+        let id = self
+            .handle
+            .as_ref()
+            .ok_or(crate::Error::NotConnected)?
+            .request(boot_id, method, params)?;
+        state
+            .session_actions
+            .track(id.clone(), method, boot_id.to_owned());
         Ok(id)
     }
 

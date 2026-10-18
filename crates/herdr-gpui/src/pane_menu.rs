@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 pub(crate) mod carry;
 mod moves;
 mod processes;
+pub(crate) mod session;
 
 #[cfg(test)]
 pub(crate) mod tests;
@@ -324,8 +325,11 @@ impl HerdrWindow {
         self.open_pane_menu(&id, anchor, window, cx);
     }
 
-    /// Opens the menu of an agent's pane from its sidebar row: shows the
-    /// pane, switching to its host first, as a workspace row's menu does.
+    /// Opens the menu of an agent's row. On a host that accepts session
+    /// actions (a myherdr daemon) that is the session menu, which acts on the
+    /// agent's pane where it is, without showing its host. On a stock Herdr
+    /// host it is the pane's menu: shows the pane, switching to its host
+    /// first, as a workspace row's menu does.
     pub(crate) fn open_agent_menu(
         &mut self,
         endpoint: &str,
@@ -334,6 +338,13 @@ impl HerdrWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let session_host = self
+            .endpoint_position(endpoint)
+            .filter(|&index| self.endpoint_state(index).snapshot_v2);
+        if let Some(index) = session_host {
+            self.open_session_menu(index, pane, anchor, window, cx);
+            return;
+        }
         if !self.navigate_endpoint(endpoint, crate::NavigationTarget::Pane(pane), cx) {
             return;
         }

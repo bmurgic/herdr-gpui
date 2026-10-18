@@ -135,6 +135,8 @@ pub(crate) struct HerdrWindow {
     /// when it was last laid out; see `HerdrWindow::strip_leading`.
     pub(crate) strip_navigation_fits: bool,
     pub(crate) pending_toast: Option<u64>,
+    /// The agent-row menu's notices already shown, so a repeat shows once.
+    pub(crate) session_notices: crate::pane_menu::session::NoticeMemory,
     pub(crate) toasts_hidden: bool,
     pub(crate) pending_releases: Vec<endpoint::Release>,
     pub(crate) selected_generation: u64,
@@ -550,6 +552,7 @@ impl HerdrWindow {
         }
         self.poll_tab_rename(window, cx);
         self.poll_pane_rename(window, cx);
+        self.drain_session_outcomes(cx);
         self.poll_pane_processes(cx);
         if old_pane
             != self
@@ -684,6 +687,7 @@ impl HerdrWindow {
             arrival: None,
             strip_navigation_fits: true,
             pending_toast: None,
+            session_notices: Default::default(),
             toasts_hidden: false,
             pending_releases: Vec::new(),
             selected_generation: 0,

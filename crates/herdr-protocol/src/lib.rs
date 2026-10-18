@@ -22,6 +22,7 @@ pub use codec::{
     MAX_FRAME_SIZE, MAX_GRAPHICS_FRAME_SIZE, decode_payload, encode_message, read_message,
     write_message,
 };
+pub use endpoint::BACKGROUND_PANE_COMMANDS_CAPABILITY;
 pub use error::{Error, Result};
 pub use snapshot_v2::*;
 pub use wire::*;

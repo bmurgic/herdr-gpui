@@ -1,12 +1,5 @@
 use super::*;
-
-const STATUSES: [AgentStatus; 5] = [
-    AgentStatus::Working,
-    AgentStatus::Blocked,
-    AgentStatus::Done,
-    AgentStatus::Idle,
-    AgentStatus::Unknown,
-];
+use layout_tests::AGENT_STATUSES;
 
 #[test]
 fn status_colors_keep_upstream_literals_where_they_already_read() {
@@ -176,7 +169,7 @@ fn status_colors_reach_the_contrast_setting_on_every_builtin_theme() {
     for name in Theme::BUILTIN_NAMES {
         for contrast in [Contrast::Standard, Contrast::High] {
             let theme = Theme::builtin(name).unwrap().with_contrast(contrast);
-            for status in STATUSES {
+            for &status in AGENT_STATUSES {
                 let color = status_style(status, &theme).2;
                 for background in [theme.background, theme.surface, theme.active] {
                     let ratio = crate::contrast::ratio(color, background);
@@ -191,7 +184,7 @@ fn status_colors_reach_the_contrast_setting_on_every_builtin_theme() {
     // Light chrome darkens the pastels rather than keeping upstream's literals.
     let latte = Theme::builtin("Catppuccin Latte").unwrap();
     let mocha = Theme::builtin("Catppuccin Mocha").unwrap();
-    for status in STATUSES {
+    for &status in AGENT_STATUSES {
         assert_ne!(
             status_style(status, &latte).2,
             status_style(status, &mocha).2

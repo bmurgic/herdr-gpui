@@ -162,7 +162,8 @@ impl HerdrWindow {
         let rows = layout_for(self.config.layout.mode);
         let selected = index == self.selected_endpoint;
         let id = &agent.pane_id;
-        let menu_open = selected && self.pane_menu_target() == Some(id.as_str());
+        let menu_open =
+            self.agent_menu_target() == Some((self.endpoints[index].id.as_str(), id.as_str()));
         let row = Cell::new(
             rows,
             RowData::Agent(AgentRow {

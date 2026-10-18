@@ -111,6 +111,8 @@ pub(crate) struct MenuState {
     pub(crate) group: Option<crate::group_menu::GroupMenu>,
     pub(crate) host: Option<super::devices::HostMenu>,
     pub(crate) pane: Option<crate::pane_menu::PaneMenu>,
+    /// The agent-row menu of a host that accepts session actions.
+    pub(crate) session: Option<crate::pane_menu::session::SessionMenu>,
     /// The new worktree dialog's tabs and the GitHub listing behind them.
     pub(crate) worktree: Option<super::WorktreeSource>,
     /// The host a new worktree or workspace goes to, when another one could.
@@ -352,6 +354,7 @@ impl MenuState {
             group: None,
             host: None,
             pane: None,
+            session: None,
             worktree: None,
             dispatch: None,
         }
@@ -376,6 +379,7 @@ impl MenuState {
         self.group = None;
         self.host = None;
         self.pane = None;
+        self.session = None;
         self.github_selected = None;
         self.github_scroll.set_offset(Point::default());
         if self.github.busy() {

@@ -316,6 +316,11 @@ impl HerdrWindow {
             let id = agent.pane_id.clone();
             let key = format!("rail-agent-{endpoint_id}-{id}");
             let navigate_endpoint = endpoint_id.clone();
+            let menu_endpoint = endpoint_id.clone();
+            let menu_pane = id.clone();
+            // Only a host that accepts session actions has a menu for the
+            // mark; on a stock host it keeps having none.
+            let has_menu = live.snapshot_v2;
             let focused = selected && agent.focused;
             let place = agent_place(agent, snapshot);
             let place = place.map(|(workspace, tab)| match tab {
@@ -366,6 +371,21 @@ impl HerdrWindow {
                     place.as_deref(),
                     agent_status_word(agent).as_deref(),
                 )))
+                .when(has_menu, |row| {
+                    row.on_mouse_down(
+                        MouseButton::Right,
+                        cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                            cx.stop_propagation();
+                            this.open_agent_menu(
+                                &menu_endpoint,
+                                &menu_pane,
+                                event.position,
+                                window,
+                                cx,
+                            );
+                        }),
+                    )
+                })
                 .on_click(cx.listener(move |this, _, window, cx| {
                     this.navigate_endpoint(&navigate_endpoint, NavigationTarget::Pane(&id), cx);
                     window.focus(&this.focus, cx);
