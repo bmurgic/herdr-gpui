@@ -5,8 +5,10 @@ use anyhow::{Context as _, Result, bail, ensure};
 use std::time::{Duration, Instant};
 
 mod fonts;
+mod sessions;
 mod themes;
 use fonts::verify_fonts;
+pub(crate) use sessions::verify_sessions;
 use themes::verify_themes;
 
 /// Where the Sidebar layout card painted, after the section rows.
@@ -91,13 +93,12 @@ async fn capture_settings(
     Ok(())
 }
 
-pub(crate) async fn verify_native(
+/// Opens Settings from `source` with Cmd-comma, the way a user does, and
+/// waits for it to load and take focus.
+async fn open_settings(
     source: WindowHandle<HerdrWindow>,
     cx: &mut AsyncApp,
-) -> Result<()> {
-    #[cfg(feature = "mockup")]
-    let capture = std::env::var_os("HERDR_TEST_SETTINGS_CAPTURE").map(std::path::PathBuf::from);
-    let before = source.update(cx, |view, _, _| view.input_probe)?;
+) -> Result<WindowHandle<SettingsWindow>> {
     AnyWindowHandle::from(source).update(cx, |_, window, cx| -> Result<()> {
         window.draw(cx).clear(cx);
         ensure!(
@@ -134,6 +135,65 @@ pub(crate) async fn verify_native(
         );
         Ok(())
     })??;
+    Ok(settings)
+}
+
+/// Clicks the category row at `index` in the list, scrolled into view
+/// first, and waits for `section` to show.
+async fn click_category(
+    settings: WindowHandle<SettingsWindow>,
+    index: usize,
+    section: Section,
+    cx: &mut AsyncApp,
+) -> Result<()> {
+    // A short window scrolls the category list; bring this one into view.
+    AnyWindowHandle::from(settings).update(cx, |_, window, cx| window.draw(cx).clear(cx))?;
+    settings.update(cx, |view, _, cx| {
+        view.navigation_scroll.scroll_to_item(index);
+        cx.notify();
+    })?;
+    let (target, bounds) =
+        AnyWindowHandle::from(settings).update(cx, |root, window, cx| -> Result<_> {
+            window.draw(cx).clear(cx);
+            let bounds =
+                cx.global::<Layout>().0[index].context("missing Settings category paint")?;
+            let list = root
+                .downcast::<SettingsWindow>()
+                .map_err(|_| anyhow::anyhow!("unexpected Settings root"))?
+                .read(cx)
+                .navigation_scroll
+                .bounds();
+            ensure!(
+                bounds.top() >= list.top() - px(1.) && bounds.bottom() <= list.bottom() + px(1.),
+                "Settings category {index} not scrolled into view: {bounds:?} in {list:?}"
+            );
+            Ok((Target::acquire(window)?, bounds))
+        })??;
+    target.click(
+        f64::from(f32::from(bounds.center().x)),
+        f64::from(f32::from(bounds.center().y)),
+    )?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !settings.update(cx, |view, _, _| view.section == section)? {
+        ensure!(
+            Instant::now() < deadline,
+            "native category click {section:?} timed out"
+        );
+        cx.background_executor()
+            .timer(Duration::from_millis(10))
+            .await;
+    }
+    Ok(())
+}
+
+pub(crate) async fn verify_native(
+    source: WindowHandle<HerdrWindow>,
+    cx: &mut AsyncApp,
+) -> Result<()> {
+    #[cfg(feature = "mockup")]
+    let capture = std::env::var_os("HERDR_TEST_SETTINGS_CAPTURE").map(std::path::PathBuf::from);
+    let before = source.update(cx, |view, _, _| view.input_probe)?;
+    let settings = open_settings(source, cx).await?;
     let source_actions = source.update(cx, |view, _, _| view.input_probe.actions)?;
 
     for expected in [size(px(680.), px(560.)), size(px(960.), px(780.))] {
@@ -149,45 +209,7 @@ pub(crate) async fn verify_native(
                 .await;
         }
         for (index, section) in Section::ALL.iter().copied().enumerate() {
-            // A short window scrolls the category list; bring this one into view.
-            AnyWindowHandle::from(settings)
-                .update(cx, |_, window, cx| window.draw(cx).clear(cx))?;
-            settings.update(cx, |view, _, cx| {
-                view.navigation_scroll.scroll_to_item(index);
-                cx.notify();
-            })?;
-            let (target, bounds) =
-                AnyWindowHandle::from(settings).update(cx, |root, window, cx| -> Result<_> {
-                    window.draw(cx).clear(cx);
-                    let bounds = cx.global::<Layout>().0[index]
-                        .context("missing Settings category paint")?;
-                    let list = root
-                        .downcast::<SettingsWindow>()
-                        .map_err(|_| anyhow::anyhow!("unexpected Settings root"))?
-                        .read(cx)
-                        .navigation_scroll
-                        .bounds();
-                    ensure!(
-                        bounds.top() >= list.top() - px(1.)
-                            && bounds.bottom() <= list.bottom() + px(1.),
-                        "Settings category {index} not scrolled into view: {bounds:?} in {list:?}"
-                    );
-                    Ok((Target::acquire(window)?, bounds))
-                })??;
-            target.click(
-                f64::from(f32::from(bounds.center().x)),
-                f64::from(f32::from(bounds.center().y)),
-            )?;
-            let deadline = Instant::now() + Duration::from_secs(2);
-            while !settings.update(cx, |view, _, _| view.section == section)? {
-                ensure!(
-                    Instant::now() < deadline,
-                    "native category click {section:?} timed out"
-                );
-                cx.background_executor()
-                    .timer(Duration::from_millis(10))
-                    .await;
-            }
+            click_category(settings, index, section, cx).await?;
             AnyWindowHandle::from(settings).update(cx, |root, window, cx| -> Result<()> {
                 window.draw(cx).clear(cx);
                 let view = root

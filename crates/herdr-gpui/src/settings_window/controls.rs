@@ -3,8 +3,11 @@ mod backdrop;
 pub(super) mod code;
 mod fonts;
 mod indicators;
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+mod native_bounds;
 pub(super) mod plugins;
 mod preferences;
+mod session_titles;
 mod sidebar_layout;
 mod status_bar;
 mod updates;
@@ -18,6 +21,8 @@ use crate::{
     search_input::{Changed, SearchInput},
 };
 use gpui::{prelude::*, *};
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+use native_bounds::{clear_native_bounds, native_probe};
 
 const FACES: [(FontFace, &str); 4] = [
     (FontFace::Terminal, "Terminal"),
@@ -46,6 +51,7 @@ pub(super) struct Controls {
     pending_sizes: Vec<(FontFace, f32)>,
     saving_sizes: Vec<(FontFace, f32)>,
     size_editor: Option<SizeEditor>,
+    session_titles: session_titles::Card,
     local_path: String,
     ruler: backdrop::Ruler,
     _search_changed: Subscription,
@@ -107,6 +113,7 @@ impl Controls {
             pending_sizes: Vec::new(),
             saving_sizes: Vec::new(),
             size_editor: None,
+            session_titles: Default::default(),
             local_path: Config::local_path()
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|error| format!("Unavailable ({error})")),
@@ -359,7 +366,7 @@ impl SettingsWindow {
             .child(text.into())
     }
 
-    fn control_row(&self, label: &'static str, value: impl Into<SharedString>) -> Div {
+    fn control_row(&self, label: &'static str, value: impl IntoElement) -> Div {
         div()
             .flex()
             .flex_wrap()
@@ -367,7 +374,7 @@ impl SettingsWindow {
             .justify_between()
             .gap(px(12.))
             .child(div().text_color(rgb(self.theme.muted)).child(label))
-            .child(div().min_w_0().child(value.into()))
+            .child(div().min_w_0().child(value))
     }
 
     pub(super) fn control_choice(
@@ -578,7 +585,7 @@ impl SettingsWindow {
             operation,
             load,
             false,
-            move |cx| AgentSkill::choose(choice, cx),
+            move |_, cx| AgentSkill::choose(choice, cx),
             cx,
         );
     }
@@ -632,6 +639,7 @@ impl SettingsWindow {
             .children(self.merged_worktree_controls(cx));
         div().flex().flex_col().gap(px(24.)).child(general)
             .child(self.render_tab_bar_controls(cx))
+            .child(self.render_session_titles_controls(cx))
             .child(self.render_session_controls(cx))
             .child(self.render_skill_controls(cx))
             .child(self.render_update_controls(cx))

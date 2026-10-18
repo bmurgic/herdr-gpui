@@ -67,6 +67,17 @@ fn native_sidebar_session_rows() {
     native_fixture(Fixture::SessionRows);
 }
 
+/// Settings > General > Sessions, clicked natively. Its own fixture, outside
+/// `native_sidebar`, whose earlier checks would stop it. It leaves out the
+/// title model field's Enter save, which needs a key window macOS will not
+/// give a background-launched app; see settings_window/native/sessions.rs.
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires active native desktop; GUI-only fixtures, no daemon"]
+fn native_settings_sessions() {
+    native_fixture(Fixture::SettingsSessions);
+}
+
 #[test]
 #[ignore = "requires active native desktop; intentionally invalid paint fixture, no daemon"]
 fn native_sidebar_probe_failure_exits_without_aborting() {
@@ -116,6 +127,8 @@ enum Fixture {
     Notifications,
     #[cfg(target_os = "macos")]
     SessionRows,
+    #[cfg(target_os = "macos")]
+    SettingsSessions,
     InvalidChildWidth,
     #[cfg(target_os = "linux")]
     InputShutdown(&'static str),
@@ -146,6 +159,11 @@ fn native_fixture(fixture: Fixture) {
         #[cfg(target_os = "macos")]
         Fixture::SessionRows => {
             command.env("HERDR_TEST_SESSION_ROWS", "1");
+        }
+        #[cfg(target_os = "macos")]
+        Fixture::SettingsSessions => {
+            seed_sessions(&isolated.sandbox);
+            command.env("HERDR_TEST_SETTINGS_SESSIONS", "1");
         }
         Fixture::InvalidChildWidth => {
             command.env("HERDR_TEST_SIDEBAR_PROBE_FAILURE", "1");
@@ -194,10 +212,48 @@ fn native_fixture(fixture: Fixture) {
         Fixture::Notifications => "NOTIFICATIONS native PASS:",
         #[cfg(target_os = "macos")]
         Fixture::SessionRows => "SESSION ROWS native PASS:",
+        #[cfg(target_os = "macos")]
+        Fixture::SettingsSessions => "SETTINGS SESSIONS native PASS:",
         #[cfg(target_os = "linux")]
         Fixture::InputShutdown(_) => "INPUT shutdown ready:",
         _ => "SIDEBAR native PASS:",
     }));
+    #[cfg(target_os = "macos")]
+    if matches!(fixture, Fixture::SettingsSessions) {
+        assert_sessions_saved(&isolated.sandbox);
+    }
+}
+
+/// The opposite of every value the Sessions fixture's clicks save, so each
+/// click has to change the file.
+#[cfg(target_os = "macos")]
+fn seed_sessions(sandbox: &Sandbox) {
+    let path = sandbox.dir.join("config.toml");
+    let mut config = fs::read_to_string(&path).unwrap();
+    config.push_str(
+        "[ui]\nsession_sidebar = true\n[session_titles]\nenabled = false\nagent = \"claude\"\n",
+    );
+    fs::write(path, config).unwrap();
+}
+
+/// What the Sessions fixture saved reached the sandbox's own config file.
+#[cfg(target_os = "macos")]
+fn assert_sessions_saved(sandbox: &Sandbox) {
+    let config = fs::read_to_string(sandbox.dir.join("config.toml")).unwrap();
+    let config: toml::Table = toml::from_str(&config).unwrap();
+    let ui = config["ui"].as_table().unwrap();
+    let titles = config["session_titles"].as_table().unwrap();
+    assert_eq!(ui["session_sidebar"].as_bool(), Some(false), "{config:?}");
+    assert_eq!(titles["enabled"].as_bool(), Some(true), "{config:?}");
+    assert_eq!(titles["agent"].as_str(), Some("codex"), "{config:?}");
+    assert_eq!(
+        titles
+            .get("model")
+            .and_then(toml::Value::as_str)
+            .unwrap_or(""),
+        "",
+        "{config:?}"
+    );
 }
 
 /// These fixtures' glyph checks measure the old agent row. Their Settings

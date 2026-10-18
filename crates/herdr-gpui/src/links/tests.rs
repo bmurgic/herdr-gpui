@@ -1,8 +1,8 @@
 #![allow(clippy::unwrap_used)]
 use super::*;
+use crate::test_snapshots::welcome;
 use herdr_client::protocol::{
     FrameData, PaneSurfacePane, PaneSurfaceScrollMetrics, SurfaceGraphicsScene,
-    endpoint::EndpointServerWelcome,
 };
 
 fn rect(x: u16, y: u16, width: u16, height: u16) -> SurfaceRect {
@@ -64,20 +64,6 @@ fn cell(surface: &PaneSurfaceFrame, x: u16, y: u16) -> Option<LinkCell> {
 
 fn resolved(regions: Value) -> Value {
     json!({"id": "gpui-1", "result": {"type": "pane_link_resolved", "regions": regions}})
-}
-
-fn welcome(methods: &[&str]) -> ClientEvent {
-    ClientEvent::Connected(EndpointServerWelcome {
-        generation: 1,
-        server_version: "test".into(),
-        snapshot_codec: String::new(),
-        surface_codec: String::new(),
-        input_codec: String::new(),
-        blob_codec: String::new(),
-        methods: methods.iter().map(|method| (*method).into()).collect(),
-        capabilities: Vec::new(),
-        error: None,
-    })
 }
 
 #[test]
@@ -232,7 +218,7 @@ fn link_methods_are_advertised_separately() {
 #[test]
 fn the_mailbox_keeps_its_answers_and_passes_everything_else_on() {
     let mut inbox = LinkInbox::default();
-    assert!(inbox.apply(welcome(&["pane.link.resolve"])).is_some());
+    assert!(inbox.apply(welcome(&["pane.link.resolve"], &[])).is_some());
     inbox.resolving = Some(Pending {
         id: "gpui-1".into(),
         result: None,

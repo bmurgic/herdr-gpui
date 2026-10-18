@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_snapshots::welcome;
 use herdr_client::protocol::FrameData;
 
 mod agent_recency;
@@ -13,6 +14,7 @@ mod local_peer_warning;
 mod refused_focus;
 mod requests;
 mod session_actions;
+mod session_titles;
 mod surfaces;
 mod version_mismatch;
 mod workspace_move;

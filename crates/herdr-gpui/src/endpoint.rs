@@ -580,6 +580,16 @@ impl HerdrWindow {
         )
     }
 
+    /// The first endpoint that is not an SSH host: the daemon on this machine,
+    /// which owns the shared `config.toml` that Settings edits. `live` on the
+    /// window mirrors whichever endpoint is shown, so this one is read for
+    /// anything about the local daemon.
+    pub(crate) fn local_endpoint(&self) -> Option<&Endpoint> {
+        self.endpoints
+            .iter()
+            .find(|endpoint| !endpoint.connection.target.is_remote())
+    }
+
     /// Attach this window to another named local session. The local endpoint
     /// keeps its identity, so the session changes its target rather than adding
     /// an endpoint for every session on the machine.

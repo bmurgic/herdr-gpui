@@ -82,6 +82,15 @@ pub(super) struct SizeIo {
     pub(super) load: fn() -> crate::Result<Loaded>,
 }
 
+/// Replaces the shared settings write and the reload after it. Only tests on
+/// Unix build one, because shared saves are refused on Windows.
+#[cfg(all(test, unix))]
+#[derive(Clone)]
+pub(super) struct SharedIo {
+    pub(super) write: std::sync::Arc<dyn Fn(Edit) -> crate::Result<()> + Send + Sync>,
+    pub(super) load: std::sync::Arc<dyn Fn() -> crate::Result<Loaded> + Send + Sync>,
+}
+
 impl SettingsWindow {
     pub(super) fn watch_config(&mut self, cx: &mut Context<Self>) {
         let Some(paths) = watched_paths() else {
@@ -233,7 +242,11 @@ impl SettingsWindow {
         self.load_revision = self.load_revision.wrapping_add(1);
         let valid = loaded.is_ok();
         match loaded {
-            Ok(loaded) => {
+            Ok(mut loaded) => {
+                // A section the reload could not read keeps what was shown.
+                if let (Some(previous), Some(next)) = (&self.shared, &mut loaded.shared) {
+                    next.keep_session_titles(previous);
+                }
                 let live = self
                     .theme_intent
                     .as_ref()
@@ -249,6 +262,7 @@ impl SettingsWindow {
                 }
                 self.shared = loaded.shared;
                 self.error = loaded.error;
+                self.sync_title_model_field(true, cx);
                 self.sync_code_field(cx);
                 // The saved volume reaches the shared sound worker now, not when
                 // a main window's watcher next reloads, which waits for its
@@ -260,7 +274,8 @@ impl SettingsWindow {
             Err(error) => {
                 self.error = Some(format!(
                     "Could not reload settings; keeping current preferences: {error}"
-                ))
+                ));
+                self.sync_title_model_field(false, cx);
             }
         }
         // Appearance may have changed while the loader was running. Resolve
@@ -325,13 +340,35 @@ impl SettingsWindow {
     }
 
     pub(super) fn save_shared(&mut self, edit: Edit, cx: &mut Context<Self>) {
+        self.save_shared_then(edit, |_, _| {}, cx);
+    }
+
+    /// `save_shared`, running `on_saved` after a successful write.
+    pub(super) fn save_shared_then(
+        &mut self,
+        edit: Edit,
+        on_saved: impl FnOnce(&mut Self, &mut Context<Self>) + 'static,
+        cx: &mut Context<Self>,
+    ) {
         let Some(shared) = self.shared.clone() else {
             return;
         };
-        self.save_with(
+        #[cfg(all(test, unix))]
+        if let Some(io) = self.shared_io.clone() {
+            self.save_with_completion(
+                move || (io.write)(edit),
+                move || (io.load)(),
+                true,
+                on_saved,
+                cx,
+            );
+            return;
+        }
+        self.save_with_completion(
             move || shared.save(edit).map(|_| ()),
             self.loader(cx),
             true,
+            on_saved,
             cx,
         );
     }
@@ -343,7 +380,7 @@ impl SettingsWindow {
         shared: bool,
         cx: &mut Context<Self>,
     ) {
-        self.save_with_completion(operation, load, shared, |_| {}, cx);
+        self.save_with_completion(operation, load, shared, |_, _| {}, cx);
     }
 
     pub(super) fn save_with_completion(
@@ -351,7 +388,7 @@ impl SettingsWindow {
         operation: impl FnOnce() -> crate::Result<()> + Send + 'static,
         load: impl FnOnce() -> crate::Result<Loaded> + Send + 'static,
         shared: bool,
-        on_saved: impl FnOnce(&mut Context<Self>) + 'static,
+        on_saved: impl FnOnce(&mut Self, &mut Context<Self>) + 'static,
         cx: &mut Context<Self>,
     ) {
         if self.busy() {
@@ -391,7 +428,7 @@ impl SettingsWindow {
                 this.save_completion = None;
                 this.saved_sample = written;
                 if saved.is_ok() {
-                    on_saved(cx);
+                    on_saved(this, cx);
                 }
                 if this.quitting {
                     return;
@@ -436,10 +473,7 @@ impl SettingsWindow {
                     // Direct loads here can overwrite its active picker preview.
                     if shared && saved.is_ok() {
                         // Use the existing connection, without stealing its response lane.
-                        if let Some(endpoint) = source
-                            .endpoints
-                            .iter()
-                            .find(|endpoint| !endpoint.connection.target.is_remote())
+                        if let Some(endpoint) = source.local_endpoint()
                             && let (Some(handle), Some(snapshot)) =
                                 (&endpoint.connection.handle, &endpoint.live.snapshot)
                             && endpoint.live.status.is_connected()

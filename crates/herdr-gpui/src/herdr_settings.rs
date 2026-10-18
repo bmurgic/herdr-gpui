@@ -16,6 +16,7 @@ mod persistence;
 #[path = "herdr_settings/persistence_windows.rs"]
 mod persistence;
 mod remote;
+mod session_titles;
 mod sidebar;
 #[cfg(test)]
 mod tests;
@@ -26,6 +27,7 @@ use herdr_client::protocol::AgentStatus;
 pub(crate) use herdr_client::protocol::ToastHerdrPosition as ToastPosition;
 pub(crate) use remote::RemotePaneHistory;
 use serde::{Deserialize, Deserializer};
+pub(crate) use session_titles::{SessionTitles, TitleAgent};
 use std::{env, num::NonZeroU16, path::PathBuf};
 use toml_edit::{DocumentMut, Item, Value};
 
@@ -253,6 +255,10 @@ pub(crate) enum Edit {
     TabBarPosition(TabBarPosition),
     HideSingleTabBar(bool),
     PaneHistory(bool),
+    SessionSidebar(bool),
+    SessionTitlesEnabled(bool),
+    TitleAgent(TitleAgent),
+    TitleModel(String),
     /// Adds `token` (config spelling, such as `$summary`) as its own row of
     /// `[ui.sidebar.<scope>].rows`, or removes every occurrence of it there.
     SidebarToken {
@@ -292,6 +298,10 @@ pub(crate) struct Settings {
     /// Herdr's `ui.session_sidebar`: agent rows draw as four-line session rows.
     /// On unless the file turns it off.
     pub session_sidebar: bool,
+    /// Herdr's `[session_titles]` section. An invalid section reads as the
+    /// defaults, and `keep_session_titles` then restores the previous values.
+    pub session_titles: SessionTitles,
+    session_titles_invalid: bool,
     palettes: [palette::Palette; 2],
     original: persistence::Snapshot,
 }
@@ -323,6 +333,7 @@ impl std::fmt::Debug for Settings {
             .field("right_click_passthrough", &self.right_click_passthrough)
             .field("pane_history", &self.pane_history)
             .field("session_sidebar", &self.session_sidebar)
+            .field("session_titles", &self.session_titles)
             .finish_non_exhaustive()
     }
 }
@@ -336,6 +347,9 @@ struct Parsed {
     ui: Ui,
     #[serde(deserialize_with = "crate::lenient::or_default")]
     experimental: Experimental,
+    // Read by hand: an invalid section must keep the previous values, which a
+    // lenient per-key default could not tell apart from a valid one.
+    session_titles: Option<toml::Value>,
 }
 
 #[derive(Default, Deserialize)]
@@ -484,6 +498,7 @@ impl Settings {
                 .prompt_new_workspace_name
                 .unwrap_or(defaults.workspace),
         };
+        let titles = SessionTitles::read(parsed.session_titles.as_ref());
         let toast = parsed.ui.toast;
         // Herdr refuses a longer delay and keeps its default, so this does too.
         let delay = toast
@@ -527,6 +542,8 @@ impl Settings {
             right_click_passthrough: parsed.ui.right_click_passthrough_modifier,
             pane_history: parsed.experimental.pane_history,
             session_sidebar: parsed.ui.session_sidebar.unwrap_or(true),
+            session_titles_invalid: titles.is_none(),
+            session_titles: titles.unwrap_or_default(),
             palettes,
             original,
         })
@@ -589,6 +606,12 @@ impl Settings {
                     &["experimental", "pane_history"],
                     enabled.into(),
                 )?,
+                Edit::SessionSidebar(shown) => session_titles::edit_sidebar(&mut document, shown)?,
+                Edit::SessionTitlesEnabled(enabled) => {
+                    session_titles::edit_enabled(&mut document, enabled)?
+                }
+                Edit::TitleAgent(agent) => session_titles::edit_agent(&mut document, agent)?,
+                Edit::TitleModel(model) => session_titles::edit_model(&mut document, &model)?,
                 Edit::Toasts(delivery) => {
                     set(
                         &mut document,
@@ -644,6 +667,14 @@ impl Settings {
             Ok(next)
         })();
         result.map_err(|error| crate::Error::from(error).at_path(&self.path))
+    }
+
+    /// A section that fails to load keeps the values shown before it, as
+    /// myherdr does, so a reload never snaps the rows back to the defaults.
+    pub(crate) fn keep_session_titles(&mut self, previous: &Settings) {
+        if self.session_titles_invalid {
+            self.session_titles = previous.session_titles.clone();
+        }
     }
 
     /// Pure: no filesystem access; safe to use prepared settings on the UI thread.

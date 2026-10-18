@@ -47,6 +47,12 @@ mod session_rows;
 use session_rows::start_session_rows;
 
 #[cfg(target_os = "macos")]
+#[path = "smoke_settings_sessions.rs"]
+mod settings_sessions;
+#[cfg(target_os = "macos")]
+use settings_sessions::start_settings_sessions;
+
+#[cfg(target_os = "macos")]
 #[path = "smoke_preferences.rs"]
 mod preferences;
 #[cfg(target_os = "macos")]

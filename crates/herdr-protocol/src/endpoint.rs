@@ -15,6 +15,9 @@ pub const BLOB_CODEC_V1: &str = "shell.blob.v1";
 /// from a client whose surface is inactive, so a client can act on a pane of a
 /// server it is not showing.
 pub const BACKGROUND_PANE_COMMANDS_CAPABILITY: &str = "background_pane_commands";
+/// Advertised by a daemon that names agent panes from their first prompt and
+/// reads the `[session_titles]` settings, so a client may show those settings.
+pub const SESSION_TITLES_CAPABILITY: &str = "session_titles";
 fn default_true() -> bool {
     true
 }
