@@ -26,7 +26,11 @@ fn layers(cx: &mut VisualTestContext, region: Bounds<Pixels>) -> Vec<f32> {
 
 #[gpui::test]
 fn every_region_of_a_translucent_window_is_as_clear_as_the_opacity(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        crate::sidebar::layout_tests::show_spaces_tab(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(900.), px(600.)));
     cx.update(|window, cx| {
         view.update(cx, |view, cx| {

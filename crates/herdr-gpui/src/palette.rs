@@ -361,6 +361,10 @@ pub(super) struct Palette {
     /// The row a resumed palette selects again once a ranking lists it,
     /// until the user picks another row, filter, or query.
     restore: Option<Identity>,
+    /// Set by the workspace picker: the tabbed sidebar shows Spaces under it,
+    /// whichever tab is selected. It lives and dies with this palette, which
+    /// `MenuState::reset` takes on every close.
+    pub(crate) forces_spaces: bool,
     _subscription: Subscription,
 }
 
@@ -620,6 +624,7 @@ impl HerdrWindow {
             supports_edit_scrollback: self.live.supports_edit_scrollback,
             notes_revision: None,
             restore: None,
+            forces_spaces: false,
             preview_painter: Default::default(),
             boosts: Frecency::of(cx)
                 .map_or_else(Default::default, |history| history.boosts(frecency::now())),

@@ -343,6 +343,7 @@ fn rounded_rows_drop_tree_lines_and_title_headers(cx: &mut gpui::TestAppContext)
     for (style, header) in [(Style::Rounded, "Spaces"), (Style::Flat, "spaces")] {
         let (view, cx) = cx.add_window_view(|window, cx| {
             let mut view = fixture_window(window, cx);
+            old_agent_rows(&mut view);
             view.live.snapshot = Some(Arc::new(snapshot(6)));
             view.config.layout.mode = LayoutMode::new(Density::Normal, style);
             view
@@ -390,7 +391,11 @@ fn choosing_a_layout_redraws_the_sidebar_and_saves_it(cx: &mut gpui::TestAppCont
     use crate::config::{Density, LayoutMode, Style};
     use std::sync::{Arc as SyncArc, Mutex};
 
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(900.)));
     cx.update(|window, cx| full_draw(window, cx).clear(cx));
     assert!(cx.debug_bounds("icon-herdr").is_none());
@@ -464,6 +469,7 @@ fn upstream_counts_follow_the_branch_or_trail_one_line_rows(cx: &mut gpui::TestA
     use crate::config::{Density, LayoutMode, Style};
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
         view.live.snapshot = Some(Arc::new(snapshot_with_upstream()));
         view
     });

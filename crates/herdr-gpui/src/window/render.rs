@@ -59,6 +59,7 @@ impl HerdrWindow {
 impl Render for HerdrWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.restore_menu_focus(window, cx);
+        self.release_hidden_search_focus(window, cx);
         self.sync_backdrop(window, cx);
         self.tick_chrome(window, cx);
         self.sync_device_themes(cx);
@@ -77,8 +78,12 @@ impl Render for HerdrWindow {
         self.cell_width = self.painter.borrow_mut().cell_width(&font, window, cx);
         // Registers the window for surface-only redraws; see `redraw_terminal`.
         self.surface_signal.read(cx);
-        let sidebar = self
-            .sidebar_mode()
+        let sidebar_mode = self.sidebar_mode();
+        // Only the expanded sidebar draws a tab bar.
+        if sidebar_mode != crate::sidebar::SidebarMode::Expanded {
+            self.sidebar_tab_bounds.set(Default::default());
+        }
+        let sidebar = sidebar_mode
             .width(self.sidebar_width, f32::from(window.viewport_size().width))
             .map(|width| {
                 (
@@ -90,6 +95,14 @@ impl Render for HerdrWindow {
         // presented before it: the terminal area never blanks between two
         // projections. What the client knows to be current stays in `live`.
         let picture = self.presentation.picture(&self.live);
+        // Painting is what ends the card once the replacement frame lands, and
+        // the cached sidebar swaps layouts with it. A notification made while
+        // drawing never reaches the observer that wakes the sidebar, so ask
+        // for the next frame to make it, on the change only.
+        let reconnecting = self.reconnecting();
+        if self.reconnect_seen.replace(reconnecting) != reconnecting {
+            window.request_animation_frame();
+        }
         let surface = picture.as_ref().map(|picture| picture.frame.clone());
         let images = picture.as_ref().map(|picture| picture.images.clone());
         // A group picking the tab another shows paints this same frame.

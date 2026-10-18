@@ -10,7 +10,11 @@ fn set_footer(view: &Entity<HerdrWindow>, mode: DeviceFooter, cx: &mut gpui::Vis
 
 #[gpui::test]
 fn device_footer_setting_hides_it_and_gives_agents_the_room(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(600.)));
     cx.update(|window, cx| full_draw(window, cx).clear(cx));
     let sidebar = cx.debug_bounds("sidebar").unwrap();
@@ -69,7 +73,11 @@ fn device_footer_setting_hides_it_and_gives_agents_the_room(cx: &mut gpui::TestA
 fn split_drag_tracks_the_pointer_without_the_footer(cx: &mut gpui::TestAppContext) {
     use gpui::MouseButton;
 
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(600.)));
     for mode in [DeviceFooter::Auto, DeviceFooter::Never] {
         set_footer(&view, mode, cx);

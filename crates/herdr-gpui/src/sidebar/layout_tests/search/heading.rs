@@ -12,7 +12,11 @@ fn placeholder(view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext) -> 
 
 #[gpui::test]
 fn the_heading_is_the_field_and_spans_a_rows_highlight(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(connected);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = connected(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(700.)));
     cx.run_until_parked();
     cx.update(|window, cx| full_draw(window, cx).clear(cx));

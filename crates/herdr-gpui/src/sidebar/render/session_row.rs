@@ -4,7 +4,7 @@
 use crate::{
     HerdrWindow,
     sidebar::{
-        agents::status_indicator,
+        agents::{SortLabelPlace, agents_sort, status_indicator},
         cell::{RowContext, RowState},
         glyph_width, label_text, line_height,
         row::{RowKind, row_text},
@@ -28,7 +28,9 @@ impl HerdrWindow {
     /// It stands in for Herdr's agent row in every layout, so only the
     /// layout's look is used: its padding, highlight, and host mark. `gap` is
     /// the blank line above it. `machine` names the host in the title, and
-    /// `age` dates its activity.
+    /// `age` dates its activity. `line_one_reserve` is the columns line one
+    /// leaves free at its right end for the sort label, which it then ends
+    /// with.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn session_cell(
         &self,
@@ -39,6 +41,7 @@ impl HerdrWindow {
         machine: Option<&str>,
         age: AgeClock,
         gap: f32,
+        line_one_reserve: usize,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
         let RowContext {
@@ -46,7 +49,6 @@ impl HerdrWindow {
             font,
             theme,
             look,
-            width,
             nest,
             mark,
             ..
@@ -62,12 +64,9 @@ impl HerdrWindow {
         };
         let session = SessionRow::new(snapshot, agent, machine, age.carries_activity);
 
-        // The text column starts past the status mark, as Herdr's own row's
-        // does, and every line fits the room it leaves.
-        let mark_width = indicators.width(font);
+        // Every line fits the text column `text_room` measures.
         let column_gap = look.density.gap();
-        let room = (look.content_width(width) - mark_width - column_gap - nest).max(0.);
-        let columns = (room / glyph_width(font)).floor() as usize;
+        let (room, columns) = text_room(row_cx);
         let line = line_height(font);
 
         let icon = crate::icons::AgentIcon::from_identity(agent.agent.as_deref());
@@ -75,7 +74,11 @@ impl HerdrWindow {
         let age_text = session
             .activity_ms
             .map(|activity_ms| age_text(activity_ms, age.now_ms));
-        let (title, age_kept) = fit_line_one(&session.title, age_text.as_deref(), columns);
+        let (title, age_kept) = fit_line_one(
+            &session.title,
+            age_text.as_deref(),
+            columns.saturating_sub(line_one_reserve),
+        );
         let age_text = age_text.filter(|_| age_kept);
         let (name_first, name_second) = wrap_two_lines(&session.name, columns);
         let branch = format!(
@@ -83,21 +86,45 @@ impl HerdrWindow {
             session.branch.as_deref().unwrap_or(NO_BRANCH)
         );
         let colors = SessionColors::new(name_color, session.name_dim, theme.muted);
+        // The title and age fit what the label leaves, and the label ends the
+        // line.
+        let reserve_width = line_one_reserve as f32 * glyph_width(font);
+        let line_one = first_line(
+            &title,
+            age_text.as_deref(),
+            &agent.pane_id,
+            (colors.title, theme.muted),
+            room - reserve_width,
+            line,
+            weight,
+        );
+        let line_one = if line_one_reserve == 0 {
+            line_one
+        } else {
+            div()
+                .w(px(room))
+                .h(px(line))
+                .flex_none()
+                .flex()
+                .child(line_one)
+                .child(
+                    agents_sort(
+                        self,
+                        cx,
+                        SortLabelPlace::FirstLine {
+                            columns: line_one_reserve,
+                        },
+                    )
+                    .ml_auto(),
+                )
+        };
         let column = div()
             .flex()
             .flex_col()
             .w(px(room))
             .flex_none()
             .overflow_hidden()
-            .child(first_line(
-                &title,
-                age_text.as_deref(),
-                &agent.pane_id,
-                (colors.title, theme.muted),
-                room,
-                line,
-                weight,
-            ))
+            .child(line_one)
             .child(text_line(&name_first, colors.name, room, line))
             .child(text_line(&name_second, colors.name, room, line))
             .child(text_line(
@@ -138,6 +165,22 @@ impl HerdrWindow {
             .when(gap > 0., |row| row.mt(px(gap)));
         self.wire_agent_row(row, index, &agent.pane_id, cx)
     }
+}
+
+/// The width and whole columns of a session row's text column, which starts
+/// past the status mark and the nesting, as Herdr's own row's does.
+pub(super) fn text_room(row_cx: &RowContext) -> (f32, usize) {
+    let RowContext {
+        indicators,
+        font,
+        look,
+        width,
+        nest,
+        ..
+    } = *row_cx;
+    let room =
+        (look.content_width(width) - indicators.width(font) - look.density.gap() - nest).max(0.);
+    (room, (room / glyph_width(font)).floor() as usize)
 }
 
 /// The colours of a session row's lines, as myherdr's `name_color`,
@@ -181,6 +224,7 @@ fn first_line(
         .text_color(rgb(title_color))
         .child(
             div()
+                .debug_selector(|| format!("session-title-{pane_id}"))
                 .min_w_0()
                 .truncate()
                 .font_weight(weight)

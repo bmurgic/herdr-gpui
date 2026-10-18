@@ -67,6 +67,14 @@ mod session_rows;
 #[cfg(test)]
 mod sidebar_cache;
 #[cfg(test)]
+mod sidebar_tabs;
+#[cfg(test)]
+mod sidebar_tabs_lists;
+#[cfg(test)]
+mod sidebar_tabs_navigate;
+#[cfg(test)]
+mod sidebar_tabs_sort;
+#[cfg(test)]
 mod spacing_overrides;
 #[cfg(test)]
 mod split_pane;
@@ -434,11 +442,122 @@ pub(crate) fn snapshot(workspace_count: usize) -> ClientShellSnapshotV2 {
 /// Draws agent rows as they were before session rows, for the tests that
 /// read the old row's own elements or a configured layout. The shared config
 /// is what turns the session row off, so a test calls this before it draws.
+/// The same setting restores the stacked sidebar, so it also serves the tests
+/// that read the stacked sections, their split, or their headings.
 #[cfg(test)]
 pub(crate) fn old_agent_rows(view: &mut HerdrWindow) {
     view.settings.shared = Some(
         crate::herdr_settings::Settings::parse_text("[ui]\nsession_sidebar = false\n").unwrap(),
     );
+}
+
+/// Shows the Spaces list in the tabbed sidebar, for the tests that read only
+/// workspaces, the search field, or host headers.
+#[cfg(test)]
+pub(crate) fn show_spaces_tab(view: &mut HerdrWindow) {
+    view.sidebar_tab = super::SidebarTab::Spaces;
+}
+
+/// The fixture window, 800 by 600, with `edit` applied before the first
+/// frame. The shared config is never loaded, so the sidebar is tabbed.
+#[cfg(test)]
+pub(super) fn tabbed_window(
+    cx: &mut gpui::TestAppContext,
+    edit: impl FnOnce(&mut HerdrWindow) + 'static,
+) -> (Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        edit(&mut view);
+        view
+    });
+    cx.simulate_resize(size(px(800.), px(600.)));
+    cx.run_until_parked();
+    draw(cx);
+    (view, cx)
+}
+
+/// A full frame, leaving the recorded painted text as it was.
+#[cfg(test)]
+pub(super) fn draw(cx: &mut gpui::VisualTestContext) {
+    cx.update(|window, cx| full_draw(window, cx).clear(cx));
+}
+
+/// Clicks the middle of the element `selector` names, such as a sidebar tab.
+#[cfg(test)]
+pub(super) fn select_tab(selector: &'static str, cx: &mut gpui::VisualTestContext) {
+    let tab = cx.debug_bounds(selector).unwrap();
+    cx.simulate_click(tab.center(), Modifiers::default());
+}
+
+/// Forty copies of the fixture's first agent, in panes `p0` to `p39`, so the
+/// Agents list overflows its area. The fixture's workspaces already overflow
+/// the Spaces list.
+#[cfg(test)]
+pub(super) fn forty_agents(view: &mut HerdrWindow) {
+    let listing = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
+    listing.agents = (0..40)
+        .map(|i| {
+            let mut agent = listing.agents[0].clone();
+            agent.pane_id = format!("p{i}");
+            agent
+        })
+        .collect();
+}
+
+/// The fixture's two agents in a window `width` wide with session rows on:
+/// `p0` in workspace `herdr` (branch `main`) and `p1` in the next workspace.
+/// `edit` shapes the snapshot first. The shared config is never loaded, which
+/// is how the setting reads as on.
+#[cfg(test)]
+pub(super) fn session_window(
+    cx: &mut gpui::TestAppContext,
+    width: f32,
+    edit: impl FnOnce(&mut ClientShellSnapshotV2) + 'static,
+) -> (Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
+    let (fixture, cx) = cx.add_window_view(|window, cx| {
+        let view = cx.new(|cx| {
+            let mut view = fixture_window(window, cx);
+            view.sidebar_width = Some(width);
+            let mut listing = snapshot(2);
+            edit(&mut listing);
+            view.live.snapshot = Some(Arc::new(listing));
+            view
+        });
+        cx.observe(&view, |_, _, cx| cx.notify()).detach();
+        SidebarFixture(view)
+    });
+    let view = cx.update(|_, cx| fixture.read(cx).0.clone());
+    cx.simulate_resize(size(px(800.), px(900.)));
+    cx.run_until_parked();
+    redraw(cx);
+    (view, cx)
+}
+
+/// A full frame with the painted text recorded afresh.
+#[cfg(test)]
+pub(super) fn redraw(cx: &mut gpui::VisualTestContext) {
+    cx.update(|window, cx| {
+        cx.default_global::<TextProbes>().0.clear();
+        full_draw(window, cx).clear(cx);
+    });
+}
+
+#[cfg(test)]
+pub(super) fn painted(cx: &mut gpui::VisualTestContext, text: &str) -> bool {
+    cx.update(|_, cx| cx.global::<TextProbes>().0.contains_key(text))
+}
+
+#[cfg(test)]
+pub(super) fn text_bounds(cx: &mut gpui::VisualTestContext, text: &str) -> Bounds<Pixels> {
+    cx.update(|_, cx| cx.global::<TextProbes>().0[text].0)
+}
+
+#[cfg(test)]
+pub(super) fn inside(outer: Bounds<Pixels>, inner: Bounds<Pixels>) -> bool {
+    outer.left() <= inner.left()
+        && inner.right() <= outer.right()
+        && outer.top() <= inner.top()
+        && inner.bottom() <= outer.bottom()
 }
 
 /// A pane the snapshot names `label`, in workspace `w0`'s first tab.
@@ -575,6 +694,25 @@ pub(crate) fn devices_window(
     cx.update(|_, cx| view.update(cx, |view, cx| view.poll_devices_overview(cx)));
     cx.run_until_parked();
     cx.update(|window, cx| full_draw(window, cx).clear(cx));
+    (view, cx)
+}
+
+#[cfg(test)]
+/// `devices_window` after `arrange` has shaped the window: the tabbed
+/// sidebar shows one list, so a test reading the tree picks Spaces, and one
+/// reading the stacked sections turns the session sidebar off.
+pub(super) fn devices_window_arranged(
+    cx: &mut gpui::TestAppContext,
+    arrange: fn(&mut HerdrWindow),
+) -> (Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
+    let (view, cx) = devices_window(cx);
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            arrange(view);
+            cx.notify();
+        });
+        full_draw(window, cx).clear(cx);
+    });
     (view, cx)
 }
 
@@ -758,6 +896,10 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         tab_drag: None,
         sidebar_split: None,
         sidebar_split_modified: false,
+        sidebar_tab: Default::default(),
+        sidebar_tab_bounds: Default::default(),
+        sidebar_drawn_tab: Default::default(),
+        reconnect_seen: Default::default(),
         sidebar_preferences: None,
         sidebar_modified: false,
         agent_sort: Default::default(),

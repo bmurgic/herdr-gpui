@@ -226,7 +226,11 @@ fn the_agents_header_toggles_between_grouped_and_priority(cx: &mut gpui::TestApp
     use crate::preferences::AgentSort;
     let (fixture, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
-        let view = cx.new(|cx| fixture_window(window, cx));
+        let view = cx.new(|cx| {
+            let mut view = fixture_window(window, cx);
+            old_agent_rows(&mut view);
+            view
+        });
         cx.observe(&view, |_, _, cx| cx.notify()).detach();
         SidebarFixture(view)
     });
@@ -291,7 +295,11 @@ fn a_plugin_agent_view_orders_and_filters_the_agents(cx: &mut gpui::TestAppConte
     use crate::preferences::AgentSort;
     let (fixture, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
-        let view = cx.new(|cx| fixture_window(window, cx));
+        let view = cx.new(|cx| {
+            let mut view = fixture_window(window, cx);
+            old_agent_rows(&mut view);
+            view
+        });
         cx.observe(&view, |_, _, cx| cx.notify()).detach();
         SidebarFixture(view)
     });
@@ -362,7 +370,11 @@ fn name_painted(cx: &App, forms: &[&str]) -> bool {
 #[cfg(test)]
 #[gpui::test]
 fn hiding_agents_reclaims_sidebar_height(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     for width in [800., 360.] {
         cx.simulate_resize(size(px(width), px(600.)));
         let mut visible_height = px(0.);
@@ -396,6 +408,7 @@ fn hiding_agents_reclaims_sidebar_height(cx: &mut gpui::TestAppContext) {
 fn hiding_agents_preserves_scrolled_multi_endpoint_lists(cx: &mut gpui::TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         let snapshot = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
         snapshot.agents = (0..8)
             .map(|i| {

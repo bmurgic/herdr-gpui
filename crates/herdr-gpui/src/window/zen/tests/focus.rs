@@ -89,6 +89,8 @@ fn the_search_focused_mid_slide_gives_the_keyboard_back(cx: &mut TestAppContext)
     let (view, cx) = window(cx);
     cx.update(|window, cx| {
         view.update(cx, |view, cx| {
+            // The search field is drawn under Spaces only.
+            crate::sidebar::layout_tests::show_spaces_tab(view);
             view.zen.hold_slides();
             view.command(Command::ToggleZenMode, window, cx);
             let search = view.sidebar_search.focus(cx);

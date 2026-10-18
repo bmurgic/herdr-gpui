@@ -37,6 +37,7 @@ fn workspaces_nest_under_their_host_in_every_layout(cx: &mut gpui::TestAppContex
         let (_single, cx_single) = cx.add_window_view(|window, cx| {
             let view = cx.new(|cx| {
                 let mut view = fixture_window(window, cx);
+                show_spaces_tab(&mut view);
                 view.config.layout.mode = mode;
                 view
             });
@@ -48,6 +49,7 @@ fn workspaces_nest_under_their_host_in_every_layout(cx: &mut gpui::TestAppContex
         let (_multi, cx_multi) = cx.add_window_view(|window, cx| {
             let view = cx.new(|cx| {
                 let mut view = fixture_window(window, cx);
+                show_spaces_tab(&mut view);
                 view.config.layout.mode = mode;
                 let remote = remote_endpoint(&view);
                 view.endpoints.push(remote);
@@ -74,6 +76,7 @@ fn nested_worktree_rows_fit_a_narrow_sidebar(cx: &mut gpui::TestAppContext) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| {
             let mut view = fixture_window(window, cx);
+            show_spaces_tab(&mut view);
             // Few enough rows per host that the remote host's child is on
             // screen below the local host's rows.
             view.live.snapshot = Some(Arc::new(snapshot(6)));

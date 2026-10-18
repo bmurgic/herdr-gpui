@@ -5,7 +5,11 @@ fn the_sidebar_follows_the_selection_without_undoing_manual_scrolling(
     cx: &mut gpui::TestAppContext,
 ) {
     let (fixture, cx) = cx.add_window_view(|window, cx| {
-        let view = cx.new(|cx| fixture_window(window, cx));
+        let view = cx.new(|cx| {
+            let mut view = fixture_window(window, cx);
+            show_spaces_tab(&mut view);
+            view
+        });
         cx.observe(&view, |_, _, cx| cx.notify()).detach();
         SidebarFixture(view)
     });

@@ -37,6 +37,7 @@ fn right_clicking_a_saved_host_offers_removal_but_local_has_no_menu(cx: &mut Tes
     let (view, cx) = cx.add_window_view(|window, cx| {
         crate::bind_keys(cx);
         let mut view = fixture_window(window, cx);
+        crate::sidebar::layout_tests::show_spaces_tab(&mut view);
         add_host(&mut view);
         view
     });
@@ -186,7 +187,11 @@ fn removal_offers_the_github_sign_in_and_reports_each_outcome(cx: &mut TestAppCo
 
 #[gpui::test]
 fn a_removal_pulses_the_host_header_until_the_device_leaves(cx: &mut TestAppContext) {
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        crate::sidebar::layout_tests::show_spaces_tab(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(600.)));
     cx.update(|window, cx| {
         view.update(cx, |view, cx| {

@@ -12,34 +12,6 @@ const FIVE_MINUTES_MS: u64 = 300_000;
 
 const LONG_NAME: &str = "Fix the flaky upload test and re-run the integration suite";
 
-/// The fixture's two agents in a window `width` wide with session rows on:
-/// `p0` in workspace `herdr` (branch `main`) and `p1` in the next workspace.
-/// `edit` shapes the snapshot first. The shared config is never loaded, which
-/// is how the setting reads as on.
-fn session_window(
-    cx: &mut gpui::TestAppContext,
-    width: f32,
-    edit: impl FnOnce(&mut ClientShellSnapshotV2) + 'static,
-) -> (Entity<HerdrWindow>, &mut gpui::VisualTestContext) {
-    let (fixture, cx) = cx.add_window_view(|window, cx| {
-        let view = cx.new(|cx| {
-            let mut view = fixture_window(window, cx);
-            view.sidebar_width = Some(width);
-            let mut listing = snapshot(2);
-            edit(&mut listing);
-            view.live.snapshot = Some(Arc::new(listing));
-            view
-        });
-        cx.observe(&view, |_, _, cx| cx.notify()).detach();
-        SidebarFixture(view)
-    });
-    let view = cx.update(|_, cx| fixture.read(cx).0.clone());
-    cx.simulate_resize(size(px(800.), px(900.)));
-    cx.run_until_parked();
-    redraw(cx);
-    (view, cx)
-}
-
 /// `session_window` over a V2 endpoint, the only kind whose agents show an
 /// age, with `p0` carrying an activity time `elapsed_ms` ago.
 fn age_window(
@@ -59,22 +31,6 @@ fn age_window(
     });
     redraw(cx);
     (view, cx)
-}
-
-/// A full frame with the painted text recorded afresh.
-fn redraw(cx: &mut gpui::VisualTestContext) {
-    cx.update(|window, cx| {
-        cx.default_global::<TextProbes>().0.clear();
-        full_draw(window, cx).clear(cx);
-    });
-}
-
-fn painted(cx: &mut gpui::VisualTestContext, text: &str) -> bool {
-    cx.update(|_, cx| cx.global::<TextProbes>().0.contains_key(text))
-}
-
-fn text_bounds(cx: &mut gpui::VisualTestContext, text: &str) -> Bounds<Pixels> {
-    cx.update(|_, cx| cx.global::<TextProbes>().0[text].0)
 }
 
 fn row_height_of(view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext) -> f32 {
@@ -97,13 +53,6 @@ fn assert_four_lines(
         (actual - expected).abs() < 0.01,
         "{selector} is {actual} tall, not {expected}"
     );
-}
-
-fn inside(outer: Bounds<Pixels>, inner: Bounds<Pixels>) -> bool {
-    outer.left() <= inner.left()
-        && inner.right() <= outer.right()
-        && outer.top() <= inner.top()
-        && inner.bottom() <= outer.bottom()
 }
 
 #[gpui::test]
@@ -302,7 +251,7 @@ fn the_configured_layout_is_ignored(cx: &mut gpui::TestAppContext) {
 
 #[gpui::test]
 fn devices_rows_are_session_rows(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = devices_window(cx);
+    let (view, cx) = devices_window_arranged(cx, show_spaces_tab);
     redraw(cx);
     assert_four_lines(&view, cx, "agent-local-p0");
     assert_four_lines(&view, cx, "agent-ssh:test-remote-pane");

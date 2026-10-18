@@ -4,7 +4,11 @@ use super::*;
 fn sidebar_split_drag_clamps_releases_outside_and_resets(cx: &mut gpui::TestAppContext) {
     use gpui::{MouseButton, MouseDownEvent};
 
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(600.)));
     cx.update(|window, cx| full_draw(window, cx).clear(cx));
     let sidebar = cx.debug_bounds("sidebar").unwrap();
@@ -75,6 +79,7 @@ fn sidebar_split_preserves_independent_scrolling_and_agents_toggle(cx: &mut gpui
 
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        old_agent_rows(&mut view);
         let snapshot = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
         snapshot.agents = (0..40)
             .map(|i| {

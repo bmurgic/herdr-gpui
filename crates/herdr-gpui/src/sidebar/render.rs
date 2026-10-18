@@ -5,7 +5,6 @@
 use super::{
     DEVICE_FOOTER_HEIGHT, STATUS_WIDTH, SidebarDrag,
     agents::Indicators,
-    agents_sort,
     cell::{Cell, Fold, RowContext, RowData, WorkspaceRow, layout_for},
     label_text,
     layout::{self, SidebarLook},
@@ -13,6 +12,7 @@ use super::{
     reorder::{self, Plan},
     row::{RowIcon, RowLift, RowTree},
     sidebar_width, sticky,
+    tabs::SidebarTab,
     tokens::{self, SpaceContext},
     visible_workspace_entries, wash,
     workspaces::{displayed_workspace_status, workspace_badge, workspace_label, workspace_note},
@@ -27,6 +27,7 @@ use gpui::{prelude::*, *};
 mod agent_rows;
 mod device_tree;
 mod session_row;
+mod stacked;
 
 #[cfg(test)]
 pub(super) use session_row::SessionColors;
@@ -39,7 +40,6 @@ impl HerdrWindow {
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
         let width = sidebar_width(self.sidebar_width, f32::from(window.viewport_size().width));
-        let split = self.sidebar_split.unwrap_or(0.5).clamp(0.1, 0.9);
         let look = layout::for_config(&self.config, self.fill());
         let rows = layout_for(self.config.layout.mode);
         // The row a workspace menu was opened for keeps looking hovered while
@@ -64,9 +64,18 @@ impl HerdrWindow {
         // A hidden field keeps whatever it held, but never filters the list.
         let searchable = self.config.show_sidebar_search && !devices;
         let tree_search = self.config.show_sidebar_search && devices;
-        let search = (searchable && self.sidebar_search.query().is_some()).then(|| {
-            self.sidebar_search_results(self.sidebar_search_hits(cx), indicators, look, cx)
-        });
+        // The tabbed sidebar builds only the list it shows, the other being
+        // out of the element tree. The stacked one always shows both.
+        let tabbed = self.sidebar_tabbed();
+        let shown = self.shown_sidebar_tab();
+        if !tabbed {
+            self.sidebar_tab_bounds.set(Default::default());
+        }
+        let spaces_shown = !tabbed || shown == SidebarTab::Spaces;
+        let search =
+            (spaces_shown && searchable && self.sidebar_search.query().is_some()).then(|| {
+                self.sidebar_search_results(self.sidebar_search_hits(cx), indicators, look, cx)
+            });
         let mut spaces = div()
             .id("spaces-scroll")
             .debug_selector(|| "spaces-scroll".into())
@@ -87,15 +96,21 @@ impl HerdrWindow {
         agents = agents.track_scroll(&self.sidebar_scroll[1]);
         let multi = self.endpoints.len() > 1;
         let headed = multi || devices;
-        let agents_panel = self.config.show_agents && !devices;
+        // The tabbed sidebar lists every endpoint's agents flat, Devices
+        // layout included, which the stacked one cannot place under its tree.
+        let agents_panel = tabbed || (self.config.show_agents && !devices);
         let query = if tree_search {
             self.device_tree_query(cx)
         } else {
             String::new()
         };
         let mut agent_count = 0;
-        // A plugin view hid every agent, rather than there being none.
-        let mut filtered = false;
+        // A plugin view hid every agent, rather than there being none. Only a
+        // host the panel lists can make the view a filtered one.
+        let filtered = self.config.show_agents
+            && self
+                .listed_hosts()
+                .any(|(_, snapshot)| snapshot.agent_view_label.is_some());
         // Child positions of the highlighted rows, for the one-time reveal below.
         // Agent rows are counted by `agent_count`, which indexes that list.
         let mut space_rows = 0usize;
@@ -111,6 +126,9 @@ impl HerdrWindow {
         let now = std::time::Instant::now();
         let mut sliding = false;
         for (endpoint_index, endpoint) in self.endpoints.iter().enumerate() {
+            if !spaces_shown {
+                break;
+            }
             if !self.device_visible(&endpoint.id)
                 || (devices && !self.device_listed(endpoint_index, &query))
             {
@@ -535,25 +553,25 @@ impl HerdrWindow {
                     spaces.child(element)
                 };
             }
-            // Agent rows come after every host: the panel interleaves them.
-            // Only a host the panel lists can make the view a filtered one.
-            if self.config.show_agents && endpoint.enabled {
-                filtered |= snapshot.agent_view_label.is_some();
-            }
         }
-        if agents_panel {
+        if tabbed && spaces_shown {
+            // The Agents list is out of the tree; only its highlighted row
+            // is needed, for the reveal when the list returns.
+            highlighted[1] = self.focused_agent_row();
+        } else if agents_panel {
             (agents, agent_count, highlighted[1]) =
                 self.append_agent_rows(agents, indicators, look, width, cx);
         }
         if sliding {
             window.request_animation_frame();
         }
-        let mut headers = if headed {
+        let mut headers = if headed && spaces_shown {
             self.host_headers(&host_rows)
         } else {
             Vec::new()
         };
-        if let Some(row) = self.sidebar_pin_reveal.take()
+        if spaces_shown
+            && let Some(row) = self.sidebar_pin_reveal.take()
             && self.uncover_revealed(row, &headers)
         {
             headers = self.host_headers(&host_rows);
@@ -562,12 +580,26 @@ impl HerdrWindow {
         let cover = px(sticky::cover(&headers));
         let pinned_host = sticky::pinned(&headers)
             .and_then(|pinned| self.pinned_host_row(pinned, look, width, cx));
+        // The frame a list comes back, its viewport is the one it last had
+        // while shown: reveal on the next, once it has been measured again.
+        let returning = tabbed && self.sidebar_drawn_tab.get() != Some(shown);
+        self.sidebar_drawn_tab.set(tabbed.then_some(shown));
         // Follow the selection, but only once a frame has measured the viewport:
         // the handle resolves the request against the previous frame's bounds, so
         // an unmeasured list would scroll to a meaningless offset. Recording what
         // was revealed keeps later frames from undoing the user's own scrolling.
         for (list, row) in highlighted.iter().enumerate() {
             let Some(row) = *row else { continue };
+            // A hidden list is not scrolled: the row that is current when it
+            // returns is where the user left it. Spaces builds no rows then.
+            if tabbed && (list == 0) != (shown == SidebarTab::Spaces) {
+                self.sidebar_revealed[list].set(Some(row));
+                continue;
+            }
+            if returning && self.sidebar_revealed[list].get() != Some(row) {
+                window.request_animation_frame();
+                continue;
+            }
             if self.sidebar_revealed[list].get() != Some(row)
                 && self.sidebar_scroll[list].bounds().size.height > px(0.)
             {
@@ -594,20 +626,12 @@ impl HerdrWindow {
                 self.sidebar_revealed[list].set(Some(row));
             }
         }
-        if agent_count == 0 {
-            agents = agents.child(
-                div()
-                    .px(px(content_x))
-                    .text_color(rgb(theme.muted))
-                    .truncate()
-                    .child(label_text(if filtered {
-                        "no matching agents"
-                    } else {
-                        "no agents"
-                    })),
-            );
+        // The tabbed layout builds the empty line, with its label, only while
+        // Agents is shown.
+        if agent_count == 0 && (!tabbed || shown == SidebarTab::Agents) {
+            agents = agents.child(self.empty_agents_line(filtered, tabbed, look, width, cx));
         }
-        div()
+        let shell = div()
             .id("sidebar")
             .debug_selector(|| "sidebar".into())
             .relative()
@@ -624,135 +648,26 @@ impl HerdrWindow {
             .text_color(rgb(theme.foreground))
             .bg(self.fill().panel(theme.sidebar_background()))
             .border_r_1()
-            .border_color(rgb(theme.active))
-            // Zero flex bases keep long workspace lists from displacing agents.
-            .child(
-                div()
-                    .debug_selector(|| "spaces-section".into())
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .map(|mut section| {
-                        section.style().flex_grow = Some(if agents_panel { split } else { 1. });
-                        section
-                    })
-                    .min_h_0()
-                    .overflow_hidden()
-                    // With search on, the heading is its field.
-                    .child(
-                        searchable
-                            .then_some(super::search::Heading::Spaces)
-                            .or(tree_search.then_some(super::search::Heading::DeviceTree))
-                            .and_then(|heading| self.search_heading(heading, look, window, cx))
-                            .unwrap_or_else(|| {
-                                header(
-                                    if devices { "devices" } else { "spaces" },
-                                    font,
-                                    theme,
-                                    look,
-                                )
-                            }),
-                    )
-                    // The wrapper clips the pinned header as the next host's
-                    // pushes it up, so it never paints over the title above.
-                    .child(
-                        div()
-                            .relative()
-                            .flex_1()
-                            .min_h_0()
-                            .flex()
-                            .flex_col()
-                            .overflow_hidden()
-                            .map(|list| match search {
-                                Some(results) => list.child(results),
-                                None => list.child(spaces).children(pinned_host),
-                            }),
-                    )
-                    .child(
-                        div()
-                            .flex_none()
-                            .h(px(line_height(font) + 2. * layout.footer_padding()))
-                            .px(px(content_x))
-                            .flex()
-                            .items_center()
-                            // Menu hugs the sidebar's edge, as in the terminal client.
-                            .justify_between()
-                            .text_color(rgb(theme.muted))
-                            .gap(px(20.))
-                            .child(
-                                div()
-                                    .id("new-workspace")
-                                    .cursor_pointer()
-                                    .hover(|s| s.text_color(rgb(theme.foreground)))
-                                    .child("new")
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.command(Command::Workspace, window, cx)
-                                    })),
-                            )
-                            .child(
-                                div()
-                                    .id("sidebar-menu")
-                                    .debug_selector(|| "sidebar-menu".into())
-                                    .cursor_pointer()
-                                    .hover(|s| s.text_color(rgb(theme.foreground)))
-                                    .child(label_text("menu"))
-                                    .on_click(cx.listener(
-                                        |this, event: &ClickEvent, window, cx| {
-                                            this.menu.anchor = event.position();
-                                            this.open_menu(window, cx);
-                                        },
-                                    )),
-                            ),
-                    ),
-            )
-            .when(agents_panel, |sidebar| {
-                sidebar
-                    .child(
-                        div()
-                            .id("sidebar-split-resize")
-                            .debug_selector(|| "sidebar-split-resize".into())
-                            .h(px(6.))
-                            .flex_none()
-                            .cursor(CursorStyle::ResizeUpDown)
-                            .border_t_1()
-                            .border_color(rgb(theme.active))
-                            .hover(|s| s.bg(rgba(crate::panel_resize::RESIZE_HOVER)))
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(|this, event: &MouseDownEvent, _, cx| {
-                                    cx.stop_propagation();
-                                    this.sidebar_split_modified = true;
-                                    if event.click_count == 2 {
-                                        this.sidebar_drag = None;
-                                        this.sidebar_split = None;
-                                        this.save_chrome();
-                                    } else {
-                                        this.sidebar_drag = Some(SidebarDrag::Split);
-                                    }
-                                    cx.notify();
-                                }),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .debug_selector(|| "agents-section".into())
-                            .flex()
-                            .flex_col()
-                            .flex_1()
-                            .map(|mut section| {
-                                section.style().flex_grow = Some(1. - split);
-                                section
-                            })
-                            .min_h_0()
-                            .overflow_hidden()
-                            .child(
-                                header("agents", font, theme, look)
-                                    .justify_between()
-                                    .child(agents_sort(self, cx)),
-                            )
-                            .child(agents),
-                    )
-            })
+            .border_color(rgb(theme.active));
+        let heading = searchable
+            .then_some(super::search::Heading::Spaces)
+            .or(tree_search.then_some(super::search::Heading::DeviceTree));
+        let lists = Lists {
+            spaces,
+            agents,
+            search,
+            pinned_host,
+            heading,
+            devices,
+            agents_panel,
+            look,
+        };
+        let sections = if tabbed {
+            self.tabbed_sections(shell, lists, shown, width, window, cx)
+        } else {
+            self.stacked_sections(shell, lists, window, cx)
+        };
+        sections
             .map(|sidebar| {
                 if self.device_footer_shown() {
                     sidebar.child(self.render_device_footer(cx))
@@ -894,4 +809,82 @@ pub(super) fn header(
                 .debug_selector(|| format!("header-label-{label}"))
                 .child(label_text(&look.header_label(label))),
         )
+}
+
+/// What both assemblies of the sidebar lay out: the finished lists and what
+/// their heading and body are drawn from.
+pub(super) struct Lists {
+    pub(super) spaces: Stateful<Div>,
+    pub(super) agents: Stateful<Div>,
+    /// The results that replace the spaces list while a query is typed.
+    pub(super) search: Option<Stateful<Div>>,
+    pub(super) pinned_host: Option<Stateful<Div>>,
+    /// The field that heads the spaces list, when search is on.
+    pub(super) heading: Option<super::search::Heading>,
+    pub(super) devices: bool,
+    /// Whether the agents list is part of the layout at all.
+    pub(super) agents_panel: bool,
+    pub(super) look: SidebarLook,
+}
+
+/// The body of the spaces list: its rows with the pinned host over them, or
+/// the search results in their place. The wrapper clips the pinned header as
+/// the next host's pushes it up, so it never paints over the title above.
+pub(super) fn spaces_body(
+    search: Option<Stateful<Div>>,
+    spaces: Stateful<Div>,
+    pinned_host: Option<Stateful<Div>>,
+) -> Div {
+    div()
+        .relative()
+        .flex_1()
+        .min_h_0()
+        .flex()
+        .flex_col()
+        .overflow_hidden()
+        .map(|list| match search {
+            Some(results) => list.child(results),
+            None => list.child(spaces).children(pinned_host),
+        })
+}
+
+impl HerdrWindow {
+    /// The line under either list: `new` at the left edge, `menu` at the right.
+    pub(super) fn footer_line(&self, look: SidebarLook, cx: &mut Context<Self>) -> Div {
+        let font = &self.config.sidebar;
+        let theme = &self.theme;
+        div()
+            .flex_none()
+            .h(px(line_height(font) + 2. * look.density.footer_padding()))
+            .px(px(look.content_x()))
+            .flex()
+            .items_center()
+            // Menu hugs the sidebar's edge, as in the terminal client.
+            .justify_between()
+            .text_color(rgb(theme.muted))
+            .gap(px(20.))
+            .child(
+                div()
+                    .id("new-workspace")
+                    .debug_selector(|| "new-workspace".into())
+                    .cursor_pointer()
+                    .hover(|s| s.text_color(rgb(theme.foreground)))
+                    .child("new")
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.command(Command::Workspace, window, cx)
+                    })),
+            )
+            .child(
+                div()
+                    .id("sidebar-menu")
+                    .debug_selector(|| "sidebar-menu".into())
+                    .cursor_pointer()
+                    .hover(|s| s.text_color(rgb(theme.foreground)))
+                    .child(label_text("menu"))
+                    .on_click(cx.listener(|this, event: &ClickEvent, window, cx| {
+                        this.menu.anchor = event.position();
+                        this.open_menu(window, cx);
+                    })),
+            )
+    }
 }

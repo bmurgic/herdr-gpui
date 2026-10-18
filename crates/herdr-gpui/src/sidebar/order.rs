@@ -28,7 +28,7 @@ impl HerdrWindow {
     }
 
     /// Each host the sidebar lists, with the snapshot it draws from.
-    fn listed_hosts(&self) -> impl Iterator<Item = (usize, &ClientShellSnapshotV2)> {
+    pub(super) fn listed_hosts(&self) -> impl Iterator<Item = (usize, &ClientShellSnapshotV2)> {
         self.listed_lives()
             .filter_map(|(index, live)| live.snapshot.as_deref().map(|snapshot| (index, snapshot)))
     }

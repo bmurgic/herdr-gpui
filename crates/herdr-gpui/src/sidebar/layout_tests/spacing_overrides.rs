@@ -17,6 +17,7 @@ fn draw(
     let (_fixture, cx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| {
             let mut view = fixture_window(window, cx);
+            show_spaces_tab(&mut view);
             view.config.layout.mode = mode;
             view.config.sidebar_style.overrides = overrides;
             let mut remote = crate::endpoint::Endpoint::new(
@@ -136,6 +137,7 @@ fn tree_lines_give_way_when_the_indent_leaves_no_room(cx: &mut gpui::TestAppCont
         let (_fixture, cx) = cx.add_window_view(|window, cx| {
             let view = cx.new(|cx| {
                 let mut view = fixture_window(window, cx);
+                show_spaces_tab(&mut view);
                 view.config.layout.mode = mode;
                 view.config.sidebar_style.overrides = overrides;
                 view
@@ -156,6 +158,7 @@ fn tree_lines_give_way_when_the_indent_leaves_no_room(cx: &mut gpui::TestAppCont
     let (_fixture, cx) = cx.add_window_view(|window, cx| {
         let view = cx.new(|cx| {
             let mut view = fixture_window(window, cx);
+            show_spaces_tab(&mut view);
             view.config.layout.mode = mode;
             view.config.sidebar_style.overrides = SidebarOverrides {
                 indent: Some(40.),

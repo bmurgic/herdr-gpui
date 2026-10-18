@@ -3,7 +3,11 @@ use super::*;
 #[gpui::test]
 fn listening_ports_ride_under_their_row_without_resizing_it(cx: &mut gpui::TestAppContext) {
     let (fixture, cx) = cx.add_window_view(|window, cx| {
-        let view = cx.new(|cx| fixture_window(window, cx));
+        let view = cx.new(|cx| {
+            let mut view = fixture_window(window, cx);
+            show_spaces_tab(&mut view);
+            view
+        });
         cx.observe(&view, |_, _, cx| cx.notify()).detach();
         SidebarFixture(view)
     });

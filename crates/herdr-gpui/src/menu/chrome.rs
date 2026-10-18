@@ -778,9 +778,20 @@ impl HerdrWindow {
             }))
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|this, _, window, cx| {
+                cx.listener(|this, event: &MouseDownEvent, window, cx| {
                     cx.stop_propagation();
+                    // The picker shows Spaces over the selected tab, and the
+                    // overlay occludes the tab bar, so a press on a tab picks
+                    // that tab as the picker closes.
+                    let tab = if this.picker_forces_spaces() {
+                        this.sidebar_tab_bounds.get().hit(event.position)
+                    } else {
+                        None
+                    };
                     this.dismiss_menu(window, cx);
+                    if let Some(tab) = tab {
+                        this.select_sidebar_tab(tab, window, cx);
+                    }
                 }),
             )
             .on_scroll_wheel(|_, _, cx| cx.stop_propagation())

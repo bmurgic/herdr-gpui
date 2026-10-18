@@ -3,7 +3,11 @@ use super::*;
 #[gpui::test]
 fn turning_the_repository_icons_off_gives_the_name_their_room(cx: &mut gpui::TestAppContext) {
     let (fixture, cx) = cx.add_window_view(|window, cx| {
-        let view = cx.new(|cx| fixture_window(window, cx));
+        let view = cx.new(|cx| {
+            let mut view = fixture_window(window, cx);
+            show_spaces_tab(&mut view);
+            view
+        });
         cx.observe(&view, |_, _, cx| cx.notify()).detach();
         SidebarFixture(view)
     });
@@ -44,7 +48,11 @@ fn turning_the_repository_icons_off_gives_the_name_their_room(cx: &mut gpui::Tes
 /// only what is drawn inside it changes.
 #[gpui::test]
 fn superset_keeps_its_icon_slot_without_the_repository_icons(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(600.)));
     view.update(cx, |view, cx| {
         view.config.layout.mode = crate::config::LayoutMode::Superset;
@@ -66,7 +74,11 @@ fn superset_keeps_its_icon_slot_without_the_repository_icons(cx: &mut gpui::Test
 /// Configured rows place the icon themselves, beside their first line.
 #[gpui::test]
 fn configured_rows_give_the_icon_room_to_their_first_line(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(600.)));
     view.update(cx, |view, cx| {
         view.config.sidebar_layout.spaces =

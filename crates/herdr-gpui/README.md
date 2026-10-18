@@ -824,8 +824,8 @@ on a prompt; tabs whose agents are idle or done, or that have none, close at
 once. Set top-level `confirm_close_tab = false` to never ask for tabs
 (including their running processes), `confirm_close_pane = false` to close
 panes without asking, `confirm_close_workspace = false` to close a workspace
-from its menu without the dialog, and `show_agents = false` to hide the Agents
-section and give Spaces the full sidebar height. All four default to `true`.
+from its menu without the dialog, and `show_agents = false` to show the Spaces
+list alone, with no Agents tab or section. All four default to `true`.
 A workspace close still asks when its Git check finds uncommitted files or
 unpushed commits, whatever `confirm_close_workspace` says.
 Set `remove_merged_worktrees = true` (**Settings > General > Remove worktrees
@@ -843,7 +843,22 @@ The pane dialog's **Do not ask again** checkbox (click it or press Space) saves
 **Show agents** control in **Settings > Appearance > Sidebar layout** saves
 `show_agents` immediately, independently of the layout draft saved on close.
 
-A search field at the top of the sidebar finds devices, worktrees, and
+The sidebar shows one list at a time under two tabs, **Agents** and
+**Spaces**, with Agents shown first. Click a tab to switch lists. A switch
+sends nothing to the daemon and leaves the focused pane and workspace as they
+were, and each list keeps its own scroll position. The sort label, `grouped`
+or `priority`, ends the top line of the first agent row. Click it to switch
+the sort. With no agents, it ends the `no agents` line instead. While a
+plugin's agent view is active, the label shows the view's name and does not
+switch anything. While the workspace picker (Cmd-P) is open, the sidebar
+shows Spaces whatever tab is selected. While the reconnect card is up, the
+sidebar draws the stacked Spaces and Agents sections in place of the tabs,
+and the tabs return with the connection. To keep the stacked sections, with
+the split between them and the sort label in the Agents header, set Herdr's
+shared `[ui] session_sidebar = false` or turn off **Session sidebar** in
+**Settings > General > Sessions**.
+
+A search field at the top of the Spaces list finds devices, worktrees, and
 branches by name; while it holds text, results grouped by kind replace the
 spaces list. Up and Down move through them, Enter opens one, and Escape
 clears the search. Set top-level `show_sidebar_search = false`, or turn off
@@ -2907,8 +2922,9 @@ Ctrl+Shift+U is left unbound for
   are on, until the next host's row pushes it out. The pinned copy works like
   the row itself: click to select the host, use the arrow to collapse it, or
   right-click for its menu.
-- Agents panel header ends with its sort, `grouped` or `priority`, which a
-  click flips; an active agent view names itself there instead. Client-local
+- The agents list's sort, `grouped` or `priority`, ends the first agent row's
+  top line, or the Agents header in the stacked sidebar, and a click flips
+  it; an active agent view names itself there instead. Client-local
   and persisted beside the sidebar width, as in the terminal client. With
   several hosts listed, `grouped` lists each host's agents in turn, while
   `priority` orders them all together as the terminal client does: a
@@ -2916,9 +2932,10 @@ Ctrl+Shift+U is left unbound for
   recent change on any host. While any host shows an agent view, each host
   keeps its own order.
 - Resizable sidebar with width persisted per local daemon socket, shared across
-  host groups. Drag the divider between Spaces and Agents up or down to resize
-  their sections; double-click it to restore an even split. The split is saved
-  across launches and retained while Agents is hidden.
+  host groups. In the stacked sidebar, drag the divider between Spaces and
+  Agents up or down to resize their sections; double-click it to restore an
+  even split. The split is saved across launches and retained while Agents is
+  hidden.
   Local workspace titles show repository owner avatars; remote
   workspaces use the GitHub fallback mark without resolving remote paths locally.
   `show_repository_icons = false` leaves both out.

@@ -3,7 +3,7 @@ use crate::config::LayoutMode;
 
 #[gpui::test]
 fn devices_list_their_agents_under_their_headers(cx: &mut gpui::TestAppContext) {
-    let (_view, cx) = devices_window(cx);
+    let (_view, cx) = devices_window_arranged(cx, old_agent_rows);
     assert!(cx.debug_bounds("header-devices").is_some());
     assert!(cx.debug_bounds("device-tree-search").is_some());
     // Agents sit in the tree, so neither workspaces nor the agents panel show.
@@ -25,7 +25,7 @@ fn devices_list_their_agents_under_their_headers(cx: &mut gpui::TestAppContext) 
 
 #[gpui::test]
 fn the_search_keeps_only_matching_devices(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = devices_window(cx);
+    let (view, cx) = devices_window_arranged(cx, show_spaces_tab);
     let input = view.read_with(cx, |view, _| {
         view.devices_overview
             .tree_search
@@ -45,7 +45,7 @@ fn the_search_keeps_only_matching_devices(cx: &mut gpui::TestAppContext) {
 
 #[gpui::test]
 fn other_layouts_drop_the_search(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = devices_window(cx);
+    let (view, cx) = devices_window_arranged(cx, old_agent_rows);
     cx.update(|_, cx| {
         view.update(cx, |view, cx| {
             view.config.layout.mode = LayoutMode::default();
@@ -91,7 +91,7 @@ fn configured_agent_rows_apply_under_each_device(cx: &mut gpui::TestAppContext) 
 /// in place, stands in for the sidebar's, and the setting hides either.
 #[gpui::test]
 fn one_search_field_and_one_setting_for_both(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = devices_window(cx);
+    let (view, cx) = devices_window_arranged(cx, show_spaces_tab);
     assert!(cx.debug_bounds("device-tree-search").is_some());
     assert!(cx.debug_bounds("sidebar-search").is_none());
 

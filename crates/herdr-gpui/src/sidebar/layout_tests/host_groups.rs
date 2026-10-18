@@ -124,6 +124,7 @@ fn duplicate_repository_parents_lead_one_group_in_every_layout_and_host(
     {
         let (_view, cx) = cx.add_window_view(|window, cx| {
             let mut view = fixture_window(window, cx);
+            show_spaces_tab(&mut view);
             view.config.layout.mode = mode;
             let mut local = snapshot(7);
             let mut duplicate = local.workspaces[3].clone();

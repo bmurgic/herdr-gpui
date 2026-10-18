@@ -6,6 +6,7 @@ fn holding_a_workspace_row_lifts_it_and_a_release_picks_the_gap(cx: &mut gpui::T
 
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
         view.live.status = crate::state::ConnectionStatus::Connected;
         view
     });
@@ -128,6 +129,7 @@ fn check_row_drag(style: crate::config::LayoutMode, row_gap: u16, cx: &mut gpui:
 
     let (view, cx) = cx.add_window_view(|window, cx| {
         let mut view = fixture_window(window, cx);
+        show_spaces_tab(&mut view);
         view.config.layout.mode = style;
         view.config.sidebar_layout.spaces.row_gap = row_gap;
         view.live.status = crate::state::ConnectionStatus::Connected;

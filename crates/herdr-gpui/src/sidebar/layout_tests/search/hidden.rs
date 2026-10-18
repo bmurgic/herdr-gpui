@@ -2,7 +2,11 @@ use super::*;
 
 #[gpui::test]
 fn turning_the_search_off_hides_the_field_and_its_results(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(connected);
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        let mut view = connected(window, cx);
+        old_agent_rows(&mut view);
+        view
+    });
     cx.simulate_resize(size(px(800.), px(700.)));
     type_query(&view, "sidebar-child", cx);
     assert!(cx.debug_bounds("sidebar-search-results").is_some());
