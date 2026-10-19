@@ -363,25 +363,7 @@ fn a_reload_during_an_edit_keeps_the_typed_text(cx: &mut TestAppContext) {
     assert_eq!(text(&view, cx), "other");
 }
 
-#[cfg(unix)]
-#[gpui::test]
-fn without_loaded_settings_the_row_takes_no_edit(cx: &mut TestAppContext) {
-    // The shared settings have not loaded.
-    let (_, view, cx) = sessions_fixture(cx, None, &[Host::Local { titles: false }]);
-    let seam = Seam::new(CLAUDE, None);
-    let io = seam.io();
-    view.update(cx, |view, _| view.shared_io = Some(io));
-    draw(cx);
-    click_and_type_x(cx);
-    assert_eq!(seam.recorded(), []);
-
-    // They failed to load, on a theme other than Follow Herdr.
-    let (view, cx, seam) = open_seamed(cx, CLAUDE, None);
-    fail_to_load(&view, cx);
-    click_and_type_x(cx);
-    assert_eq!(seam.recorded(), []);
-}
-
+/// The row has no field: a click on it and a typed `x` open none.
 #[cfg(unix)]
 fn click_and_type_x(cx: &mut VisualTestContext) {
     assert!(painted(cx, ROW), "the row is drawn");
@@ -399,12 +381,6 @@ fn failed_shared_load() -> crate::Result<super::super::super::Loaded> {
     let mut loaded = skill_load().unwrap();
     loaded.error = Some("Load shared settings: expected a newline".into());
     Ok(loaded)
-}
-
-#[cfg(unix)]
-fn fail_to_load(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext) {
-    view.update(cx, |view, cx| view.apply_loaded(failed_shared_load(), cx));
-    draw(cx);
 }
 
 #[cfg(unix)]
@@ -435,7 +411,9 @@ fn a_failed_save_after_the_focus_left_puts_the_saved_command_back(cx: &mut TestA
 
 #[cfg(unix)]
 #[gpui::test]
-fn a_reload_that_fails_to_load_ends_the_edit(cx: &mut TestAppContext) {
+fn without_loaded_settings_the_edit_ends_and_the_row_takes_no_edit(cx: &mut TestAppContext) {
+    // A reload fails to load the shared settings during an edit, on a theme
+    // other than Follow Herdr.
     let (view, cx, seam) = open_seamed(cx, CLAUDE, None);
     edit_to(&view, cx, "codex");
     // Inside one update no redraw or blur has run, so only the load itself
@@ -449,6 +427,16 @@ fn a_reload_that_fails_to_load_ends_the_edit(cx: &mut TestAppContext) {
     assert!(!painted(cx, FIELD));
     assert!(!painted(cx, APPLY));
     assert_eq!(phase(&view, cx), CommandPhase::NotEditing);
+    click_and_type_x(cx);
+    assert_eq!(seam.recorded(), []);
+
+    // The shared settings have not loaded.
+    let (_, view, cx) = sessions_fixture(cx, None, &[Host::Local { titles: false }]);
+    let seam = Seam::new(CLAUDE, None);
+    let io = seam.io();
+    view.update(cx, |view, _| view.shared_io = Some(io));
+    draw(cx);
+    click_and_type_x(cx);
     assert_eq!(seam.recorded(), []);
 }
 
