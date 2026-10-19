@@ -25,6 +25,8 @@ use crate::{
 use gpui::{prelude::*, *};
 
 mod agent_rows;
+#[cfg(any(test, all(feature = "integration-test", target_os = "macos")))]
+pub(super) use agent_rows::session_row_gap;
 mod device_tree;
 mod session_row;
 mod stacked;

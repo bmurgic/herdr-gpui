@@ -63,6 +63,8 @@ mod search;
 #[cfg(test)]
 mod selection_scroll;
 #[cfg(test)]
+mod session_row_spacing;
+#[cfg(test)]
 mod session_rows;
 #[cfg(test)]
 mod sidebar_cache;
@@ -584,6 +586,12 @@ pub(crate) fn session_line_height(view: &HerdrWindow) -> f32 {
 pub(crate) fn four_line_height(view: &HerdrWindow) -> f32 {
     let look = super::layout::for_config(&view.config, view.fill());
     4. * session_line_height(view) + 2. * look.row_padding() + look.spacing()
+}
+
+/// The space above each session row after the first, in `view`'s layout.
+#[cfg(any(test, all(feature = "integration-test", target_os = "macos")))]
+pub(crate) fn session_row_gap_of(view: &HerdrWindow) -> f32 {
+    super::render::session_row_gap(super::layout::for_config(&view.config, view.fill()))
 }
 
 /// This machine and a connected remote ("Remote"), each listing the

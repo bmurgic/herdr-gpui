@@ -124,15 +124,15 @@ impl HerdrWindow {
         tokens::agent_rows(&self.config.sidebar_layout.agents, agent, snapshot, host)
     }
 
-    /// Space above the agent row painted `count`-th in its list: a blank line
-    /// between session rows, whatever `row_gap` says; otherwise a configured
-    /// `row_gap` between configured rows, none for Herdr's own.
-    fn agent_row_gap(&self, count: usize) -> f32 {
+    /// Space above the agent row painted `count`-th in its list: for session
+    /// rows, [`session_row_gap`]; otherwise a configured `row_gap` between
+    /// configured rows, none for Herdr's own.
+    fn agent_row_gap(&self, count: usize, look: SidebarLook) -> f32 {
         let line = line_height(&self.config.sidebar);
         if count == 0 {
             0.
         } else if self.session_sidebar() {
-            line
+            session_row_gap(look)
         } else if self.custom_agent_rows() {
             f32::from(self.config.sidebar_layout.agents.row_gap) * line
         } else {
@@ -160,7 +160,7 @@ impl HerdrWindow {
         labelled: bool,
         cx: &mut Context<Self>,
     ) -> Option<Stateful<Div>> {
-        let gap = self.agent_row_gap(count);
+        let gap = self.agent_row_gap(count, row_cx.look);
         if self.session_sidebar() {
             let reserve = if labelled {
                 self.first_line_label_reserve(text_room(row_cx).1)
@@ -254,4 +254,13 @@ impl HerdrWindow {
                 window.focus(&this.focus, cx);
             }))
     }
+}
+
+/// The space above every session row but the first. Rounded layouts inset
+/// each row's card from the sidebar's sides, and two cards end that same
+/// inset apart: each row already holds half the layout's spacing above and
+/// below its card, so the gap adds the rest. Flat layouts run rows edge to
+/// edge, and their rows touch.
+pub(in crate::sidebar) fn session_row_gap(look: SidebarLook) -> f32 {
+    (look.inset() - look.spacing()).max(0.)
 }
