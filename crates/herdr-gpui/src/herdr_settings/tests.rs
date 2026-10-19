@@ -7,6 +7,7 @@ use std::{fs, path::Path};
 #[cfg(unix)]
 mod edits;
 mod input_settings;
+mod new_session_command;
 mod pane_history;
 #[cfg(unix)]
 mod permissions;
