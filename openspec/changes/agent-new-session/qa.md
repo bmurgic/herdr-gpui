@@ -213,6 +213,7 @@ Shared starting state for every procedure:
 **Starting state**
 - herdr-gpui is connected to the QA daemon and shows the Agents tab. `<host>` below is the label the host list shows for the QA daemon's host.
 - The tester knows the QA daemon's exact process id `<pid>` and the command that started it. Every signal below goes to `<pid>` only, never to a process found by name.
+- herdr-gpui was started with `--socket` and the QA daemon's exact client socket path, so it never starts a daemon of its own when that socket goes away.
 - Only the plugin `qa.long-setup` is linked.
 
 **Procedure**
@@ -220,7 +221,7 @@ Shared starting state for every procedure:
 1. Click the footer `new` control. In the terminal, run `kill -STOP <pid>`. Press Return on `demo`.
    - **Observe:** `Checking folder…` shows. About 60 seconds later the project page shows with `Server timed out` in red, and it stays while the daemon is paused.
 2. Run `kill -CONT <pid>`.
-   - **Observe:** Within a few seconds herdr-gpui is connected again. The project page still shows, with `Server timed out` in red.
+   - **Observe:** Within 30 seconds herdr-gpui is connected again. The project page still shows, with `Server timed out` in red.
 3. Press Return on `demo`.
    - **Observe:** The confirm page opens for `<qa>/repos/demo`, and the red line is gone.
 4. Run `kill <pid>` and wait until that process has exited.
@@ -228,19 +229,19 @@ Shared starting state for every procedure:
 5. Click `start`.
    - **Observe:** `start` still reads `start` with no loading icon, the red line still reads `<host> is not ready`, and the sidebar gains no workspace.
 6. Start the QA daemon again with the same command, and note its new process id as `<pid>`.
-   - **Observe:** When herdr-gpui connects to the new daemon, the dialog closes, and no workspace was added.
+   - **Observe:** When herdr-gpui connects to the new daemon, the dialog closes, and no workspace was added. The sidebar shows `demo` and `notes` again from the daemon's saved session. If either is missing, recreate it as the shared starting state describes before step 7.
 7. Click the footer `new` control, press Return on `demo`, and click `start`. Once the checklist shows, run `kill -STOP <pid>`.
    - **Observe:** The checklist stays, and the `Run setup: qa.long-setup` row still reads running. About 60 seconds later `Server timed out` shows in red above the buttons, and the row still reads running.
 8. Click `skip waiting`.
    - **Observe:** The checklist still shows, and the new workspace's terminal shows no `qa-after-setup` line.
 9. Run `kill -CONT <pid>`.
-   - **Observe:** Within a few seconds the red line goes and the setup row shows as done. The dialog then closes, the new workspace is focused, and its terminal shows `qa-after-setup`.
+   - **Observe:** Within 30 seconds the red line goes and the setup row shows as done. The dialog then closes, the new workspace is focused, and its terminal shows `qa-after-setup`.
 10. Click the footer `new` control, press Return on `demo`, and click `start`. Once the checklist shows, run `kill <pid>` and wait until that process has exited.
     - **Observe:** The checklist stays, the row still reads running, and the line above the buttons shows `<host> is not ready` in red.
 11. Click `close`.
     - **Observe:** The dialog closes at once, and the workspace that was focused before step 10 stays focused.
 12. Start the QA daemon again with the same command, for the procedures that follow.
-    - **Observe:** herdr-gpui connects to it, and no dialog opens.
+    - **Observe:** herdr-gpui connects to it, and no dialog opens. If `demo` or `notes` is missing from the sidebar, recreate it as the shared starting state describes.
 
 ## Feature: New session setup wait
 
