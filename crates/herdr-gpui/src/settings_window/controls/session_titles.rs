@@ -137,7 +137,8 @@ impl SettingsWindow {
                     row
                 }),
             )
-            .child(self.control_note("Agents and Spaces tabs, one list at a time"));
+            .child(self.control_note("Agents and Spaces tabs, one list at a time"))
+            .children(self.new_session_command_rows(cx));
         if !gate {
             return card;
         }
@@ -194,8 +195,9 @@ impl SettingsWindow {
 /// which calls `sync_title_model_field` while the field is still submitted.
 impl SettingsWindow {
     /// The field and `Apply` need shared saves, which Windows refuses, so
-    /// anywhere else the row shows the model as plain text.
-    fn title_model_editable(&self) -> bool {
+    /// anywhere else the row shows its value as plain text. The `New session`
+    /// row follows the same rule.
+    pub(super) fn shared_text_editable(&self) -> bool {
         cfg!(unix) && self.shared.is_some()
     }
 
@@ -207,7 +209,7 @@ impl SettingsWindow {
         cx: &mut Context<Self>,
     ) {
         let shown =
-            self.section == Section::General && self.titles_gate(cx) && self.title_model_editable();
+            self.section == Section::General && self.titles_gate(cx) && self.shared_text_editable();
         if !shown {
             self.release_hidden_title_model(window, cx);
             return;
@@ -283,7 +285,7 @@ impl SettingsWindow {
             .session_titles
             .model_field
             .as_ref()
-            .filter(|_| self.title_model_editable());
+            .filter(|_| self.shared_text_editable());
         let Some(field) = field else {
             let shown = if titles.model.is_empty() {
                 format!("{} (default)", titles.agent.default_model())
@@ -317,7 +319,7 @@ impl SettingsWindow {
     fn title_model_detail(&self, cx: &mut Context<Self>) -> Div {
         let field = self.controls.session_titles.model_field.as_ref();
         let Some(field) = field.filter(|field| {
-            self.title_model_editable()
+            self.shared_text_editable()
                 && matches!(field.phase, ModelPhase::Editing(_))
                 && !field.suggestions.is_empty()
         }) else {
@@ -562,6 +564,6 @@ impl SettingsWindow {
 
 /// A click on the row's buttons must reach the field's state while it is still
 /// editing: left alone, GPUI moves focus to the window root on mouse-down.
-fn keep_focus(_: &MouseDownEvent, window: &mut Window, _: &mut App) {
+pub(super) fn keep_focus(_: &MouseDownEvent, window: &mut Window, _: &mut App) {
     window.prevent_default();
 }

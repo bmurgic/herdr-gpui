@@ -4,6 +4,7 @@ use core::prelude::v1::test;
 mod backdrop;
 mod device_icons;
 mod focus_follows_mouse;
+mod new_session_command;
 mod repository_icons;
 mod session_restore;
 mod session_titles;

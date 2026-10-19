@@ -263,6 +263,7 @@ impl SettingsWindow {
                 self.shared = loaded.shared;
                 self.error = loaded.error;
                 self.sync_title_model_field(true, cx);
+                self.sync_new_session_command_field(true, cx);
                 self.sync_code_field(cx);
                 // The saved volume reaches the shared sound worker now, not when
                 // a main window's watcher next reloads, which waits for its
@@ -276,6 +277,7 @@ impl SettingsWindow {
                     "Could not reload settings; keeping current preferences: {error}"
                 ));
                 self.sync_title_model_field(false, cx);
+                self.sync_new_session_command_field(false, cx);
             }
         }
         // Appearance may have changed while the loader was running. Resolve

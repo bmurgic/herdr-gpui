@@ -5,6 +5,7 @@ mod fonts;
 mod indicators;
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 mod native_bounds;
+mod new_session_command;
 pub(super) mod plugins;
 mod preferences;
 mod session_titles;
@@ -52,6 +53,7 @@ pub(super) struct Controls {
     saving_sizes: Vec<(FontFace, f32)>,
     size_editor: Option<SizeEditor>,
     session_titles: session_titles::Card,
+    new_session_command: new_session_command::Card,
     local_path: String,
     ruler: backdrop::Ruler,
     _search_changed: Subscription,
@@ -114,6 +116,7 @@ impl Controls {
             saving_sizes: Vec::new(),
             size_editor: None,
             session_titles: Default::default(),
+            new_session_command: Default::default(),
             local_path: Config::local_path()
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|error| format!("Unavailable ({error})")),
