@@ -11,7 +11,9 @@ use crate::{herdr_settings::Settings, preferences::AgentSort};
 use anyhow::ensure;
 use sidebar::{
     SidebarTab,
-    layout_tests::{PaintedProbes, four_line_height, labeled_pane, session_line_height},
+    layout_tests::{
+        PaintedProbes, four_line_height, labeled_pane, session_line_height, session_row_gap_of,
+    },
     native_tests::Target,
 };
 
@@ -65,6 +67,8 @@ struct Drawn {
     second_name: Bounds<Pixels>,
     line: f32,
     row: f32,
+    /// The space above the second row.
+    gap: f32,
 }
 
 async fn session_rows(
@@ -125,12 +129,13 @@ async fn session_rows(
             second_name: bounds(SECOND_NAME)?,
             line: session_line_height(view),
             row: four_line_height(view),
+            gap: session_row_gap_of(view),
         };
         anyhow::Ok((drawn, Target::acquire(window)?))
     })??;
 
     // Lines two and four are two lines apart, and the next row starts a
-    // whole row and its blank line further down.
+    // whole row and the gap above it further down.
     let stacked = f32::from(drawn.branch.top() - drawn.name.top());
     ensure!(
         (stacked - 2. * drawn.line).abs() < TOLERANCE,
@@ -138,7 +143,7 @@ async fn session_rows(
         2. * drawn.line
     );
     let pitch = f32::from(drawn.second_name.top() - drawn.name.top()).abs();
-    let row = pitch - drawn.line;
+    let row = pitch - drawn.gap;
     ensure!(
         (row - drawn.row).abs() < TOLERANCE,
         "the row is {row}px tall, not the four lines' {}px",

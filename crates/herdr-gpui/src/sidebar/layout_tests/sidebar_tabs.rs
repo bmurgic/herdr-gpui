@@ -1,6 +1,9 @@
 use super::*;
 use crate::herdr_settings::Settings;
-use crate::sidebar::{SidebarTab, glyph_width, layout, line_height};
+use crate::sidebar::{
+    SidebarTab, layout,
+    tabs::{BAR_MARGIN, TAB_PADDING_Y, tab_bar_height},
+};
 use gpui::{MouseButton, ScrollDelta, ScrollWheelEvent};
 
 const TAB_SELECTORS: [&str; 5] = [
@@ -126,57 +129,80 @@ fn a_reloaded_setting_hands_a_focused_search_field_back(cx: &mut gpui::TestAppCo
     });
 }
 
+/// The bar is a segmented control: two equal tabs inside a track that keeps
+/// to the sidebar's inset, as tall as the search field's line, with each
+/// label centered and each tab's click area the box it paints.
 #[gpui::test]
-fn the_painted_tabs_match_the_column_geometry(cx: &mut gpui::TestAppContext) {
+fn the_tabs_split_the_track_evenly(cx: &mut gpui::TestAppContext) {
     let (view, cx) = tabbed_window(cx, |_| {});
-    // A width whose content box holds 26 columns and a bit more, which the
-    // bar must floor.
-    let (width, glyph, line, header_padding, content_x) = view.read_with(cx, |view, _| {
-        let font = &view.config.sidebar;
+    let (label_line, height, margin) = view.read_with(cx, |view, _| {
         let look = layout::for_config(&view.config, view.fill());
-        let glyph = glyph_width(font);
         (
-            1. + 2. * look.content_x() + 26.4 * glyph,
-            glyph,
-            line_height(font),
-            look.density.header_padding(),
-            look.content_x(),
+            view.config.sidebar.line_height(),
+            tab_bar_height(&view.config.sidebar),
+            look.inset().max(BAR_MARGIN),
         )
     });
-    view.update(cx, |view, cx| {
-        view.sidebar_width = Some(width);
-        cx.notify();
-    });
-    draw(cx);
+    for width in [180., 320.] {
+        view.update(cx, |view, cx| {
+            view.sidebar_width = Some(width);
+            cx.notify();
+        });
+        draw(cx);
 
-    let sidebar = cx.debug_bounds("sidebar").unwrap();
-    let bar = cx.debug_bounds("sidebar-tabs").unwrap();
-    let agents = cx.debug_bounds("sidebar-tab-agents").unwrap();
-    let spaces = cx.debug_bounds("sidebar-tab-spaces").unwrap();
-    // Layout snaps edges to the display's pixel grid, a half pixel at the
-    // test window's scale, so a width can differ from the columns by that.
-    let close = |actual: Pixels, expected: f32, what: &str| {
-        assert!(
-            (f32::from(actual) - expected).abs() <= 0.5,
-            "{what}: {actual:?} is not {expected}"
+        let sidebar = cx.debug_bounds("sidebar").unwrap();
+        let line_box = cx.debug_bounds("sidebar-tabs").unwrap();
+        let bar = cx.debug_bounds("sidebar-tabs-track").unwrap();
+        let agents = cx.debug_bounds("sidebar-tab-agents").unwrap();
+        let spaces = cx.debug_bounds("sidebar-tab-spaces").unwrap();
+        // Layout snaps edges to the display's pixel grid, a half pixel at
+        // the test window's scale.
+        let close = |actual: Pixels, expected: f32, what: &str| {
+            assert!(
+                (f32::from(actual) - expected).abs() <= 0.5,
+                "{what} at {width}: {actual:?} is not {expected}"
+            );
+        };
+        close(bar.left() - sidebar.left(), margin, "track start");
+        // The sidebar's right edge carries its one-pixel divider.
+        close(sidebar.right() - bar.right(), margin + 1., "track end");
+        close(line_box.size.height, height, "bar height");
+        close(bar.top() - line_box.top(), BAR_MARGIN, "space above");
+        close(line_box.bottom() - bar.bottom(), BAR_MARGIN, "space below");
+        close(
+            agents.size.width,
+            f32::from(spaces.size.width),
+            "tab widths",
         );
-    };
-    close(bar.size.height, line + 2. * header_padding, "bar height");
-    close(bar.left() - sidebar.left(), content_x, "bar start");
-    close(agents.size.width, 12. * glyph, "agents tab width");
-    close(spaces.size.width, 12. * glyph, "spaces tab width");
-    close(spaces.left() - agents.right(), glyph, "gap");
-    close(bar.size.width, 26. * glyph, "bar width");
-    close(bar.right() - spaces.right(), glyph, "unpainted leftover");
-    for (tab, label) in [
-        (agents, "sidebar-tab-label-agents"),
-        (spaces, "sidebar-tab-label-spaces"),
-    ] {
-        let label = cx.debug_bounds(label).unwrap();
         assert!(
-            (f32::from(label.center().x - tab.center().x)).abs() <= glyph,
-            "{label:?} is not centered in {tab:?}"
+            agents.right() < spaces.left(),
+            "{agents:?} overlaps {spaces:?}"
         );
+        assert!(bar.left() < agents.left() && spaces.right() < bar.right());
+        for (tab, label) in [
+            (agents, "sidebar-tab-label-agents"),
+            (spaces, "sidebar-tab-label-spaces"),
+        ] {
+            let label = cx.debug_bounds(label).unwrap();
+            assert!(
+                f32::from(label.center().x - tab.center().x).abs() <= 1.,
+                "{label:?} is not centered in {tab:?}"
+            );
+            close(label.size.height, label_line, "label line");
+            // Each tab's one-pixel border sits outside its padding.
+            close(label.top() - tab.top(), TAB_PADDING_Y + 1., "label top");
+            close(
+                tab.bottom() - label.bottom(),
+                TAB_PADDING_Y + 1.,
+                "label bottom",
+            );
+        }
+        view.read_with(cx, |view, _| {
+            let hit = view.sidebar_tab_bounds.get();
+            assert_eq!(hit.hit(agents.center()), Some(SidebarTab::Agents));
+            assert_eq!(hit.hit(spaces.center()), Some(SidebarTab::Spaces));
+            assert_eq!(hit.hit(bar.origin), None);
+        });
     }
 }
 

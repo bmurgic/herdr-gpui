@@ -2,7 +2,7 @@ use super::*;
 use crate::pane_menu::session::{SessionItem, session_items};
 use crate::{
     NavigationTarget,
-    config::LayoutMode,
+    config::{Density, LayoutMode, Style},
     sidebar::{glyph_width, layout, line_height, session_age::now_ms},
 };
 use gpui::MouseButton;
@@ -75,16 +75,22 @@ fn a_row_without_a_branch_shows_a_dash(cx: &mut gpui::TestAppContext) {
     assert!(painted(cx, "⎇ —"));
 }
 
+/// In a rounded layout the space between two cards is not part of either row.
 #[gpui::test]
-fn the_blank_line_between_rows_is_not_a_target(cx: &mut gpui::TestAppContext) {
+fn the_space_between_rounded_rows_is_not_a_target(cx: &mut gpui::TestAppContext) {
     let (view, cx) = session_window(cx, 240., |_| {});
+    view.update(cx, |view, cx| {
+        view.config.layout.mode = LayoutMode::new(Density::Comfortable, Style::Rounded);
+        cx.notify();
+    });
+    redraw(cx);
     let (first, second) = (
         cx.debug_bounds("row-agent-p0").unwrap(),
         cx.debug_bounds("row-agent-p1").unwrap(),
     );
-    let blank = line_height_of(&view, cx);
-    assert!((f32::from(second.top() - first.bottom()) - blank).abs() < 0.01);
-    let gap = point(first.center().x, first.bottom() + px(blank / 2.));
+    let space = f32::from(second.top() - first.bottom());
+    assert!(space > 0., "rounded rows touch");
+    let gap = point(first.center().x, first.bottom() + px(space / 2.));
     cx.simulate_click(gap, Default::default());
     view.read_with(cx, |view, _| assert!(view.pending_navigation.is_none()));
     // The third line of the second row, below its padding and two lines.

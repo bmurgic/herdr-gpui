@@ -25,6 +25,8 @@ use crate::{
 use gpui::{prelude::*, *};
 
 mod agent_rows;
+#[cfg(any(test, all(feature = "integration-test", target_os = "macos")))]
+pub(super) use agent_rows::session_row_gap;
 mod device_tree;
 mod session_row;
 mod stacked;
@@ -663,7 +665,7 @@ impl HerdrWindow {
             look,
         };
         let sections = if tabbed {
-            self.tabbed_sections(shell, lists, shown, width, window, cx)
+            self.tabbed_sections(shell, lists, shown, window, cx)
         } else {
             self.stacked_sections(shell, lists, window, cx)
         };
