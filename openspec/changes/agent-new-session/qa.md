@@ -233,9 +233,9 @@ Shared starting state for every procedure:
 7. Click the footer `new` control, press Return on `demo`, and click `start`. Once the checklist shows, run `kill -STOP <pid>`.
    - **Observe:** The checklist stays, and the `Run setup: qa.long-setup` row still reads running. About 60 seconds later `Server timed out` shows in red above the buttons, and the row still reads running.
 8. Click `skip waiting`.
-   - **Observe:** The checklist still shows, and the new workspace's terminal shows no `qa-after-setup` line.
-9. Run `kill -CONT <pid>`.
-   - **Observe:** Within 30 seconds the red line goes and the setup row shows as done. The dialog then closes, the new workspace is focused, and its terminal shows `qa-after-setup`.
+   - **Observe:** The confirm page shows again, with the worktree, branch, and command rows read-only, `start` enabled, and `Server timed out` in red. The new workspace's terminal shows no `qa-after-setup` line.
+9. Run `kill -CONT <pid>`. Once herdr-gpui is connected again, within 30 seconds, click `start`.
+   - **Observe:** The red line goes, the dialog closes, the new workspace is focused, and its terminal shows `qa-after-setup`. The sidebar gains no second workspace.
 10. Click the footer `new` control, press Return on `demo`, and click `start`. Once the checklist shows, run `kill <pid>` and wait until that process has exited.
     - **Observe:** The checklist stays, the row still reads running, and the line above the buttons shows `<host> is not ready` in red.
 11. Click `close`.

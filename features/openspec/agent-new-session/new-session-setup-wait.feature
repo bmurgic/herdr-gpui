@@ -194,7 +194,7 @@ Feature: new-session-setup-wait
 
     Examples:
       | button | result |
-      | presses `skip waiting` | the checklist still shows |
+      | presses `skip waiting` | the confirm page shows with the created rows read-only and `start` enabled |
       | presses `close` | the dialog closes |
 
   # Covers: new-session-setup-wait / A daemon without setup tracking / New session setup wait 12 - a daemon without setup tracking starts at once
