@@ -25,6 +25,10 @@ const SIDEBAR_SWITCH: &str = "settings-session-sidebar";
 #[cfg(unix)]
 const CLAUDE: &str = "[ui]\nnew_session_command = \"claude\"\n";
 
+/// Makes the error a seam's next write fails with.
+#[cfg(unix)]
+type Failure = fn() -> crate::Error;
+
 /// What the writer saw, reduced to what these cases compare.
 #[cfg(unix)]
 #[derive(Debug, PartialEq)]
@@ -43,12 +47,12 @@ enum Recorded {
 struct Seam {
     edits: Arc<Mutex<Vec<Recorded>>>,
     file: Arc<Mutex<String>>,
-    failure: Arc<Mutex<Option<fn() -> crate::Error>>>,
+    failure: Arc<Mutex<Option<Failure>>>,
 }
 
 #[cfg(unix)]
 impl Seam {
-    fn new(file: &str, failure: Option<fn() -> crate::Error>) -> Self {
+    fn new(file: &str, failure: Option<Failure>) -> Self {
         Self {
             edits: Default::default(),
             file: Arc::new(Mutex::new(file.into())),
@@ -141,7 +145,7 @@ fn open<'a>(
 fn open_seamed<'a>(
     cx: &'a mut TestAppContext,
     config: &str,
-    failure: Option<fn() -> crate::Error>,
+    failure: Option<Failure>,
 ) -> (Entity<SettingsWindow>, &'a mut VisualTestContext, Seam) {
     let (view, cx) = open(cx, config);
     let seam = Seam::new(config, failure);
@@ -270,7 +274,7 @@ fn enter_and_apply_save_the_trimmed_command(cx: &mut TestAppContext) {
 fn a_failed_save_keeps_the_typed_text(cx: &mut TestAppContext) {
     for (failure, shown) in [
         (
-            permission_denied as fn() -> crate::Error,
+            permission_denied as Failure,
             "Save settings: permission denied",
         ),
         (
