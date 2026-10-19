@@ -1,6 +1,9 @@
 use super::*;
 use crate::herdr_settings::Settings;
-use crate::sidebar::{SidebarTab, layout, line_height};
+use crate::sidebar::{
+    SidebarTab, layout,
+    tabs::{BAR_MARGIN, TAB_PADDING_Y, tab_bar_height},
+};
 use gpui::{MouseButton, ScrollDelta, ScrollWheelEvent};
 
 const TAB_SELECTORS: [&str; 5] = [
@@ -132,12 +135,12 @@ fn a_reloaded_setting_hands_a_focused_search_field_back(cx: &mut gpui::TestAppCo
 #[gpui::test]
 fn the_tabs_split_the_track_evenly(cx: &mut gpui::TestAppContext) {
     let (view, cx) = tabbed_window(cx, |_| {});
-    let (line, header_padding, inset) = view.read_with(cx, |view, _| {
+    let (label_line, height, margin) = view.read_with(cx, |view, _| {
         let look = layout::for_config(&view.config, view.fill());
         (
-            line_height(&view.config.sidebar),
-            look.density.header_padding(),
-            look.inset(),
+            view.config.sidebar.line_height(),
+            tab_bar_height(&view.config.sidebar),
+            look.inset().max(BAR_MARGIN),
         )
     });
     for width in [180., 320.] {
@@ -160,15 +163,12 @@ fn the_tabs_split_the_track_evenly(cx: &mut gpui::TestAppContext) {
                 "{what} at {width}: {actual:?} is not {expected}"
             );
         };
-        close(bar.left() - sidebar.left(), inset, "track start");
+        close(bar.left() - sidebar.left(), margin, "track start");
         // The sidebar's right edge carries its one-pixel divider.
-        close(sidebar.right() - bar.right(), inset + 1., "track end");
-        close(
-            line_box.size.height,
-            line + 2. * header_padding,
-            "bar height",
-        );
-        assert!(line_box.contains(&bar.origin) && bar.size.height < line_box.size.height);
+        close(sidebar.right() - bar.right(), margin + 1., "track end");
+        close(line_box.size.height, height, "bar height");
+        close(bar.top() - line_box.top(), BAR_MARGIN, "space above");
+        close(line_box.bottom() - bar.bottom(), BAR_MARGIN, "space below");
         close(
             agents.size.width,
             f32::from(spaces.size.width),
@@ -187,6 +187,14 @@ fn the_tabs_split_the_track_evenly(cx: &mut gpui::TestAppContext) {
             assert!(
                 f32::from(label.center().x - tab.center().x).abs() <= 1.,
                 "{label:?} is not centered in {tab:?}"
+            );
+            close(label.size.height, label_line, "label line");
+            // Each tab's one-pixel border sits outside its padding.
+            close(label.top() - tab.top(), TAB_PADDING_Y + 1., "label top");
+            close(
+                tab.bottom() - label.bottom(),
+                TAB_PADDING_Y + 1.,
+                "label bottom",
             );
         }
         view.read_with(cx, |view, _| {

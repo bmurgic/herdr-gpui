@@ -4,7 +4,6 @@ use super::{
     agents::{SortLabelPlace, agents_sort},
     glyph_width, label_text,
     layout::{SidebarLook, outline_washes},
-    line_height,
     render::{Lists, spaces_body},
     search::Heading,
     session_text::truncate_end,
@@ -105,6 +104,18 @@ pub(super) fn tab_style(selected: bool, theme: &Theme) -> (u32, FontWeight) {
 
 /// The track's padding around the two tabs, and the gap between them.
 const TRACK_PADDING: f32 = 2.;
+/// The least space between the track and the sidebar's edges and the list
+/// below. Rounded layouts with a wider inset line the track up with their
+/// cards instead.
+pub(super) const BAR_MARGIN: f32 = 8.;
+/// The space above and below each tab's label, inside its border.
+pub(super) const TAB_PADDING_Y: f32 = 5.;
+
+/// The tab bar's height for labels set in `font`: the label's line, each
+/// tab's padding and one-pixel border, the track's padding, and the margin.
+pub(super) fn tab_bar_height(font: &FontConfig) -> f32 {
+    font.line_height() + 2. * (TAB_PADDING_Y + 1. + TRACK_PADDING + BAR_MARGIN)
+}
 
 impl HerdrWindow {
     /// Whether the sidebar shows one list at a time under a tab bar. The
@@ -226,6 +237,7 @@ impl HerdrWindow {
     fn tab_bar(&self, shown: SidebarTab, look: SidebarLook, cx: &mut Context<Self>) -> Div {
         let theme = &self.theme;
         let (track, raised, border) = outline_washes(theme);
+        let label_line = self.config.sidebar.line_height();
         let tab = |tab: SidebarTab, label: &'static str, key: &'static str| {
             let selected = shown == tab;
             let recorded = self.sidebar_tab_bounds.clone();
@@ -236,8 +248,8 @@ impl HerdrWindow {
                 .debug_selector(|| format!("sidebar-tab-{key}"))
                 .flex_1()
                 .min_w_0()
-                .h_full()
                 .px(px(6.))
+                .py(px(TAB_PADDING_Y))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -259,6 +271,7 @@ impl HerdrWindow {
                     div()
                         .debug_selector(|| format!("sidebar-tab-label-{key}"))
                         .min_w_0()
+                        .line_height(px(label_line))
                         .truncate()
                         .child(label_text(label)),
                 )
@@ -288,11 +301,9 @@ impl HerdrWindow {
         div()
             .debug_selector(|| "sidebar-tabs".into())
             .flex_none()
-            .h(px(
-                line_height(&self.config.sidebar) + 2. * look.density.header_padding()
-            ))
-            .px(px(look.inset()))
-            .py(px(TRACK_PADDING))
+            .h(px(tab_bar_height(&self.config.sidebar)))
+            .px(px(look.inset().max(BAR_MARGIN)))
+            .py(px(BAR_MARGIN))
             .flex()
             .child(
                 div()
@@ -304,8 +315,8 @@ impl HerdrWindow {
                     .flex()
                     .rounded(px(corners::CONTROL))
                     .bg(track)
-                    .text_font(&self.config.ui)
-                    .text_size(px(self.config.ui.size))
+                    .text_font(&self.config.sidebar)
+                    .text_size(px(self.config.sidebar.size))
                     .child(tab(SidebarTab::Agents, "Agents", "agents"))
                     .child(tab(SidebarTab::Spaces, "Spaces", "spaces")),
             )
