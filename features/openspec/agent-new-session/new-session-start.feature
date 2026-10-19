@@ -125,6 +125,24 @@ Feature: new-session-start
     When the user presses Up until the focus stops moving, and then types `x`
     Then the focus stops on the `command` field, which now ends with `x`, and the `create worktree` checkbox, the branch text, and the `run command` checkbox are unchanged
 
+  # Covers: new-session-start / Start errors and retry / New session start 17 - a timed-out step keeps the dialog open and resumes after the reconnect
+  Scenario Outline: New session start 17 - a timed-out step keeps the dialog open and resumes after the reconnect
+    Given a daemon that advertises `pane.send_text` and `plugin.log.list` and reports no setup hooks for new workspaces, a start whose create succeeded, and its <request> request unanswered
+    When that request gets no answer within the request timeout, the client reaches the same daemon boot again, and the user presses Enter on `start`
+    Then the dialog stayed open with `Server timed out` in red above the buttons and `start` enabled, and the client sends <resumed> and no `worktree.create` request
+
+    Examples:
+      | request | resumed |
+      | `pane.send_text` | `pane.send_text` for the created workspace's first pane and `tab.focus` for its tab |
+      | `tab.focus` | `tab.focus` for the created workspace's tab |
+
+  # Covers: new-session-start / Start errors and retry / New session start 19 - start sends nothing while the host is not connected
+  Scenario: New session start 19 - start sends nothing while the host is not connected
+    Given the confirm page for a git project on the host labeled `devbox`, and the host's connection ended
+    When the user presses Enter on `start`
+    Then the client sends no request, `start` reads `start` and is enabled, and the line above the buttons shows `devbox is not ready` in red
+    And after the client reaches the same daemon boot again, the next Enter on `start` sends one `worktree.create` request
+
   # Covers: new-session-start / Start errors and retry / New session start 16 - a command edited after it was typed is not typed again
   Scenario: New session start 16 - a command edited after it was typed is not typed again
     Given a daemon that advertises `pane.send_text` and `plugin.log.list` and reports no setup hooks for new workspaces, a start whose create succeeded and that typed `claude`, and whose focus failed
@@ -148,6 +166,23 @@ Feature: new-session-start
     Given a daemon that advertises `pane.send_text` and `plugin.log.list`, and a start that created the worktree and showed the setup checklist, whose one setup row then succeeded
     When typing the command fails with `pane_send_failed` and the message `no available capacity`
     Then the confirm page shows with the `create worktree`, `branch`, and `run command` rows read-only and `no available capacity` in red above the buttons
+
+  # Covers: new-session-start / Ways out after the workspace exists / New session start 18 - leaving while the host is not connected focuses nothing
+  Scenario Outline: New session start 18 - leaving while the host is not connected focuses nothing
+    Given a daemon that advertises `pane.send_text` and `plugin.log.list` and reports no setup hooks for new workspaces, the worktree was created, typing the command failed, and the host's connection then ended
+    When the user gives the input <input>
+    Then the dialog closes, and the client sends no `tab.focus` request, before or after it reaches the same daemon boot again
+
+    Examples:
+      | input |
+      | Esc |
+      | a click outside the dialog |
+
+  # Covers: new-session-start / Ways out after the workspace exists / New session start 20 - a refused focus after leaving stops the wait at once
+  Scenario: New session start 20 - a refused focus after leaving stops the wait at once
+    Given the user left the dialog with Esc after the workspace was created, and the client sent `tab.focus` for the created workspace's tab
+    When the daemon refuses it with `tab_not_found` and the message `tab w2:t1 not found`, and then 6 seconds pass
+    Then the status line shows `tab w2:t1 not found`, the window no longer waits for the tab's surface, and it has not reconnected or switched to another host
 
   # Covers: new-session-start / An idle dialog stays quiet / New session start 14 - an idle dialog does not redraw on the timer
   Scenario Outline: New session start 14 - an idle dialog does not redraw on the timer

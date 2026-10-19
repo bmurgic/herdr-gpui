@@ -55,19 +55,41 @@ Feature: agent-new-session
     When the user runs `herdr-gpui keybinds`
     Then `new_session` is listed with the label `New Session` and no keys
 
-  # Covers: agent-new-session / The dialog belongs to the host it opened on / Agent new session 06 - a lost connection closes the dialog
-  Scenario Outline: Agent new session 06 - a lost connection closes the dialog
+  # Covers: agent-new-session / The dialog belongs to the host it opened on / Agent new session 06 - a host change closes the dialog
+  Scenario Outline: Agent new session 06 - a host change closes the dialog
     Given the new-session dialog is open on <page>
+    When the window's selected host changes to another host
+    Then no new-session dialog is open
+    And the client sends no further request for the dialog
+
+    Examples:
+      | page |
+      | its project page |
+      | its confirm page with the `worktree.create` request unanswered |
+
+  # Covers: agent-new-session / The dialog belongs to the host it opened on / Agent new session 27 - a lost connection keeps the dialog open
+  Scenario Outline: Agent new session 27 - a lost connection keeps the dialog open
+    Given the new-session dialog is open on <page> for the host labeled `devbox`
+    When <event>, and then the client redials `devbox` and reaches the same daemon boot
+    Then while `devbox` is not connected, the dialog stays on <page>, its error line shows `<line>` in red, and the client sends no request
+    And after the reconnect the dialog is still on <page>, and its error line shows <after>
+
+    Examples:
+      | page | event | line | after |
+      | its project page | the session's connection ends | devbox is not ready | nothing |
+      | its confirm page with the `worktree.create` request unanswered | the request gets no answer within the request timeout | Server timed out | `Server timed out` in red, and `start` is enabled |
+
+  # Covers: agent-new-session / The dialog belongs to the host it opened on / Agent new session 28 - a gone host still closes the dialog after a lost connection
+  Scenario Outline: Agent new session 28 - a gone host still closes the dialog after a lost connection
+    Given the new-session dialog is open on its confirm page, and its host's connection ended
     When <event>
     Then no new-session dialog is open
     And the client sends no further request for the dialog
 
     Examples:
-      | page | event |
-      | its project page | the session's connection ends |
-      | its confirm page with the `worktree.create` request unanswered | the request gets no answer within the request timeout |
-      | its confirm page | the window's selected host changes to another host |
-      | its project page | the host reconnects to a daemon with a new boot id |
+      | event |
+      | the client redials the host and reaches a daemon with a new boot id |
+      | the user detaches the host |
 
   # Covers: agent-new-session / Project page / Agent new session 07 - linked worktree workspaces are not listed
   Scenario Outline: Agent new session 07 - linked worktree workspaces are not listed

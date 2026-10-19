@@ -640,3 +640,16 @@ I checked each lead against the cited lines in the worktree and in myherdr at `7
 | LEAD-11 (vacuous focus and section assertions) | Survives. The settings window binds only Close keys (`settings_window.rs:38-51`). | Scenario 07 says the field keeps the focus and drops the section assertion. Requirement 2 limits the claim to editing keys plus Up, Down, and Tab. Open for Brandon 17. |
 | LEAD-12 (the row's own hooks) | Survives. | D16 names the row's build, release, and sync hooks. No spec change. Open for Brandon 17. |
 | LEAD-13 (pasted line breaks) | Survives. The title model field sets `set_breaks_as_spaces(true)` (`session_titles.rs:221`). | Requirement 2 says line breaks become spaces, and scenario 07 gains a paste row. D16 matches. Open for Brandon 17. |
+
+### Rulings
+
+The adjudication tables above cite items of the `## Open for Brandon` section that `design.md` carried before these rulings. Brandon's rulings came through the advisor under his autonomy grant. Every item is ruled, and the section is gone. The numbers below are those items.
+
+| Item | Ruling | Where it is recorded |
+|---|---|---|
+| 1 (refused tab focus) | Extend the empty-workspaces fence ruling to Tab fences in this change. A refused `tab.focus` ends its Tab fence at once. The widening is in `request_focus_change` (`window/commands.rs:147-148`), which records `focus_request` only for a workspace target today; `end_refused_focus` already ends any fence whose `focus_request` matches. The earlier claim that `apply_creation_response` shares the Tab exposure was wrong: it sends a workspace focus (`menu/workspace/requests.rs:253`), which is already ended, so the widening does not change it. | `new-session-start` Requirement 4 and scenario 20, D11, Risks, tasks slice 6. |
+| 2 (timeout and lost connection) | Match myherdr. A 60-second timeout keeps the dialog open with `Server timed out` in red, and back and Esc keep working. A lost connection shows `<host label> is not ready`, on the conditions that the text comes from `ConnectionStatus` and no old inbox stays alive. D19 meets both conditions: the dialog's state lives in the menu, and the line is derived from the connection status and the endpoint label. | `agent-new-session` Requirement 3 and scenarios 06, 27, 28; `new-session-start` Requirements 3 and 4 and scenarios 17 to 19; `new-session-setup-wait` Requirements 1 and 2 and scenarios 18 and 19; D3, D6, D9 to D11, D13, D14, D19, Risks, tasks slice 8. |
+| 2 (`ConnectionBusy` list request) | Accepted as written: the error shows in red. | D11, D13. |
+| 3 and 5 to 17 | Accepted as written. | The fixes listed in the tables above. |
+| 4 (outside click during the setup wait) | myherdr's code wins over its spec: the click does nothing while the dialog waits. | D10, D14. |
+| 18 and 19 (schema pause lines) | Accepted: the assumptions stay as written, and the spec wins over qa.md. | Open Questions in `design.md`. |

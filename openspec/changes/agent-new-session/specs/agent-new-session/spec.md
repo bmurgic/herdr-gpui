@@ -62,21 +62,43 @@ The `new_session` command SHALL open the new-session dialog on its project page,
 
 ### Requirement: The dialog belongs to the host it opened on
 
-The new-session dialog SHALL close, with no further request, when the selected host changes, when that host's connection ends, or when its daemon's boot id changes. A request that gets no answer within the client's request timeout ends the connection, and the dialog MUST close then. A workspace the dialog already created MUST stay on the daemon.
+The new-session dialog SHALL close, with no further request, when the selected host changes, when that host is detached, or when that host connects to a daemon whose boot id differs from the one the dialog opened on. When the host's connection ends, the dialog MUST stay open on its page through the client's automatic redial of that host, and MUST send no request while the host is not connected. A request left unanswered when the connection ends MUST be dropped, and the dialog MUST then take input as it does with no request unanswered. While the host is not connected, the dialog's error line MUST show `Server timed out` in red when its last request got no answer within the client's request timeout, and `<host label> is not ready` in red otherwise, where `<host label>` is the host's label. After the host connects again to the same daemon boot, the `<host label> is not ready` line MUST go, a `Server timed out` line MUST stay until the next start or check, and the dialog MUST send requests again. A workspace the dialog already created MUST stay on the daemon.
 
-#### Scenario: Agent new session 06 - a lost connection closes the dialog
+#### Scenario: Agent new session 06 - a host change closes the dialog
 - **GIVEN** the new-session dialog is open on <page>
+- **WHEN** the window's selected host changes to another host
+- **THEN** no new-session dialog is open
+- **AND** the client sends no further request for the dialog
+
+##### Examples
+| page |
+| --- |
+| its project page |
+| its confirm page with the `worktree.create` request unanswered |
+
+#### Scenario: Agent new session 27 - a lost connection keeps the dialog open
+- **GIVEN** the new-session dialog is open on <page> for the host labeled `devbox`
+- **WHEN** <event>, and then the client redials `devbox` and reaches the same daemon boot
+- **THEN** while `devbox` is not connected, the dialog stays on <page>, its error line shows `<line>` in red, and the client sends no request
+- **AND** after the reconnect the dialog is still on <page>, and its error line shows <after>
+
+##### Examples
+| page | event | line | after |
+| --- | --- | --- | --- |
+| its project page | the session's connection ends | devbox is not ready | nothing |
+| its confirm page with the `worktree.create` request unanswered | the request gets no answer within the request timeout | Server timed out | `Server timed out` in red, and `start` is enabled |
+
+#### Scenario: Agent new session 28 - a gone host still closes the dialog after a lost connection
+- **GIVEN** the new-session dialog is open on its confirm page, and its host's connection ended
 - **WHEN** <event>
 - **THEN** no new-session dialog is open
 - **AND** the client sends no further request for the dialog
 
 ##### Examples
-| page | event |
-| --- | --- |
-| its project page | the session's connection ends |
-| its confirm page with the `worktree.create` request unanswered | the request gets no answer within the request timeout |
-| its confirm page | the window's selected host changes to another host |
-| its project page | the host reconnects to a daemon with a new boot id |
+| event |
+| --- |
+| the client redials the host and reaches a daemon with a new boot id |
+| the user detaches the host |
 
 ### Requirement: Project page
 

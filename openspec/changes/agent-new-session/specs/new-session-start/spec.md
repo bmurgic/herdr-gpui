@@ -89,7 +89,7 @@ While a create, typing, or focus request of the dialog is unanswered, the confir
 
 ### Requirement: Start errors and retry
 
-When a request of the start fails, the dialog SHALL stay open, show the failure's message in red on the line above the buttons, and enable `start` again. A daemon error MUST show its message without its code. A message of more than one line MUST be drawn with its lines kept apart, never joined. The line kept in view MUST be the last line that starts with `fatal:` or `error:`, else the last line that does not start with `hint:`, else the last line, and any line above it MUST come only from lines before it and show only when it fits whole. After the workspace was created, the `create worktree`, `branch`, and `run command` rows MUST be read-only, a new start MUST resume at the first step that has not succeeded, and it MUST NOT create another workspace. After the command was typed, the command field MUST stay editable, and a retry MUST NOT type it again. A request with no answer within the client's request timeout, or a connection that ends, MUST close the dialog with no further request, as the host rule of `agent-new-session` gives.
+When a request of the start fails, the dialog SHALL stay open, show the failure's message in red on the line above the buttons, and enable `start` again. A daemon error MUST show its message without its code. A message of more than one line MUST be drawn with its lines kept apart, never joined. The line kept in view MUST be the last line that starts with `fatal:` or `error:`, else the last line that does not start with `hint:`, else the last line, and any line above it MUST come only from lines before it and show only when it fits whole. After the workspace was created, the `create worktree`, `branch`, and `run command` rows MUST be read-only, a new start MUST resume at the first step that has not succeeded, and it MUST NOT create another workspace. After the command was typed, the command field MUST stay editable, and a retry MUST NOT type it again. A request with no answer within the client's request timeout MUST leave the dialog open with `Server timed out` in red, and a connection that ends MUST leave it open with `<host label> is not ready` in red, as the host rule of `agent-new-session` gives. Esc and `back` MUST keep working then. While the host is not connected, Enter or a click on `start` MUST send nothing and leave `start` enabled. After the host connects again to the same daemon boot, a new start MUST resume at the first step that has not succeeded.
 
 #### Scenario: New session start 08 - a failed step keeps the dialog open with its message
 - **GIVEN** a daemon that advertises `pane.send_text` and `plugin.log.list` and reports no setup hooks for new workspaces, the confirm page for a git project with both boxes checked, and the user pressed Enter on `start`
@@ -133,6 +133,23 @@ When a request of the start fails, the dialog SHALL stay open, show the failure'
 - **WHEN** the user presses Up until the focus stops moving, and then types `x`
 - **THEN** the focus stops on the `command` field, which now ends with `x`, and the `create worktree` checkbox, the branch text, and the `run command` checkbox are unchanged
 
+#### Scenario: New session start 17 - a timed-out step keeps the dialog open and resumes after the reconnect
+- **GIVEN** a daemon that advertises `pane.send_text` and `plugin.log.list` and reports no setup hooks for new workspaces, a start whose create succeeded, and its <request> request unanswered
+- **WHEN** that request gets no answer within the request timeout, the client reaches the same daemon boot again, and the user presses Enter on `start`
+- **THEN** the dialog stayed open with `Server timed out` in red above the buttons and `start` enabled, and the client sends <resumed> and no `worktree.create` request
+
+##### Examples
+| request | resumed |
+| --- | --- |
+| `pane.send_text` | `pane.send_text` for the created workspace's first pane and `tab.focus` for its tab |
+| `tab.focus` | `tab.focus` for the created workspace's tab |
+
+#### Scenario: New session start 19 - start sends nothing while the host is not connected
+- **GIVEN** the confirm page for a git project on the host labeled `devbox`, and the host's connection ended
+- **WHEN** the user presses Enter on `start`
+- **THEN** the client sends no request, `start` reads `start` and is enabled, and the line above the buttons shows `devbox is not ready` in red
+- **AND** after the client reaches the same daemon boot again, the next Enter on `start` sends one `worktree.create` request
+
 #### Scenario: New session start 16 - a command edited after it was typed is not typed again
 - **GIVEN** a daemon that advertises `pane.send_text` and `plugin.log.list` and reports no setup hooks for new workspaces, a start whose create succeeded and that typed `claude`, and whose focus failed
 - **WHEN** the user changes the command text to `codex` and presses Enter on `start` again, and the focus succeeds
@@ -140,7 +157,7 @@ When a request of the start fails, the dialog SHALL stay open, show the failure'
 
 ### Requirement: Ways out after the workspace exists
 
-After the workspace was created, while no create, typing, or focus request of the dialog is unanswered and the dialog is not waiting for setup hooks, Esc, `back`, and a click outside the dialog SHALL each close the dialog at once and send one `tab.focus` request for the new workspace's tab, without typing and without waiting for the answer. The client MUST send that request at once, or, while the window still waits for a surface, as soon as the window is ready for input. While the dialog waits for setup hooks, the ways out of `new-session-setup-wait` apply instead. When typing or the focus fails after a setup wait, the dialog MUST return to the confirm page with the created rows read-only and the message in red.
+After the workspace was created, while no create, typing, or focus request of the dialog is unanswered and the dialog is not waiting for setup hooks, Esc, `back`, and a click outside the dialog SHALL each close the dialog at once and send one `tab.focus` request for the new workspace's tab, without typing and without waiting for the answer. The client MUST send that request at once, or, while the window still waits for a surface, as soon as the window is ready for input. While the dialog waits for setup hooks, the ways out of `new-session-setup-wait` apply instead. When typing or the focus fails after a setup wait, the dialog MUST return to the confirm page with the created rows read-only and the message in red. While the host is not connected, Esc, `back`, and a click outside the dialog MUST close the dialog without a `tab.focus` request, and the workspace MUST stay on the daemon. When the daemon refuses the `tab.focus` request, the status line MUST show the daemon's message, and the window MUST stop waiting for the new tab at once, with no reconnect and no switch to another host.
 
 #### Scenario: New session start 12 - leaving after the workspace exists focuses it without typing
 - **GIVEN** a daemon that advertises `pane.send_text` and `plugin.log.list` and reports no setup hooks for new workspaces, the worktree was created, and typing the command failed
@@ -158,6 +175,22 @@ After the workspace was created, while no create, typing, or focus request of th
 - **GIVEN** a daemon that advertises `pane.send_text` and `plugin.log.list`, and a start that created the worktree and showed the setup checklist, whose one setup row then succeeded
 - **WHEN** typing the command fails with `pane_send_failed` and the message `no available capacity`
 - **THEN** the confirm page shows with the `create worktree`, `branch`, and `run command` rows read-only and `no available capacity` in red above the buttons
+
+#### Scenario: New session start 18 - leaving while the host is not connected focuses nothing
+- **GIVEN** a daemon that advertises `pane.send_text` and `plugin.log.list` and reports no setup hooks for new workspaces, the worktree was created, typing the command failed, and the host's connection then ended
+- **WHEN** the user gives the input <input>
+- **THEN** the dialog closes, and the client sends no `tab.focus` request, before or after it reaches the same daemon boot again
+
+##### Examples
+| input |
+| --- |
+| Esc |
+| a click outside the dialog |
+
+#### Scenario: New session start 20 - a refused focus after leaving stops the wait at once
+- **GIVEN** the user left the dialog with Esc after the workspace was created, and the client sent `tab.focus` for the created workspace's tab
+- **WHEN** the daemon refuses it with `tab_not_found` and the message `tab w2:t1 not found`, and then 6 seconds pass
+- **THEN** the status line shows `tab w2:t1 not found`, the window no longer waits for the tab's surface, and it has not reconnected or switched to another host
 
 ### Requirement: An idle dialog stays quiet
 

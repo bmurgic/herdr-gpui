@@ -154,7 +154,6 @@ Shared starting state for every procedure:
 ### QA procedure: Start a session in a new worktree
 
 **Covers**
-- `agent-new-session / The dialog belongs to the host it opened on / Agent new session 06 - a lost connection closes the dialog`
 - `agent-new-session / Confirm page rows and keys / Agent new session 22 - a click works on every row`
 - `new-session-start / Start sequence / New session start 04 - keys after the dialog closes wait for the new tab`
 - `new-session-command-setting / The new session command setting / New session command setting 03 - the dialog's command edit does not change the setting`
@@ -175,8 +174,6 @@ Shared starting state for every procedure:
    - **Observe:** The new workspace's terminal prints `ok`. The `demo` terminal shows neither line.
 4. Open Settings > General.
    - **Observe:** The `New session` row still shows `printf qa-after-setup`.
-5. Close Settings. Click the footer `new` control, press Return on `notes`, and stop the QA daemon from its own terminal with its exact process id.
-   - **Observe:** The dialog closes, and the status line shows that the connection ended.
 
 ### QA procedure: Recover from a failed start
 
@@ -199,6 +196,51 @@ Shared starting state for every procedure:
    - **Observe:** `start` reads `starting…` with a turning loading icon and `Creating…` shows under the rows while the request runs. The dialog stays open. The line above the buttons shows, in red, `fatal: 'bad..name' is not a valid branch name`, and any line shown above it is a line git printed before it, never a `hint:` line. `start` is enabled again, and no workspace was added.
 3. Replace the branch text with `qa/fixed` and click `start`.
    - **Observe:** The dialog closes, and the workspace for branch `qa/fixed` is focused with `qa-after-setup` in its terminal.
+
+### QA procedure: Lose the connection while the dialog is open
+
+**Covers**
+- `agent-new-session / The dialog belongs to the host it opened on / Agent new session 27 - a lost connection keeps the dialog open`
+- `agent-new-session / The dialog belongs to the host it opened on / Agent new session 28 - a gone host still closes the dialog after a lost connection`
+- `new-session-start / Start errors and retry / New session start 19 - start sends nothing while the host is not connected`
+- `new-session-start / Ways out after the workspace exists / New session start 18 - leaving while the host is not connected focuses nothing`
+- `new-session-setup-wait / Setup wait / New session setup wait 18 - a lost connection keeps the checklist waiting`
+- `new-session-setup-wait / Setup failure and ways out / New session setup wait 19 - the checklist buttons while the host is not connected`
+
+**User interface**
+- Desktop application (herdr-gpui window) with the QA myherdr daemon, and a terminal beside it for the QA daemon.
+
+**Starting state**
+- herdr-gpui is connected to the QA daemon and shows the Agents tab. `<host>` below is the label the host list shows for the QA daemon's host.
+- The tester knows the QA daemon's exact process id `<pid>` and the command that started it. Every signal below goes to `<pid>` only, never to a process found by name.
+- Only the plugin `qa.long-setup` is linked.
+
+**Procedure**
+
+1. Click the footer `new` control. In the terminal, run `kill -STOP <pid>`. Press Return on `demo`.
+   - **Observe:** `Checking folder…` shows. About 60 seconds later the project page shows with `Server timed out` in red, and it stays while the daemon is paused.
+2. Run `kill -CONT <pid>`.
+   - **Observe:** Within a few seconds herdr-gpui is connected again. The project page still shows, with `Server timed out` in red.
+3. Press Return on `demo`.
+   - **Observe:** The confirm page opens for `<qa>/repos/demo`, and the red line is gone.
+4. Run `kill <pid>` and wait until that process has exited.
+   - **Observe:** The dialog stays on the confirm page, and the line above the buttons shows `<host> is not ready` in red.
+5. Click `start`.
+   - **Observe:** `start` still reads `start` with no loading icon, the red line still reads `<host> is not ready`, and the sidebar gains no workspace.
+6. Start the QA daemon again with the same command, and note its new process id as `<pid>`.
+   - **Observe:** When herdr-gpui connects to the new daemon, the dialog closes, and no workspace was added.
+7. Click the footer `new` control, press Return on `demo`, and click `start`. Once the checklist shows, run `kill -STOP <pid>`.
+   - **Observe:** The checklist stays, and the `Run setup: qa.long-setup` row still reads running. About 60 seconds later `Server timed out` shows in red above the buttons, and the row still reads running.
+8. Click `skip waiting`.
+   - **Observe:** The checklist still shows, and the new workspace's terminal shows no `qa-after-setup` line.
+9. Run `kill -CONT <pid>`.
+   - **Observe:** Within a few seconds the red line goes and the setup row shows as done. The dialog then closes, the new workspace is focused, and its terminal shows `qa-after-setup`.
+10. Click the footer `new` control, press Return on `demo`, and click `start`. Once the checklist shows, run `kill <pid>` and wait until that process has exited.
+    - **Observe:** The checklist stays, the row still reads running, and the line above the buttons shows `<host> is not ready` in red.
+11. Click `close`.
+    - **Observe:** The dialog closes at once, and the workspace that was focused before step 10 stays focused.
+12. Start the QA daemon again with the same command, for the procedures that follow.
+    - **Observe:** herdr-gpui connects to it, and no dialog opens.
 
 ## Feature: New session setup wait
 

@@ -121,6 +121,18 @@ Feature: new-session-setup-wait
     When the user presses Enter on `start` again and every request succeeds
     Then the client sends `pane.send_text` and then `tab.focus`, and no `plugin.log.list` request, and the dialog closes
 
+  # Covers: new-session-setup-wait / Setup wait / New session setup wait 18 - a lost connection keeps the checklist waiting
+  Scenario Outline: New session setup wait 18 - a lost connection keeps the checklist waiting
+    Given the checklist shows one running setup row on the host labeled `devbox`, and a log list request is unanswered
+    When <event>, 3 seconds pass in timer steps, and then the client reaches the same daemon boot again
+    Then while `devbox` is not connected, the checklist stays, the row still reads running, the line above the buttons shows `<line>` in red, and the client sends no request
+    And after the reconnect the client sends one new log list request
+
+    Examples:
+      | event | line |
+      | the session's connection ends | devbox is not ready |
+      | the log list request gets no answer within the request timeout | Server timed out |
+
   # Covers: new-session-setup-wait / Setup failure and ways out / New session setup wait 09 - a failed setup row names its exit and log
   Scenario Outline: New session setup wait 09 - a failed setup row names its exit and log
     Given the checklist shows one setup row
@@ -173,6 +185,17 @@ Feature: new-session-setup-wait
       | the first log list request unanswered and the confirm page shown | clicks outside the dialog | the confirm page still shows, and the client sends no `pane.send_text` and no `tab.focus` request |
       | the first log list request unanswered and the confirm page shown | presses Esc | the client sends one `tab.focus` request for the new workspace's tab and no `pane.send_text` request, and the dialog closes |
       | the checklist showing a running setup row | clicks outside the dialog | the checklist still shows, and the client sends no `pane.send_text` and no `tab.focus` request |
+
+  # Covers: new-session-setup-wait / Setup failure and ways out / New session setup wait 19 - the checklist buttons while the host is not connected
+  Scenario Outline: New session setup wait 19 - the checklist buttons while the host is not connected
+    Given the checklist shows one running setup row, the command is on, and the host's connection ended
+    When the user <button>
+    Then <result>, and the client sends no request
+
+    Examples:
+      | button | result |
+      | presses `skip waiting` | the checklist still shows |
+      | presses `close` | the dialog closes |
 
   # Covers: new-session-setup-wait / A daemon without setup tracking / New session setup wait 12 - a daemon without setup tracking starts at once
   Scenario Outline: New session setup wait 12 - a daemon without setup tracking starts at once
