@@ -450,7 +450,7 @@ impl SidebarLook {
 
 /// The Outline highlight's hover fill, focused fill, and focused border:
 /// faint washes of the theme's foreground.
-fn outline_washes(theme: &Theme) -> (Rgba, Rgba, Rgba) {
+pub(super) fn outline_washes(theme: &Theme) -> (Rgba, Rgba, Rgba) {
     let wash = |alpha: u32| rgba((theme.foreground << 8) | alpha);
     (wash(0x0d), wash(0x14), wash(0x40))
 }

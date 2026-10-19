@@ -665,7 +665,7 @@ impl HerdrWindow {
             look,
         };
         let sections = if tabbed {
-            self.tabbed_sections(shell, lists, shown, width, window, cx)
+            self.tabbed_sections(shell, lists, shown, window, cx)
         } else {
             self.stacked_sections(shell, lists, window, cx)
         };
