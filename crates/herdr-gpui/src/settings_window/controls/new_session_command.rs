@@ -4,7 +4,7 @@
 //! `save_shared_then`, whose hook ends the edit on success. A failed save is
 //! told apart in `apply_loaded`, which calls `sync_new_session_command_field`
 //! while the field is still submitted.
-use super::{Edit, SettingsWindow, session_titles::keep_focus};
+use super::{Edit, SettingsWindow, keep_focus};
 use crate::{
     config::{FontConfig, Theme},
     herdr_settings::{DEFAULT_NEW_SESSION_COMMAND, Settings},
@@ -15,7 +15,7 @@ use gpui::{prelude::*, *};
 
 /// Where the field is in an edit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::settings_window) enum CommandPhase {
+pub(super) enum CommandPhase {
     /// The text is the saved command, trimmed.
     NotEditing,
     Editing,
@@ -169,14 +169,9 @@ impl SettingsWindow {
         field.synced_look = Some((font.clone(), theme.clone()));
     }
 
-    /// A field that keeps the window's focus while its row is gone would take
-    /// it as a new focus when the row returns, and start an edit unasked.
     fn release_hidden_new_session_command(&self, window: &Window, cx: &mut Context<Self>) {
-        let Some(field) = &self.controls.new_session_command.field else {
-            return;
-        };
-        if field.input.read(cx).focus.is_focused(window) {
-            cx.defer_in(window, |this, window, cx| window.focus(&this.focus, cx));
+        if let Some(field) = &self.controls.new_session_command.field {
+            self.release_hidden_field(&field.input, window, cx);
         }
     }
 
@@ -335,7 +330,7 @@ impl SettingsWindow {
     // Only the Unix-gated tests read the field, so a Windows test build would
     // flag these accessors as dead code.
     #[cfg(all(test, unix))]
-    pub(in crate::settings_window) fn new_session_command_phase(&self) -> Option<CommandPhase> {
+    pub(super) fn new_session_command_phase(&self) -> Option<CommandPhase> {
         self.controls
             .new_session_command
             .field
@@ -344,9 +339,7 @@ impl SettingsWindow {
     }
 
     #[cfg(all(test, unix))]
-    pub(in crate::settings_window) fn new_session_command_input(
-        &self,
-    ) -> Option<Entity<SearchInput>> {
+    pub(super) fn new_session_command_input(&self) -> Option<Entity<SearchInput>> {
         self.controls
             .new_session_command
             .field

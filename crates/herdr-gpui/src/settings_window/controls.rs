@@ -369,6 +369,26 @@ impl SettingsWindow {
             .child(text.into())
     }
 
+    /// A row's text field and its `Apply` need shared saves, which Windows
+    /// refuses, so anywhere else, and before the shared settings load, the row
+    /// shows its value as plain text.
+    fn shared_text_editable(&self) -> bool {
+        cfg!(unix) && self.shared.is_some()
+    }
+
+    /// A field that keeps the window's focus while its row is gone would take
+    /// it as a new focus when the row returns, and start an edit unasked.
+    fn release_hidden_field(
+        &self,
+        input: &Entity<SearchInput>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        if input.read(cx).focus.is_focused(window) {
+            cx.defer_in(window, |this, window, cx| window.focus(&this.focus, cx));
+        }
+    }
+
     fn control_row(&self, label: &'static str, value: impl IntoElement) -> Div {
         div()
             .flex()
@@ -784,6 +804,12 @@ impl SettingsWindow {
         }
         card
     }
+}
+
+/// A click on a row's buttons must reach its field's state while it is still
+/// editing: left alone, GPUI moves focus to the window root on mouse-down.
+fn keep_focus(_: &MouseDownEvent, window: &mut Window, _: &mut App) {
+    window.prevent_default();
 }
 
 #[cfg(test)]
