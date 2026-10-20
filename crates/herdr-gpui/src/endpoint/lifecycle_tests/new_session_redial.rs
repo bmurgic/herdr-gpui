@@ -4,7 +4,9 @@
 //! check.
 
 use super::*;
-use crate::menu::{ConfirmProject, DialogProbe, NewSessionStage, Page, new_session_tests::HOST_LABEL};
+use crate::menu::{
+    ConfirmProject, DialogProbe, NewSessionStage, Page, new_session_tests::HOST_LABEL,
+};
 
 /// Every request a start can send.
 const METHODS: &[Method] = &[
