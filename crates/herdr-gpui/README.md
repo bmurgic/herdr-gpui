@@ -869,7 +869,16 @@ returns to the list. A line under the rows says what start will do and
 shortens the folder to fit the dialog. The command field starts with the
 `[ui] new_session_command` setting, which is `claude` by default. When the
 connected server does not offer `pane.send_text`, the command rows are
-skipped and the dialog says so. **start** does nothing yet.
+skipped and the dialog says so. `Other folder…` opens a path field with
+folder suggestions; the folder is checked before the confirm page opens, and a
+folder outside a git repository starts as a plain workspace. The same command
+is editable in **Settings > General > Sessions** as the `New session` row.
+
+**start** creates the worktree or the workspace and focuses the new tab, typing
+the command first when its box is checked. When the new worktree runs setup
+hooks, a checklist waits for them with **skip waiting**. If a hook fails, the
+buttons read **start anyway** and **close**: **start anyway** types the command
+and focuses the workspace, and **close** focuses it without typing.
 
 A search field at the top of the Spaces list finds devices, worktrees, and
 branches by name; while it holds text, results grouped by kind replace the
