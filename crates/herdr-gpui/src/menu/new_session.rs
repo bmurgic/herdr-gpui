@@ -25,6 +25,7 @@ use std::path::PathBuf;
 
 mod confirm;
 mod folder;
+mod progress;
 mod projects;
 mod render;
 mod replies;

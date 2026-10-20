@@ -13,6 +13,7 @@ use herdr_client::protocol::{ClientMessage, ClientShellWorkspaceV2};
 use serde_json::{Value, json};
 
 mod confirm_page;
+mod error_rows;
 mod opening;
 mod other_folder;
 mod project_entries;
