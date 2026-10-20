@@ -171,3 +171,31 @@ fn a_worktree_found_after_open_leaves_the_page(cx: &mut TestAppContext) {
     );
     assert_eq!(shown(&view, test_cx), ["herdr", "Other folder…"]);
 }
+
+/// Agent new session 08, the input-method guard: while marked text is open,
+/// Up and Down belong to the composition, so the highlight does not move.
+#[gpui::test]
+fn up_and_down_leave_the_highlight_while_text_is_composing(cx: &mut TestAppContext) {
+    let (view, test_cx, _peer) = opened(cx, herdr_and_docs());
+    update(&view, test_cx, |view, window, cx| {
+        view.replace_and_mark_text_in_range(None, "d", None, window, cx);
+    });
+    view.read_with(test_cx, |view, _| {
+        assert!(view.menu.input.as_ref().unwrap().marked.is_some());
+    });
+    let before = highlighted(&view, test_cx);
+    press(test_cx, "down up down");
+    assert_eq!(highlighted(&view, test_cx), before, "composing");
+}
+
+/// Agent new session 08, the unchanged-text guard: a key that edits nothing
+/// (Left here) keeps the highlight the user moved to.
+#[gpui::test]
+fn a_key_that_leaves_the_filter_text_keeps_the_highlight(cx: &mut TestAppContext) {
+    let (view, test_cx, _peer) = opened(cx, herdr_and_docs());
+    test_cx.simulate_input("d");
+    press(test_cx, "down");
+    assert_eq!(highlighted(&view, test_cx), "docs");
+    press(test_cx, "left");
+    assert_eq!(highlighted(&view, test_cx), "docs", "left");
+}
