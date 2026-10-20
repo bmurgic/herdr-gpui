@@ -142,7 +142,7 @@ impl SetupWait {
     }
 
     /// How many rows still read running.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(super) fn running_row_count(&self) -> usize {
         self.rows
             .iter()

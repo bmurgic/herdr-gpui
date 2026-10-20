@@ -1,4 +1,5 @@
 //! What the lifecycle tests read of the dialog without drawing the window.
+//! Only the Unix-only lifecycle tests use it, so it is built with them.
 
 use super::Step;
 use crate::HerdrWindow;
