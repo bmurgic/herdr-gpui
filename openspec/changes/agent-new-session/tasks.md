@@ -138,14 +138,14 @@ Independent test: with the Agents tab shown, the footer `new` opens a project pa
 
 Independent test: pick a workspace whose repository the daemon reported, see the confirm page with both boxes checked, the setting's command, and a summary that follows the boxes, and leave it with Esc or an outside click without a request.
 
-- [ ] 3.1 Tests in `crates/herdr-gpui/src/menu/new_session/tests/summary.rs`, declared in `menu/new_session/tests.rs`
+- [x] 3.1 Tests in `crates/herdr-gpui/src/menu/new_session/tests/summary.rs`, declared in `menu/new_session/tests.rs`
   - New test [unit]: AN20, `focus_order` gives each Examples row's order and skips `command` when `can_type` is false. Catches: B3.4.
   - New test [unit]: AN25, `summary` gives each Examples row's sentence, and the `can_type` false run reads as the command off. Catches: B3.11, B3.12.
   - New test [unit]: AN26, `summary` gives each Examples row's sentence at its width. Catches: B3.13.
   - New test [unit]: `display_path` shortens a wide path under the home folder by D8's path rule and then cuts the end. Catches: B3.18.
-- [ ] 3.2 New test [unit] in `crates/herdr-gpui/src/sidebar/tests/truncate_middle.rs`, declared in `sidebar/tests.rs`: `truncate_middle` gives literal expected strings, worked out by hand from D8's rule, for an ASCII text and for `日本語abc` at an odd column count, and no result is wider than its columns. Catches: B3.14.
-- [ ] 3.3 Extend test [unit] in `crates/herdr-client/src/method/tests.rs`: add `PaneSendText` to `MYHERDR_OFFERED` (`:160`), to `ALL` (`:171`), and to the exhaustive match (`:221`) with the wire name `pane.send_text`. Catches: B3.19.
-- [ ] 3.4 Tests in `crates/herdr-gpui/src/menu/new_session/tests/confirm_page.rs`
+- [x] 3.2 New test [unit] in `crates/herdr-gpui/src/sidebar/tests/truncate_middle.rs`, declared in `sidebar/tests.rs`: `truncate_middle` gives literal expected strings, worked out by hand from D8's rule, for an ASCII text and for `日本語abc` at an odd column count, and no result is wider than its columns. Catches: B3.14.
+- [x] 3.3 Extend test [unit] in `crates/herdr-client/src/method/tests.rs`: add `PaneSendText` to `MYHERDR_OFFERED` (`:160`), to `ALL` (`:171`), and to the exhaustive match (`:221`) with the wire name `pane.send_text`. Catches: B3.19.
+- [x] 3.4 Tests in `crates/herdr-gpui/src/menu/new_session/tests/confirm_page.rs`
   - New test [integration]: AN18, both Examples settings open the confirm page with the rows top to bottom, both boxes checked, a branch of the proposed form, and the focus on `start`. Catches: B3.1, B3.2.
   - New test [integration]: AN19, each Examples row's keys leave the focus on its row. Catches: B3.3.
   - New test [integration]: AN21 rows 1 to 3, each checkbox input flips the box and keeps the branch text. Catches: B3.5.
@@ -159,12 +159,12 @@ Independent test: pick a workspace whose repository the daemon reported, see the
   - New test [integration]: AN25, without `pane.send_text` advertised the drawn summary reads as the command off. Catches: B3.20.
   - New test [integration]: Setting 01, each Examples setting gives its command field and summary. Catches: B3.16.
   - New test [integration]: AN12 row 1, picking an entry with a `repository` record opens the confirm page for its `repo_root` and records no request. Catches: B3.17.
-- [ ] 3.5 Add `Method::PaneSendText` per D15 to `crates/herdr-client/src/method.rs`. `Method::preferred_in` (`:123`) and the method match in `connection.rs:465` keep their wildcard arms.
-- [ ] 3.6 Add the column helpers per D8: `truncate_middle` in `sidebar/session_text.rs`, `truncate_end` and `wrap_two_lines` widened to `pub(crate)`, `glyph_width` in `sidebar/metrics.rs:45` widened to `pub(crate)`, and the four re-exported from `sidebar.rs`.
-- [ ] 3.7 Add `new_session_command` to `settings_panel.rs` per D16, reading `settings.shared`.
-- [ ] 3.8 Build the confirm page per D7 in `confirm.rs`: `Project`, `ConfirmRow`, `open_new_session_confirm` with `can_type` from `Method::PaneSendText.advertised_in(&live.methods)`, `focus_order`, the row keys and clicks of D7's table, the field swaps of D4, and Esc and `back` back to the project page. Enter on `start` does nothing until slice 5. The pick of an entry with a `repository` record per D5 opens the page in `projects.rs`.
-- [ ] 3.9 Build `summary` and `display_path` per D8 in `summary.rs`, and draw the summary line and the project page's dim paths from them at each draw, turning the text width into columns with `glyph_width`.
-- [ ] 3.10 Add the README paragraph per D16 to the sidebar section of `crates/herdr-gpui/README.md` (`:845-858`).
+- [x] 3.5 Add `Method::PaneSendText` per D15 to `crates/herdr-client/src/method.rs`. `Method::preferred_in` (`:123`) and the method match in `connection.rs:465` keep their wildcard arms.
+- [x] 3.6 Add the column helpers per D8: `truncate_middle` in `sidebar/session_text.rs`, `truncate_end` and `wrap_two_lines` widened to `pub(crate)`, `glyph_width` in `sidebar/metrics.rs:45` widened to `pub(crate)`, and `truncate_end`, `truncate_middle`, and `glyph_width` re-exported from `sidebar.rs`. The `wrap_two_lines` re-export lands in task 6.7, its first reader, because clippy denies an unused import.
+- [x] 3.7 Add `new_session_command` to `settings_panel.rs` per D16, reading `settings.shared`.
+- [x] 3.8 Build the confirm page per D7 in `confirm.rs`: `Project`, `ConfirmRow`, `open_new_session_confirm` with `can_type` from `Method::PaneSendText.advertised_in(&live.methods)`, `focus_order`, the row keys and clicks of D7's table, the field swaps of D4, and Esc and `back` back to the project page. Enter on `start` does nothing until slice 5. The pick of an entry with a `repository` record per D5 opens the page in `projects.rs`.
+- [x] 3.9 Build `summary` and `display_path` per D8 in `summary.rs`, and draw the summary line and the project page's dim paths from them at each draw, turning the text width into columns with `glyph_width`.
+- [x] 3.10 Add the README paragraph per D16 to the sidebar section of `crates/herdr-gpui/README.md` (`:845-858`).
 
 ## 4. Another folder and the git check
 **Depends on:** 2, 3
@@ -321,7 +321,7 @@ Independent test: a start whose branch git refuses shows `starting…` with a tu
 - [ ] 6.4 Strengthen test [integration] `a_refused_tab_focus_keeps_waiting_for_the_activation` in `endpoint/lifecycle_tests/empty_workspace_focus.rs:401-421`, renamed `a_refused_tab_focus_ends_the_wait_without_a_reconnect`: Start 20, the status text keeps the daemon's message, `activation` and `activation_deadline` are `None`, and a poll past the old deadline neither reconnects nor switches host, as the workspace test at `:263` asserts. Catches: B6.12.
 - [ ] 6.5 Build the full lock of D11 for `Creating`, `Typing`, and `Focusing`, and the `starting…` button and the step line, in `progress.rs` and `render.rs`.
 - [ ] 6.6 Build the loading icon and its cadence per D12: `spinner_turn`, `spinner_frame` and `last_frame_at` advanced in `update_new_session` from `cx.background_executor().now()`, and `cx.notify()` only on a change. An idle dialog returns without a notify.
-- [ ] 6.7 Replace slice 5's one red line with `status_rows` per D11, drawn with `wrap_two_lines` at the column width `glyph_width` gives.
+- [ ] 6.7 Replace slice 5's one red line with `status_rows` per D11, drawn with `wrap_two_lines` at the column width `glyph_width` gives. Add the `wrap_two_lines` re-export from `sidebar.rs` that task 3.6 left out.
 - [ ] 6.8 Build the resume and the read-only rows per D10 and D11: start resumes at the first step that has not succeeded, `focus_order` skips the created rows, and the `command` field stays editable.
 - [ ] 6.9 Build the ways out after a create per D11: Esc, `back`, and an outside click call `dismiss_menu` and then `navigate_endpoint` (`endpoint.rs:746-766`) for the created tab, while `step` is `Idle`.
 - [ ] 6.10 End a refused Tab focus per D11: `request_focus_change` records `focus_request` for a workspace or a tab target (`window/commands.rs:147-148`), and the doc comments of `end_refused_focus` (`state.rs:876-879`), of `raise_fence` (`window/commands.rs:164-166`), and of the unit test `other_replies_leave_the_activation_waiting` say that a pane focus keeps its fence. The only other reader of `focus_request` is the activation comparison at `state.rs:398`, which compares whole values and needs no change. The other refused-focus unit tests and the endpoint lifecycle tests run unchanged.
