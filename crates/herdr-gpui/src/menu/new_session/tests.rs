@@ -16,6 +16,7 @@ mod confirm_page;
 mod error_rows;
 mod opening;
 mod other_folder;
+mod progress;
 mod project_entries;
 mod project_page;
 mod replies;

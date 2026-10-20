@@ -161,9 +161,17 @@ impl HerdrWindow {
         params: Value,
         cx: &mut Context<Self>,
     ) {
+        let was_spinning = self
+            .menu
+            .new_session
+            .as_ref()
+            .is_some_and(|dialog| dialog.step.is_spinning());
         if let Err(error) = self.try_queue_start_request(step, method, params) {
             self.fail_start(error.to_string(), cx);
             return;
+        }
+        if !was_spinning {
+            self.restart_spinner(cx);
         }
         cx.notify();
     }

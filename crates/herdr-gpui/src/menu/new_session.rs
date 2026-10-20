@@ -71,6 +71,11 @@ pub(crate) struct NewSession {
     /// Why the last folder check or refusal failed, shown in red under the
     /// field or the rows. The next check clears it.
     error: Option<String>,
+    /// Which of the loading icon's ten turns shows, 0 to 9.
+    spinner_frame: u8,
+    /// When the icon last moved a frame, or `None` while no request that
+    /// spins it is out.
+    last_frame_at: Option<std::time::Instant>,
 }
 
 /// Where the dialog's request to the daemon stands.
@@ -151,6 +156,8 @@ impl HerdrWindow {
             step: Step::Idle,
             pending: None,
             error: None,
+            spinner_frame: 0,
+            last_frame_at: None,
         });
         self.menu.page = Some(Page::NewSession);
         self.discard_composition(cx);
@@ -247,6 +254,7 @@ impl HerdrWindow {
             return;
         }
         self.apply_pending_answer(window, cx);
+        self.advance_spinner(cx);
     }
 
     /// Whether a request that locks the dialog is out, so it does nothing

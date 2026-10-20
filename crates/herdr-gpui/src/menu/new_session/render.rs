@@ -2,9 +2,9 @@
 //! entries, each with its folder dimmed beside it, and the confirm page's rows.
 
 use super::{
-    Step,
     confirm::{Confirm, ConfirmRow},
     folder::FolderPage,
+    progress::{spinner_turn, status_rows},
     projects::{ProjectEntry, visible_entries},
     summary::{display_path, shorten_home},
 };
@@ -21,8 +21,11 @@ use unicode_width::UnicodeWidthStr;
 /// The filter field's placeholder while it is empty.
 const FILTER_PLACEHOLDER: &str = "type to filter";
 
-/// The dim line under the field while the daemon checks the folder.
-const CHECKING_FOLDER: &str = "Checking folder…";
+/// The most rows a failed start's message takes.
+const ERROR_ROWS: usize = 2;
+
+/// The size of the loading icon on the `start` button, in pixels.
+const SPINNER_SIZE: f32 = 12.;
 
 /// The dim line under the rows of a server that cannot type a command.
 const CANNOT_TYPE: &str = "This server cannot type a command.";
@@ -202,19 +205,21 @@ impl HerdrWindow {
     /// The lines under the field or the rows: the step the dialog waits on,
     /// dim, then why the last check failed, in red.
     fn check_status_lines(&self) -> Vec<Div> {
-        let theme = &self.theme;
-        let Some(dialog) = self.menu.new_session.as_ref() else {
-            return Vec::new();
-        };
-        let step = (dialog.step == Step::Checking).then(|| {
+        let step = self.step_line();
+        let error = self.error_line();
+        step.into_iter().chain(error).collect()
+    }
+
+    /// The dim line that names the request the dialog waits on, or nothing.
+    fn step_line(&self) -> Option<Div> {
+        let label = self.menu.new_session.as_ref()?.step.label()?;
+        Some(
             div()
                 .debug_selector(|| "new-session-step".into())
                 .px(px(ENTRY_INSET))
-                .text_color(rgb(theme.subtext()))
-                .child(label_text(CHECKING_FOLDER))
-        });
-        let error = self.error_line();
-        step.into_iter().chain(error).collect()
+                .text_color(rgb(self.theme.subtext()))
+                .child(label_text(label)),
+        )
     }
 
     /// Why the last check or start failed, in red, or nothing.
@@ -226,6 +231,29 @@ impl HerdrWindow {
                 .px(px(ENTRY_INSET))
                 .text_color(danger(&self.theme))
                 .child(label_text(error)),
+        )
+    }
+
+    /// Why a start failed, in red, on at most `ERROR_ROWS` rows that keep the
+    /// message's reason, or nothing.
+    fn error_rows(&self, viewport_width: Pixels) -> Option<Div> {
+        let error = self.menu.new_session.as_ref()?.error.as_ref()?;
+        let rows = status_rows(
+            error,
+            self.new_session_text_columns(viewport_width),
+            ERROR_ROWS,
+        );
+        if rows.is_empty() {
+            return None;
+        }
+        Some(
+            div()
+                .debug_selector(|| "new-session-error".into())
+                .flex()
+                .flex_col()
+                .px(px(ENTRY_INSET))
+                .text_color(danger(&self.theme))
+                .children(rows.iter().map(|row| div().child(label_text(row)))),
         )
     }
 
@@ -338,20 +366,15 @@ impl HerdrWindow {
                     .overflow_hidden()
                     .child(label_text(&summary)),
             )
-            .children(self.error_line())
+            .children(self.step_line())
+            .children(self.error_rows(viewport_width))
             .child(
                 div()
                     .flex()
                     .justify_end()
                     .gap(px(8.))
                     .mt(px(8.))
-                    .child(self.button(
-                        confirm,
-                        ConfirmRow::Start,
-                        "new-session-start",
-                        "start",
-                        cx,
-                    ))
+                    .child(self.start_button(confirm, cx))
                     .child(self.button(confirm, ConfirmRow::Back, "new-session-back", "back", cx)),
             )
     }
@@ -466,10 +489,52 @@ impl HerdrWindow {
             .when(is_focused, |button| button.bg(rgb(theme.active)))
             .hover(|button| button.bg(rgb(theme.active)))
             .cursor_pointer()
-            .child(label)
+            .child(label_text(label))
             .on_click(cx.listener(move |this, _, _, cx| {
                 cx.stop_propagation();
                 this.click_confirm_row(row, cx);
+            }))
+    }
+
+    /// The `start` button. While the start has a request out it reads
+    /// `starting…` beside a turning icon and draws as a disabled control.
+    fn start_button(&self, confirm: &Confirm, cx: &mut Context<Self>) -> Stateful<Div> {
+        let theme = &self.theme;
+        let Some(dialog) = self
+            .menu
+            .new_session
+            .as_ref()
+            .filter(|dialog| dialog.step.is_spinning())
+        else {
+            return self.button(confirm, ConfirmRow::Start, "new-session-start", "start", cx);
+        };
+        div()
+            .id("new-session-start")
+            .debug_selector(|| "new-session-start".into())
+            .flex()
+            .items_center()
+            .gap(px(6.))
+            .px(px(12.))
+            .py(px(6.))
+            .rounded(px(crate::config::corners::CONTROL))
+            .border_1()
+            .border_color(rgb(theme.active))
+            .text_color(rgb(theme.subtext()))
+            .child(
+                svg()
+                    .debug_selector(|| "new-session-spinner".into())
+                    .path("icons/refresh.svg")
+                    .size(px(SPINNER_SIZE))
+                    .flex_none()
+                    .text_color(rgb(theme.subtext()))
+                    .with_transformation(Transformation::rotate(percentage(spinner_turn(
+                        dialog.spinner_frame,
+                    )))),
+            )
+            .child(label_text("starting…"))
+            .on_click(cx.listener(|this, _, _, cx| {
+                cx.stop_propagation();
+                this.click_confirm_row(ConfirmRow::Start, cx);
             }))
     }
 }
