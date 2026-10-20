@@ -398,6 +398,7 @@ fn picking_a_known_repository_opens_the_confirm_page_with_the_setting(cx: &mut T
             "{config:?}"
         );
         assert!(confirm_of(&view, test_cx, |c| c.worktree_on && c.command_on));
+        assert_drawn_top_to_bottom(test_cx);
         assert_eq!(focus(&view, test_cx), ConfirmRow::Start, "{config:?}");
         assert_eq!(
             field(&view, test_cx, ConfirmRow::Command),
@@ -482,4 +483,23 @@ fn the_command_is_claude_while_the_shared_settings_are_not_loaded(cx: &mut TestA
     press(test_cx, "enter");
     assert!(is_confirming(&view, test_cx));
     assert_eq!(field(&view, test_cx, ConfirmRow::Command), "claude");
+}
+
+/// The rows are drawn top to bottom in the order the page lists them, with
+/// `back` to the right of `start` on the last line.
+fn assert_drawn_top_to_bottom(cx: &mut VisualTestContext) {
+    draw(cx);
+    let mut top = |selector: &'static str| cx.debug_bounds(selector).unwrap().origin.y;
+    let tops = [
+        top("new-session-worktree"),
+        top("new-session-branch"),
+        top("new-session-run-command"),
+        top("new-session-command"),
+        top("new-session-start"),
+    ];
+    assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "{tops:?}");
+    let start = cx.debug_bounds("new-session-start").unwrap();
+    let back = cx.debug_bounds("new-session-back").unwrap();
+    assert_eq!(back.origin.y, start.origin.y);
+    assert!(back.origin.x > start.origin.x);
 }
