@@ -1,13 +1,6 @@
 use super::*;
-use crate::menu::Page;
+use crate::menu::{Page, new_session::projects::visible_entries};
 use gpui::ClipboardItem;
-
-fn herdr_and_docs() -> Value {
-    json!([
-        main_checkout("w1", "herdr", "/home/b/dev/herdr"),
-        plain_workspace("w2", "docs", "/home/b/notes/docs"),
-    ])
-}
 
 /// An open dialog over `workspaces`.
 fn opened(
@@ -20,35 +13,41 @@ fn opened(
     (view, test_cx, peer)
 }
 
-/// Agent new session 08: a filter change highlights the first entry that
-/// stays, not the position the old highlight had.
+/// Selects the whole filter, so the next edit replaces it.
+fn select_filter(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
+    update(view, cx, |view, _, _| {
+        let input = view.menu.input.as_mut().unwrap();
+        input.selection = 0..input.text.len();
+    });
+}
+
+/// Agent new session 08: every way the filter text can change, typed keys, a
+/// platform text replacement, and the Edit menu's paste, refilters the list
+/// and highlights the first entry that stays rather than the position the old
+/// highlight had.
 #[gpui::test]
-fn a_filter_change_highlights_the_first_entry_that_stays(cx: &mut TestAppContext) {
+fn each_filter_edit_highlights_the_first_entry_that_stays(cx: &mut TestAppContext) {
     let (view, test_cx, _peer) = opened(cx, herdr_and_docs());
     press(test_cx, "down");
     assert_eq!(highlighted(&view, test_cx), "docs");
     test_cx.simulate_input("~/dev");
     assert_eq!(shown(&view, test_cx), ["herdr", "Other folder…"]);
-    assert_eq!(highlighted(&view, test_cx), "herdr");
-}
+    assert_eq!(highlighted(&view, test_cx), "herdr", "typed");
 
-/// Agent new session 08: text that arrives as a paste or a platform
-/// replacement, not as key events, refilters the list.
-#[gpui::test]
-fn a_paste_and_a_platform_replacement_refilter_the_list(cx: &mut TestAppContext) {
-    let (view, test_cx, _peer) = opened(cx, herdr_and_docs());
-    test_cx.write_to_clipboard(ClipboardItem::new_string("DOC".into()));
+    press(test_cx, "down");
+    select_filter(&view, test_cx);
+    type_text(&view, test_cx, "doc");
+    assert_eq!(shown(&view, test_cx), ["docs", "Other folder…"]);
+    assert_eq!(highlighted(&view, test_cx), "docs", "replaced");
+
+    press(test_cx, "down");
+    select_filter(&view, test_cx);
+    test_cx.write_to_clipboard(ClipboardItem::new_string("~/dev".into()));
     update(&view, test_cx, |view, window, cx| {
         view.menu_edit("v", window, cx)
     });
-    assert_eq!(shown(&view, test_cx), ["docs", "Other folder…"]);
-
-    update(&view, test_cx, |view, _, _| {
-        let input = view.menu.input.as_mut().unwrap();
-        input.selection = 0..input.text.len();
-    });
-    type_text(&view, test_cx, "~/dev");
     assert_eq!(shown(&view, test_cx), ["herdr", "Other folder…"]);
+    assert_eq!(highlighted(&view, test_cx), "herdr", "pasted");
 }
 
 /// Agent new session 09, one case per Examples row.
@@ -65,8 +64,9 @@ fn the_highlight_stops_at_the_first_and_last_entry(cx: &mut TestAppContext) {
     }
 }
 
-/// Agent new session 10: with the highlight on the last of 13 entries the page
-/// draws the 8 entries that `visible_entries` gives, from index 5.
+/// Agent new session 10: with the highlight on the last of 13 entries, where
+/// drawing every entry differs from the window, the page draws exactly the
+/// entries that `visible_entries` gives.
 #[gpui::test]
 fn the_page_draws_only_the_visible_window(cx: &mut TestAppContext) {
     let workspaces: Vec<Value> = (1..=12)
@@ -76,11 +76,14 @@ fn the_page_draws_only_the_visible_window(cx: &mut TestAppContext) {
     press(test_cx, &["down"; 12].join(" "));
     draw(test_cx);
     assert_eq!(highlighted(&view, test_cx), "Other folder…");
+    // The window's own rule has its unit test; this one checks the page draws
+    // what that rule gives, and no more.
+    let window = visible_entries(12, 13);
     for index in 0..13 {
         // `debug_bounds` wants a `'static` selector, so each leaks for the run.
         let selector: &'static str = Box::leak(format!("new-session-row-{index}").into_boxed_str());
         let drawn = test_cx.debug_bounds(selector).is_some();
-        assert_eq!(drawn, (5..13).contains(&index), "row {index}");
+        assert_eq!(drawn, window.contains(&index), "row {index}");
     }
 }
 

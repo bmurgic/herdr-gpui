@@ -1,11 +1,11 @@
 use super::*;
 use crate::menu::Page;
 
-/// Agent new session 04's neighbour, D9 steps 1 and 2: the open project page
-/// closes at the next window update, and sends nothing, when the window selects
-/// another host that has the same boot id and workspace ids, and when the same
-/// host reconnects with a new boot id. A check of only one of the two facts
-/// leaves the page open in one run.
+/// D9's host and boot steps: the open project page closes at the next window
+/// update, and sends nothing, when the window selects another host that has
+/// the same boot id and workspace ids, and when the same host reconnects with
+/// a new boot id. A check of only one of the two facts leaves the page open in
+/// one run.
 #[gpui::test]
 fn the_project_page_closes_when_its_host_or_boot_changes(cx: &mut gpui::TestAppContext) {
     let (fixture, cx) = cx.add_window_view(|window, cx| {

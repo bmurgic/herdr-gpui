@@ -91,6 +91,15 @@ pub(super) fn linked_by_worktree(id: &str, label: &str, cwd: &str) -> Value {
     workspace
 }
 
+/// Two workspaces whose labels are not in alphabetical order, so only the
+/// snapshot's order puts `herdr` first. `docs` is not a git checkout.
+pub(super) fn herdr_and_docs() -> Value {
+    json!([
+        main_checkout("w1", "herdr", "/home/b/dev/herdr"),
+        plain_workspace("w2", "docs", "/home/b/notes/docs"),
+    ])
+}
+
 pub(super) fn workspaces_of(workspaces: Value) -> Vec<ClientShellWorkspaceV2> {
     serde_json::from_value(workspaces).unwrap()
 }

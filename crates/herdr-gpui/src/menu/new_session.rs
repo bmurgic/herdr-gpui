@@ -149,8 +149,8 @@ impl HerdrWindow {
         }
     }
 
-    /// Up and Down move the highlight, stopping at the ends, and Enter is left
-    /// for the picks a later step adds. Returns whether the key was used.
+    /// Up and Down move the highlight, stopping at the ends. Enter is taken
+    /// and picks nothing yet. Returns whether the key was used.
     /// While an input method composes text, every key is the method's.
     pub(super) fn new_session_key(
         &mut self,

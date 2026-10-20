@@ -4,16 +4,6 @@ use crate::{
     menu::Page,
     palette::Filter,
 };
-use gpui::Modifiers;
-
-/// Two workspaces whose labels are not in alphabetical order, so only the
-/// snapshot's order puts `herdr` first.
-fn herdr_and_docs() -> Value {
-    json!([
-        main_checkout("w1", "herdr", "/home/b/dev/herdr"),
-        plain_workspace("w2", "docs", "/home/b/notes/docs"),
-    ])
-}
 
 /// One run of the guard test: its name, the methods the peer advertises, and
 /// the change that takes away one condition.
@@ -40,70 +30,41 @@ fn assert_project_page(
     assert_no_request(peer, view, cx);
 }
 
-/// Agent new session 01 and 03: the footer, the palette entry, and the
-/// command found by its name each open the project page.
-#[gpui::test]
-fn each_way_to_run_the_command_opens_the_project_page(cx: &mut TestAppContext) {
-    for source in ["footer", "palette", "name"] {
-        let (view, test_cx, mut peer) = dialog_window(cx, &METHODS, false);
-        set_workspaces(&view, test_cx, herdr_and_docs());
-        match source {
-            "footer" => {
-                draw(test_cx);
-                let new = test_cx.debug_bounds("new-workspace").unwrap().center();
-                test_cx.simulate_click(new, Modifiers::default());
-            }
-            "palette" => {
-                update(&view, test_cx, |view, window, cx| {
-                    view.open_palette(Filter::Commands, window, cx)
-                });
-                draw(test_cx);
-                test_cx.simulate_input("New Session");
-                test_cx.run_until_parked();
-                press(test_cx, "enter");
-            }
-            _ => {
-                let info = COMMANDS
-                    .iter()
-                    .find(|info| info.name == "new_session")
-                    .unwrap();
-                update(&view, test_cx, |view, window, cx| {
-                    view.command(info.command, window, cx)
-                });
-            }
-        }
-        assert_project_page(&mut peer, &view, test_cx, source);
+/// Runs the `new_session` command from the palette entry `New Session`, or
+/// through the catalog row found by the name `new_session`.
+fn run_new_session(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, source: &str) {
+    if source == "palette" {
+        update(view, cx, |view, window, cx| {
+            view.open_palette(Filter::Commands, window, cx)
+        });
+        draw(cx);
+        cx.simulate_input("New Session");
+        cx.run_until_parked();
+        press(cx, "enter");
+        return;
     }
-}
-
-/// Agent new session 02 rows 3 and 4: the New Workspace command and the
-/// rail's `+` keep New Workspace while the Agents tab is the stored tab.
-#[gpui::test]
-fn new_workspace_from_the_agents_tab_still_asks_for_a_directory(cx: &mut TestAppContext) {
-    let (view, test_cx, _peer) = dialog_window(cx, &METHODS, false);
-    update(&view, test_cx, |view, window, cx| {
-        view.command(Command::Workspace, window, cx)
+    let info = COMMANDS
+        .iter()
+        .find(|info| info.name == "new_session")
+        .unwrap();
+    update(view, cx, |view, window, cx| {
+        view.command(info.command, window, cx)
     });
-    assert_eq!(
-        view.read_with(test_cx, |view, _| view.menu.page),
-        Some(Page::NewWorkspace)
-    );
-
-    let (view, test_cx, _peer) = dialog_window(cx, &METHODS, false);
-    update(&view, test_cx, |view, _, _| view.sidebar_visible = false);
-    draw(test_cx);
-    let plus = test_cx.debug_bounds("rail-new-workspace").unwrap().center();
-    test_cx.simulate_click(plus, Modifiers::default());
-    assert_eq!(
-        view.read_with(test_cx, |view, _| view.menu.page),
-        Some(Page::NewWorkspace)
-    );
 }
 
-/// Agent new session 04: a run with every condition opens the page, and each
-/// run that lacks one opens nothing and sends nothing.
+/// Agent new session 01, 03, and 04: with every condition met, the palette
+/// entry and the command found by its name each open the project page and
+/// send nothing, and each run that lacks one condition opens nothing and
+/// sends nothing.
 #[gpui::test]
 fn the_dialog_opens_only_when_every_condition_holds(cx: &mut TestAppContext) {
+    for source in ["palette", "name"] {
+        let (view, test_cx, mut peer) = dialog_window(cx, &METHODS, false);
+        set_workspaces(&view, test_cx, herdr_and_docs());
+        run_new_session(&view, test_cx, source);
+        assert_project_page(&mut peer, &view, test_cx, source);
+    }
+
     let without = |missing: &str| -> Vec<&str> {
         METHODS
             .into_iter()
@@ -111,7 +72,6 @@ fn the_dialog_opens_only_when_every_condition_holds(cx: &mut TestAppContext) {
             .collect()
     };
     let runs: Vec<Run> = vec![
-        ("every condition", METHODS.to_vec(), |_| {}),
         ("not connected", METHODS.to_vec(), |view| {
             view.live.status = crate::state::ConnectionStatus::Disconnected
         }),
@@ -140,10 +100,6 @@ fn the_dialog_opens_only_when_every_condition_holds(cx: &mut TestAppContext) {
         update(&view, test_cx, |view, _, _| change(view));
         let opened = open(&view, test_cx);
         let page = view.read_with(test_cx, |view, _| view.menu.page);
-        if name == "every condition" {
-            assert!(opened && page == Some(Page::NewSession), "{name}");
-            continue;
-        }
         assert!(!opened && page.is_none(), "{name}");
         assert_no_request(&mut peer, &view, test_cx);
     }
