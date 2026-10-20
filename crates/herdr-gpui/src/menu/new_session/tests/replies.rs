@@ -1,5 +1,5 @@
+use super::*;
 use crate::menu::new_session::replies::{WorktreeListSource, parse_worktree_list_source};
-use serde_json::{Value, json};
 
 fn source(workspace_id: Option<&str>, path: &str) -> Option<WorktreeListSource> {
     Some(WorktreeListSource {
