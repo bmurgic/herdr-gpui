@@ -187,5 +187,3 @@ no-typing and no-setup-tracking fallbacks until myherdr is upgraded.
    unsupported notice.
 6. Native fixture and docs: a native smoke step that opens the dialog
    pages for screenshots, `docs/cli.md`, README settings table.
-</content>
-</invoke>
