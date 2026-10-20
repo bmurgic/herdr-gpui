@@ -35,6 +35,12 @@ pub(super) fn project_page<'a>(
     set_workspaces(&view, test_cx, workspaces);
     update(&view, test_cx, |view, _, _| {
         view.settings.shared = Some(Settings::parse_text(config).unwrap());
+        // The window sizes the daemon's tab to its own geometry about 150 ms
+        // after it settles and claims the tab again with a `tab.focus`, which
+        // would go out among the dialog's requests whenever a test's real time
+        // allows. The tests are not about it, so the geometry counts as sent.
+        view.last_queued_options = Some(view.options);
+        view.pending_resize = None;
     });
     assert!(open(&view, test_cx));
     (view, test_cx, peer)

@@ -64,14 +64,6 @@ pub(super) fn first_list_out<'a>(
 ) -> (Entity<HerdrWindow>, &'a mut VisualTestContext, MockPeer) {
     let (view, test_cx, mut peer) = git_page(cx, &start_methods());
     make_input_ready(&view, test_cx);
-    // The window sizes the daemon's tab to its own geometry about 150 ms after
-    // it settles and claims the tab again with a `tab.focus`, which would go
-    // out among the dialog's requests whenever a test's real time allows. The
-    // tests are not about it, so the geometry counts as sent.
-    update(&view, test_cx, |view, _, _| {
-        view.last_queued_options = Some(view.options);
-        view.pending_resize = None;
-    });
     configure(
         &view,
         test_cx,
