@@ -11,7 +11,7 @@ fn snapshot_of(workspaces: Value) -> herdr_client::protocol::ClientShellSnapshot
 }
 
 fn entry(label: &str, shown_path: &str) -> ProjectEntry {
-    ProjectEntry {
+    ProjectEntry::Workspace {
         label: label.into(),
         shown_path: shown_path.into(),
     }
@@ -38,14 +38,14 @@ fn project_entries_drop_each_linked_worktree() {
             entry("notes", "~/notes"),
             entry("home", "~"),
             entry("srv", "/srv/app"),
-            entry(OTHER_FOLDER, ""),
+            ProjectEntry::OtherFolder,
         ]
     );
 
     let only_linked = snapshot_of(json!([linked_by_repository("w1", "feature", "/home/b/f")]));
     assert_eq!(
         project_entries(&only_linked, home),
-        [entry(OTHER_FOLDER, "")]
+        [ProjectEntry::OtherFolder]
     );
 }
 
@@ -65,7 +65,7 @@ fn the_filter_keeps_entries_by_label_or_shown_path() {
     let entries = [
         entry("herdr", "~/dev/herdr"),
         entry("docs", "~/notes/docs"),
-        entry(OTHER_FOLDER, ""),
+        ProjectEntry::OtherFolder,
     ];
     for (typed, kept) in [
         ("DOC", vec![1, 2]),
@@ -88,4 +88,16 @@ fn the_visible_window_is_eight_entries_ending_at_the_highlight() {
     }
     assert_eq!(visible_entries(2, 3), 0..3);
     assert_eq!(visible_entries(0, 0), 0..0);
+}
+
+/// A workspace that happens to be labelled `Other folder…` is filtered like
+/// any other; only the folder entry always stays.
+#[test]
+fn a_workspace_labelled_like_the_folder_entry_is_filtered() {
+    let entries = project_entries(
+        &snapshot_of(json!([plain_workspace("w1", OTHER_FOLDER, "/srv/x")])),
+        Path::new("/home/b"),
+    );
+    assert_eq!(filtered_entries(&entries, "zzz"), [1]);
+    assert_eq!(filtered_entries(&entries, "x"), [0, 1]);
 }

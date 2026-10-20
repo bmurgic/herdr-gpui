@@ -5,7 +5,7 @@ use crate::menu::workspace::WorkspaceTarget;
 use herdr_client::protocol::{ClientShellSnapshotV2, ClientShellWorkspaceV2};
 use std::{ops::Range, path::Path};
 
-/// The label of the entry that opens the folder page.
+/// The text of the entry that opens the folder page.
 pub(super) const OTHER_FOLDER: &str = "Other folder…";
 
 /// How many entries the page shows at once. myherdr fits up to 16 rows in a
@@ -18,10 +18,31 @@ const ROWS_ABOVE_HIGHLIGHT: usize = VISIBLE_ENTRIES - 1;
 
 /// One row of the project page.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct ProjectEntry {
-    pub(super) label: String,
-    /// The folder, with the home folder shown as `~`. Empty for `Other folder…`.
-    pub(super) shown_path: String,
+pub(super) enum ProjectEntry {
+    Workspace {
+        label: String,
+        /// The folder, with the home folder shown as `~`.
+        shown_path: String,
+    },
+    /// The entry that opens the folder page.
+    OtherFolder,
+}
+
+impl ProjectEntry {
+    pub(super) fn label(&self) -> &str {
+        match self {
+            Self::Workspace { label, .. } => label,
+            Self::OtherFolder => OTHER_FOLDER,
+        }
+    }
+
+    /// The dimmed folder beside the label. Empty for `Other folder…`.
+    pub(super) fn shown_path(&self) -> &str {
+        match self {
+            Self::Workspace { shown_path, .. } => shown_path,
+            Self::OtherFolder => "",
+        }
+    }
 }
 
 /// One entry per workspace in snapshot order, except a linked worktree, then
@@ -31,14 +52,11 @@ pub(super) fn project_entries(snapshot: &ClientShellSnapshotV2, home: &Path) -> 
         .workspaces
         .iter()
         .filter(|workspace| !WorkspaceTarget::new(snapshot, workspace).is_linked_checkout())
-        .map(|workspace| ProjectEntry {
+        .map(|workspace| ProjectEntry::Workspace {
             label: workspace.label.clone(),
             shown_path: shown_path(&workspace_folder(workspace), home),
         })
-        .chain(std::iter::once(ProjectEntry {
-            label: OTHER_FOLDER.into(),
-            shown_path: String::new(),
-        }))
+        .chain(std::iter::once(ProjectEntry::OtherFolder))
         .collect()
 }
 
@@ -75,10 +93,12 @@ pub(super) fn filtered_entries(entries: &[ProjectEntry], filter: &str) -> Vec<us
     entries
         .iter()
         .enumerate()
-        .filter(|(_, entry)| {
-            entry.label == OTHER_FOLDER
-                || entry.label.to_lowercase().contains(&filter)
-                || entry.shown_path.to_lowercase().contains(&filter)
+        .filter(|(_, entry)| match entry {
+            ProjectEntry::OtherFolder => true,
+            ProjectEntry::Workspace { label, shown_path } => {
+                label.to_lowercase().contains(&filter)
+                    || shown_path.to_lowercase().contains(&filter)
+            }
         })
         .map(|(position, _)| position)
         .collect()

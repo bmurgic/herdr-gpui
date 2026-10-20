@@ -81,13 +81,13 @@ impl HerdrWindow {
                 .py(px(3.))
                 .rounded(px(crate::config::corners::CONTROL))
                 .when(position == highlighted, |row| row.bg(rgb(theme.active)))
-                .child(div().flex_none().child(entry.label.clone()))
+                .child(div().flex_none().child(entry.label().to_owned()))
                 .child(
                     div()
                         .min_w_0()
                         .truncate()
                         .text_color(rgb(theme.subtext()))
-                        .child(entry.shown_path.clone()),
+                        .child(entry.shown_path().to_owned()),
                 )
         })))
     }

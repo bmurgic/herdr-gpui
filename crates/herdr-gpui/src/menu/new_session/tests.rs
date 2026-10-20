@@ -141,7 +141,11 @@ pub(super) fn press(cx: &mut VisualTestContext, keys: &str) {
 pub(super) fn shown(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Vec<String> {
     view.read_with(cx, |view, _| {
         let shown = view.shown_projects().unwrap();
-        shown.rows.into_iter().map(|entry| entry.label).collect()
+        shown
+            .rows
+            .into_iter()
+            .map(|entry| entry.label().to_owned())
+            .collect()
     })
 }
 
@@ -149,7 +153,7 @@ pub(super) fn shown(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> V
 pub(super) fn highlighted(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> String {
     view.read_with(cx, |view, _| {
         let shown = view.shown_projects().unwrap();
-        shown.rows[shown.highlighted].label.clone()
+        shown.rows[shown.highlighted].label().to_owned()
     })
 }
 
