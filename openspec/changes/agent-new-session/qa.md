@@ -9,7 +9,7 @@
 > Steps are user actions and observations only: no functions, test files, greps, or imports.
 > If no automation can drive this interface, say so; do not convert procedures into unit tests.
 
-No automation in `just ci` drives the native herdr-gpui window against a myherdr daemon. The opt-in native suite needs an active desktop and a daemon binary the tester names, so a tester runs the desktop procedures on a desktop session. The CLI procedure runs in a terminal beside that window. Each procedure names the screenshots it saves. The tester saves each one from the real native window.
+No automation in `just ci` drives the native herdr-gpui window against a myherdr daemon. One opt-in native test, `native_new_session_clicks_reach_their_rows`, clicks the dialog in the real window against a sandbox daemon (design.md D17). It checks only that each click reaches its control, so these procedures still prove the behavior. The opt-in native suite needs an active desktop and a daemon binary the tester names, so a tester runs the desktop procedures on a desktop session. A native test cannot type into the Settings window, so `Change the New session command in Settings` is the only check of that field in the real window. The CLI procedure runs in a terminal beside that window. Each procedure names the screenshots it saves. The tester saves each one from the real native window.
 
 Shared starting state for every procedure:
 
