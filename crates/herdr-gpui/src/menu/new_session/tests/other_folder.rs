@@ -293,6 +293,26 @@ fn an_unusable_folder_is_refused_without_a_request(cx: &mut TestAppContext) {
     }
 }
 
+/// A folder on another host is not looked for on this computer: Enter sends
+/// `worktree.list` for a path that exists only there.
+#[gpui::test]
+fn an_accepted_folder_on_another_host_is_checked_without_a_local_lookup(cx: &mut TestAppContext) {
+    let home = tempfile::tempdir().unwrap();
+    let (view, test_cx, mut peer) = folder_page(cx, false, true, home.path());
+    set_focused_text(&view, test_cx, "/srv/remote-only");
+    press(test_cx, "enter");
+    test_cx.run_until_parked();
+    let request = sent(&mut peer);
+    assert_eq!(request["method"], "worktree.list");
+    assert_eq!(
+        request["params"],
+        json!({"cwd": "/srv/remote-only", "trust_repository": false})
+    );
+    assert_eq!(status(&view, test_cx), (Step::Checking, None));
+    redraw(test_cx);
+    assert!(painted(test_cx, "Checking folder…"));
+}
+
 /// Folders `photos` and `Projects` under a home, listed in that order for `~/p`.
 fn home_with_projects() -> tempfile::TempDir {
     let home = tempfile::tempdir().unwrap();
