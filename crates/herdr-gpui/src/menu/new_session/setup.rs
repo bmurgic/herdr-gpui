@@ -110,6 +110,9 @@ pub(super) struct SetupWait {
     /// wanted.
     next_list_at: Option<Instant>,
     pub(super) focused_button: SetupButton,
+    /// What the native walk prints when a setup row never changes.
+    #[cfg(all(feature = "integration-test", target_os = "macos"))]
+    pub(super) trace: super::native::ListTrace,
 }
 
 impl SetupWait {
@@ -210,7 +213,11 @@ impl HerdrWindow {
         };
         let wait = confirm.started.setup.get_or_insert_with(SetupWait::default);
         match queued {
-            Ok(()) => wait.next_list_at = None,
+            Ok(()) => {
+                wait.next_list_at = None;
+                #[cfg(all(feature = "integration-test", target_os = "macos"))]
+                wait.trace.record_sent();
+            }
             Err(error) => {
                 dialog.step = Step::Waiting;
                 dialog.error = Some(error.to_string());
@@ -268,6 +275,8 @@ impl HerdrWindow {
         };
         let records = kept_records(&list, &created.workspace_id);
         let wait = confirm.started.setup.get_or_insert_with(SetupWait::default);
+        #[cfg(all(feature = "integration-test", target_os = "macos"))]
+        wait.trace.record_answer(reply);
         wait.apply_records(&records, now);
         dialog.error = None;
         if wait.is_every_row_succeeded() {
@@ -301,6 +310,16 @@ impl HerdrWindow {
         if error_code(result).is_some_and(|code| UNSUPPORTED_CODES.contains(&code)) {
             self.skip_setup_wait(cx);
             return;
+        }
+        #[cfg(all(feature = "integration-test", target_os = "macos"))]
+        if let Some(wait) = self
+            .menu
+            .new_session
+            .as_mut()
+            .and_then(|dialog| dialog.confirm.as_mut())
+            .and_then(|confirm| confirm.started.setup.as_mut())
+        {
+            wait.trace.record_failure(&message);
         }
         self.keep_waiting_with_error(message, cx);
     }

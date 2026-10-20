@@ -24,7 +24,7 @@ use crate::{
 };
 use anyhow::ensure;
 use std::{
-    path::PathBuf,
+    path::{Path as FilePath, PathBuf},
     sync::mpsc::{self, TryRecvError},
 };
 
@@ -42,12 +42,11 @@ const SANDBOX_VARIABLE: &str = "HERDR_TEST_NEW_SESSION_SANDBOX";
 /// A directory that receives a PNG of the window at each stage. Used only
 /// when built with the `mockup` feature, which can render a window to an image.
 const CAPTURE_VARIABLE: &str = "HERDR_TEST_NEW_SESSION_CAPTURE";
-/// How long a click or a daemon reply may take before the walk fails.
+/// How long a click or a daemon reply may take before the walk fails. A setup
+/// hook that exits 1 paints its failed row 0.10 to 0.14 seconds after the
+/// `start` click (20 sessions, `TIMING` lines), so 15 seconds is about 100
+/// times that.
 const DEADLINE: Duration = Duration::from_secs(15);
-/// How long a setup hook may take to report. The daemon runs one worktree's
-/// hooks after the previous worktree's, and the sandbox's `e2e.hang` hook
-/// sleeps 30 seconds, so the second session's hooks start up to that long late.
-const HOOK_DEADLINE: Duration = Duration::from_secs(60);
 /// How long the walk keeps watching for a command that must not be typed.
 const QUIET_PERIOD: Duration = Duration::from_millis(1500);
 const POLL: Duration = Duration::from_millis(20);
@@ -302,19 +301,43 @@ impl Driver {
         self.capture(cx, "confirm")?;
         self.click_text(cx, "the start button", |text| text == "start")
             .await?;
+        let started_at = Instant::now();
         self.stage(cx, NewSessionStage::Checklist).await?;
         let running = self
-            .painted_text(cx, "a running setup row", DEADLINE, |text| {
+            .painted_text(cx, "a running setup row", |text| {
                 text.starts_with("Run setup: ")
             })
             .await?;
-        let failed = self
-            .painted_text(cx, "the failed setup row", HOOK_DEADLINE, |text| {
+        let running_after = started_at.elapsed();
+        let failed = match self
+            .painted_text(cx, "the failed setup row", |text| {
                 text.starts_with("✗ Setup failed (exit 1)")
             })
-            .await?;
+            .await
+        {
+            Ok(failed) => failed,
+            Err(error) => bail!("{error}; {}", self.setup_diagnostics(cx)),
+        };
+        eprintln!(
+            "NEW SESSION native TIMING: {capture}: running row after {running_after:?}, \
+             failed row after {:?}, both from the start click",
+            started_at.elapsed()
+        );
         self.capture(cx, capture)?;
         Ok((running, failed))
+    }
+
+    /// What the window and the daemon's plugin log folder say about the setup
+    /// hooks, for the message of a wait that timed out.
+    fn setup_diagnostics(&self, cx: &mut AsyncApp) -> String {
+        let trace = self
+            .handle
+            .read_with(cx, |view, _| view.new_session_setup_trace())
+            .unwrap_or_else(|error| format!("window unreadable: {error:#}"));
+        let logs = std::env::var_os(SANDBOX_VARIABLE)
+            .map(|root| plugin_log_listing(&PathBuf::from(root).join("state")))
+            .unwrap_or_else(|| format!("{SANDBOX_VARIABLE} unset"));
+        format!("setup trace: {trace}; plugin log folders: {logs}")
     }
 
     /// Waits until the window's state says the dialog is closed and a fresh
@@ -535,17 +558,16 @@ impl Driver {
         &self,
         cx: &mut AsyncApp,
         what: &str,
-        within: Duration,
         wanted: impl Fn(&str) -> bool,
     ) -> Result<String> {
-        let deadline = Instant::now() + within;
+        let deadline = Instant::now() + DEADLINE;
         loop {
             if let Some((text, _)) = self.find_painted(cx, &wanted)? {
                 return Ok(text);
             }
             if Instant::now() >= deadline {
                 bail!(
-                    "timed out after {within:?} waiting for {what} to be painted; painted: {:?}",
+                    "timed out after {DEADLINE:?} waiting for {what} to be painted; painted: {:?}",
                     self.painted_texts(cx)?
                 );
             }
@@ -669,4 +691,56 @@ fn connection_state(view: &HerdrWindow) -> String {
         view.local_error,
         view.live.error
     )
+}
+
+/// The folders named `plugin-logs` under `state`, each with the files in it
+/// and their sizes. The daemon writes a file there only when a hook has
+/// finished and failed, so an empty folder means no failure was recorded.
+fn plugin_log_listing(state: &FilePath) -> String {
+    fn visit(directory: &FilePath, depth: usize, found: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(directory) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            if path.file_name().is_some_and(|name| name == "plugin-logs") {
+                found.push(folder_listing(&path));
+            } else if depth > 0 {
+                visit(&path, depth - 1, found);
+            }
+        }
+    }
+    fn folder_listing(logs: &FilePath) -> String {
+        let mut files = Vec::new();
+        let mut pending = vec![logs.to_path_buf()];
+        while let Some(directory) = pending.pop() {
+            let Ok(entries) = std::fs::read_dir(&directory) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                match entry.metadata() {
+                    Ok(metadata) if metadata.is_dir() => pending.push(path),
+                    Ok(metadata) => files.push(format!(
+                        "{} ({} bytes)",
+                        path.strip_prefix(logs).unwrap_or(&path).display(),
+                        metadata.len()
+                    )),
+                    Err(_) => {}
+                }
+            }
+        }
+        files.sort();
+        format!("{}: {files:?}", logs.display())
+    }
+    let mut found = Vec::new();
+    visit(state, 4, &mut found);
+    if found.is_empty() {
+        format!("none under {}", state.display())
+    } else {
+        found.join(", ")
+    }
 }
