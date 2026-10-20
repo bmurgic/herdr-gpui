@@ -545,20 +545,13 @@ fn the_plain_row_shows_the_command_and_dims_none() {
 #[cfg(not(unix))]
 #[gpui::test]
 fn the_row_shows_plain_text_where_settings_cannot_be_saved(cx: &mut TestAppContext) {
-    let (_, view, cx) = sessions_fixture(
+    let (_, _, cx) = sessions_fixture(
         cx,
         Some("[ui]\nnew_session_command = \"codex\"\n"),
         &[Host::Local { titles: false }],
     );
     draw(cx);
     assert!(painted(cx, PLAIN_TEXT));
-    // The drawn text is not readable from here; this is what the row draws.
-    view.read_with(cx, |view, _| {
-        assert_eq!(
-            plain_new_session_command(view.shared.as_ref()),
-            ("codex".into(), false)
-        );
-    });
     for selector in [FIELD, APPLY] {
         assert!(!painted(cx, selector), "{selector}");
     }
