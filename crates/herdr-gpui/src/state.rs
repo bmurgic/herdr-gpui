@@ -135,10 +135,10 @@ pub struct LiveState {
     pub(crate) notifications_lost: bool,
     outer_focused: Option<bool>,
     pub activation: Option<SurfaceActivation>,
-    /// The daemon refused the workspace or tab focus that raised the last fence, so
-    /// there is no activation to wait for. The window reads it to drop the
-    /// fence's deadline instead of reconnecting when it passes, and consumes
-    /// it there. The next fence and a new session clear it too.
+    /// The daemon refused the workspace or tab focus that raised the last
+    /// fence, so there is no activation to wait for. The window reads it to
+    /// drop the fence's deadline instead of reconnecting when it passes, and
+    /// consumes it there. The next fence and a new session clear it too.
     pub(crate) focus_refused: bool,
     pub supports_surface: bool,
     /// The session negotiated `shell.snapshot.v2`, whose daemon expands `~`
@@ -197,9 +197,10 @@ pub struct SurfaceActivation {
     pub failed: bool,
     pub focus: Option<crate::OwnedNavigationTarget>,
     pub active: bool,
-    /// The workspace focus request (`workspace.focus` or its `.v2` form) or tab
-    /// focus request (`tab.focus`) that raised this fence, when it was one. A refusal of that request ends the
-    /// activation, because no focus change is coming for the surface to settle on.
+    /// The workspace focus request (`workspace.focus` or its `.v2` form) or
+    /// tab focus request (`tab.focus`) that raised this fence, when it was
+    /// one. A refusal of that request ends the activation, because no focus
+    /// change is coming for the surface to settle on.
     pub focus_request: Option<String>,
 }
 

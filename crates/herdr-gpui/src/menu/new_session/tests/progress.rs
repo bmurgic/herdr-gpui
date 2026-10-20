@@ -10,9 +10,12 @@ use crate::{
         Page,
         new_session::{Step, confirm::ConfirmRow},
     },
-    sidebar::layout_tests::{painted, redraw, text_bounds},
+    sidebar::{
+        glyph_width,
+        layout_tests::{painted, redraw, text_bounds},
+    },
 };
-use gpui::{ClipboardItem, point};
+use gpui::ClipboardItem;
 use std::{
     sync::{
         Arc,
@@ -144,9 +147,7 @@ fn input_during_an_unanswered_create_is_ignored(cx: &mut TestAppContext) {
             cx.write_to_clipboard(ClipboardItem::new_string("x".into()));
             update(view, cx, |view, window, cx| view.menu_edit("v", window, cx));
         }),
-        ("clicks outside the dialog", |_, cx| {
-            cx.simulate_click(point(px(10.), px(300.)), Modifiers::default());
-        }),
+        ("clicks outside the dialog", |_, cx| click_outside(cx)),
     ];
     for (input, give) in inputs {
         let (view, test_cx, mut peer) = git_page(cx, &start_methods());
@@ -178,20 +179,13 @@ fn the_line_under_the_rows_names_the_step(cx: &mut TestAppContext) {
     assert_step_line(test_cx, Some("Opening…"), "tab.focus");
 }
 
-/// The step the next Enter on `start` resumes at.
-enum Resumes {
-    Create,
-    Typing,
-    Focus,
-}
-
 /// New session start 08, one case per Examples row: the message shows above
 /// the buttons, `start` reads `start` and works again, and nothing else is
-/// sent.
+/// sent. Which step the retry sends is start 10's.
 #[gpui::test]
 fn a_failed_step_keeps_the_dialog_open_with_its_message(cx: &mut TestAppContext) {
     let created = || worktree_created(None);
-    // (the answers up to the failing one, the message, what Enter sends next)
+    // (the answers up to the failing one, the message)
     let failures = [
         (
             vec![error_answer(
@@ -199,13 +193,8 @@ fn a_failed_step_keeps_the_dialog_open_with_its_message(cx: &mut TestAppContext)
                 "fatal: 'main' is already checked out",
             )],
             "fatal: 'main' is already checked out",
-            Resumes::Create,
         ),
-        (
-            vec![ok()],
-            "Unexpected reply from the server",
-            Resumes::Create,
-        ),
+        (vec![ok()], "Unexpected reply from the server"),
         (
             vec![
                 created(),
@@ -213,7 +202,6 @@ fn a_failed_step_keeps_the_dialog_open_with_its_message(cx: &mut TestAppContext)
                 error_answer("pane_send_failed", "no available capacity"),
             ],
             "no available capacity",
-            Resumes::Typing,
         ),
         (
             vec![
@@ -223,13 +211,12 @@ fn a_failed_step_keeps_the_dialog_open_with_its_message(cx: &mut TestAppContext)
                 error_answer("tab_not_found", "tab w2:t1 not found"),
             ],
             "tab w2:t1 not found",
-            Resumes::Focus,
         ),
     ];
-    for (answers, message, resumes) in failures {
+    for (answers, message) in failures {
         let (view, test_cx, mut peer) = git_page(cx, &start_methods());
         press(test_cx, "enter");
-        let sent = exchange(&mut peer, &view, test_cx, answers);
+        exchange(&mut peer, &view, test_cx, answers);
         assert_eq!(step(&view, test_cx), Step::Idle, "{message}");
         assert_eq!(
             view.read_with(test_cx, |view, _| view.menu.page),
@@ -245,22 +232,16 @@ fn a_failed_step_keeps_the_dialog_open_with_its_message(cx: &mut TestAppContext)
         assert!(line.bottom() <= start.top(), "{message}: above the buttons");
         assert_no_request(&mut peer, &view, test_cx);
 
+        // `start` is enabled: Enter on it sends the next step's request.
         press(test_cx, "enter");
-        let method = match resumes {
-            Resumes::Create => "worktree.create",
-            Resumes::Typing => "pane.send_text",
-            Resumes::Focus => "tab.focus",
-        };
-        assert_eq!(sent_method(&mut peer), method, "{message} {sent:?}");
+        assert_ne!(step(&view, test_cx), Step::Idle, "{message}");
     }
-}
-
-fn sent_method(peer: &mut MockPeer) -> String {
-    sent(peer)["method"].as_str().unwrap().to_owned()
 }
 
 /// New session start 08, a message of three lines: the drawn rows are the
 /// reason and the line before it, and the hint after the reason is left out.
+/// A reason wider than the error line's columns wraps onto both rows, so the
+/// line before it has no free row.
 #[gpui::test]
 fn a_failure_message_draws_its_reason_rows(cx: &mut TestAppContext) {
     let first = "Preparing worktree (new branch 'bad..name')";
@@ -281,6 +262,28 @@ fn a_failure_message_draws_its_reason_rows(cx: &mut TestAppContext) {
     assert!(!painted(test_cx, hint));
     assert!(!painted(test_cx, &message));
     assert!(text_bounds(test_cx, first).bottom() <= text_bounds(test_cx, reason).top());
+
+    // No space in the reason, so it breaks at the last column that fits.
+    let reason = format!("fatal:{}", "a".repeat(81));
+    let (view, test_cx, mut peer) = git_page(cx, &start_methods());
+    start_create(&mut peer, test_cx);
+    let message = format!("{first}\n{reason}");
+    answer(
+        &mut peer,
+        &view,
+        test_cx,
+        error_answer("worktree_create_failed", &message),
+    );
+    redraw(test_cx);
+    let glyph = view.read_with(test_cx, |view, _| glyph_width(&view.config.ui));
+    let error_line = test_cx.debug_bounds("new-session-error").unwrap();
+    // The line's own 8 px padding on each side is not text room.
+    let columns = ((f32::from(error_line.size.width) - 16.) / glyph).floor() as usize;
+    assert!(reason.len() > columns && reason.len() <= 2 * columns);
+    let (top, bottom) = reason.split_at(columns);
+    assert!(painted(test_cx, top), "{top}");
+    assert!(painted(test_cx, bottom), "{bottom}");
+    assert!(!painted(test_cx, first));
 }
 
 /// New session start 14, one case per Examples row: ten timer steps of 100 ms

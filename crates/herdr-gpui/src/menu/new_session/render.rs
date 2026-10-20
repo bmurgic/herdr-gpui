@@ -474,13 +474,7 @@ impl HerdrWindow {
     ) -> Stateful<Div> {
         let theme = &self.theme;
         let is_focused = confirm.focus == row;
-        div()
-            .id(id)
-            .debug_selector(move || id.into())
-            .px(px(12.))
-            .py(px(6.))
-            .rounded(px(crate::config::corners::CONTROL))
-            .border_1()
+        button_frame(row, id, cx)
             .border_color(rgb(if is_focused {
                 theme.foreground
             } else {
@@ -490,10 +484,6 @@ impl HerdrWindow {
             .hover(|button| button.bg(rgb(theme.active)))
             .cursor_pointer()
             .child(label_text(label))
-            .on_click(cx.listener(move |this, _, window, cx| {
-                cx.stop_propagation();
-                this.click_confirm_row(row, window, cx);
-            }))
     }
 
     /// The `start` button. While the start has a request out it reads
@@ -508,16 +498,10 @@ impl HerdrWindow {
         else {
             return self.button(confirm, ConfirmRow::Start, "new-session-start", "start", cx);
         };
-        div()
-            .id("new-session-start")
-            .debug_selector(|| "new-session-start".into())
+        button_frame(ConfirmRow::Start, "new-session-start", cx)
             .flex()
             .items_center()
             .gap(px(6.))
-            .px(px(12.))
-            .py(px(6.))
-            .rounded(px(crate::config::corners::CONTROL))
-            .border_1()
             .border_color(rgb(theme.active))
             .text_color(rgb(theme.subtext()))
             .child(
@@ -532,9 +516,22 @@ impl HerdrWindow {
                     )))),
             )
             .child(label_text("starting…"))
-            .on_click(cx.listener(|this, _, window, cx| {
-                cx.stop_propagation();
-                this.click_confirm_row(ConfirmRow::Start, window, cx);
-            }))
     }
+}
+
+/// The frame every confirm-page button shares, the turning `start` button
+/// included: its padding, corners, and border, and the click that acts on
+/// `row`.
+fn button_frame(row: ConfirmRow, id: &'static str, cx: &mut Context<HerdrWindow>) -> Stateful<Div> {
+    div()
+        .id(id)
+        .debug_selector(move || id.into())
+        .px(px(12.))
+        .py(px(6.))
+        .rounded(px(crate::config::corners::CONTROL))
+        .border_1()
+        .on_click(cx.listener(move |this, _, window, cx| {
+            cx.stop_propagation();
+            this.click_confirm_row(row, window, cx);
+        }))
 }

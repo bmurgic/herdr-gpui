@@ -75,7 +75,8 @@ impl HerdrWindow {
             return;
         }
         let frame = (u32::from(dialog.spinner_frame) + passed_frames) % u32::from(FRAMES_PER_TURN);
-        dialog.spinner_frame = u8::try_from(frame).unwrap_or_default();
+        // Below `FRAMES_PER_TURN`, so the cast keeps every bit.
+        dialog.spinner_frame = frame as u8;
         dialog.last_frame_at = Some(last_frame_at + FRAME_INTERVAL * passed_frames);
         cx.notify();
     }

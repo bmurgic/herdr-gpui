@@ -192,6 +192,11 @@ pub(super) fn click(cx: &mut VisualTestContext, selector: &'static str) {
     cx.simulate_click(center, Modifiers::default());
 }
 
+/// Clicks the window at a point the dialog does not cover.
+pub(super) fn click_outside(cx: &mut VisualTestContext) {
+    cx.simulate_click(gpui::point(px(10.), px(300.)), Modifiers::default());
+}
+
 /// The next API request the peer was sent, as JSON. The connection holds
 /// back everything queued after a request until it is answered, so a test
 /// cannot ask what else was sent while one is pending: it answers first and

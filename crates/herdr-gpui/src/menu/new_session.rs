@@ -71,7 +71,7 @@ pub(crate) struct NewSession {
     /// Why the last folder check or refusal failed, shown in red under the
     /// field or the rows. The next check clears it.
     error: Option<String>,
-    /// Which of the loading icon's ten turns shows, 0 to 9.
+    /// Which of the loading icon's frames shows, 0 to 9.
     spinner_frame: u8,
     /// When the icon last moved a frame, or `None` while no request that
     /// spins it is out.

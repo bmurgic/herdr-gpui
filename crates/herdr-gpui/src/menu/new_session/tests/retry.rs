@@ -9,7 +9,6 @@ use crate::{
     menu::new_session::{Step, confirm::ConfirmRow},
     sidebar::layout_tests::redraw,
 };
-use gpui::{Modifiers, point};
 
 /// Presses Enter on `start` and answers the requests so that the worktree is
 /// created, no setup hook is listed, and the typing fails.
@@ -52,34 +51,11 @@ fn a_retry_after_the_workspace_exists_does_not_create_another(cx: &mut TestAppCo
     assert_no_request(&mut peer, &view, test_cx);
 }
 
+/// New session start 10's focus row, and start 16: the command typed as
+/// `claude` is edited to `codex` after the focus failed, and the retry sends
+/// one `tab.focus` for the created tab and does not type again.
 #[gpui::test]
 fn a_retry_after_a_failed_focus_only_focuses(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = git_page(cx, &start_methods());
-    press(test_cx, "enter");
-    exchange(
-        &mut peer,
-        &view,
-        test_cx,
-        vec![
-            worktree_created(None),
-            log_list(vec![]),
-            ok(),
-            error_answer("tab_not_found", "tab w2:t1 not found"),
-        ],
-    );
-    assert_eq!(step(&view, test_cx), Step::Idle);
-    press(test_cx, "enter");
-    let requests = exchange(&mut peer, &view, test_cx, vec![tab_info()]);
-    assert_eq!(methods(&requests), ["tab.focus"]);
-    assert_eq!(requests[0].1, json!({"tab_id": "w2:t1"}));
-    assert!(is_closed(&view, test_cx));
-    assert_no_request(&mut peer, &view, test_cx);
-}
-
-/// New session start 16: the command typed as `claude` is edited to `codex`
-/// after the focus failed, and the retry focuses without typing again.
-#[gpui::test]
-fn a_command_edited_after_it_was_typed_is_not_typed_again(cx: &mut TestAppContext) {
     let (view, test_cx, mut peer) = git_page(cx, &start_methods());
     press(test_cx, "enter");
     let first = exchange(
@@ -94,6 +70,7 @@ fn a_command_edited_after_it_was_typed_is_not_typed_again(cx: &mut TestAppContex
         ],
     );
     assert_eq!(first[2].1["text"], "claude\n");
+    assert_eq!(step(&view, test_cx), Step::Idle);
     click(test_cx, "new-session-command");
     set_focused_text(&view, test_cx, "codex");
     press(test_cx, "down");
@@ -101,6 +78,7 @@ fn a_command_edited_after_it_was_typed_is_not_typed_again(cx: &mut TestAppContex
     press(test_cx, "enter");
     let requests = exchange(&mut peer, &view, test_cx, vec![tab_info()]);
     assert_eq!(methods(&requests), ["tab.focus"]);
+    assert_eq!(requests[0].1, json!({"tab_id": "w2:t1"}));
     assert!(is_closed(&view, test_cx));
     assert_no_request(&mut peer, &view, test_cx);
 }
@@ -141,9 +119,7 @@ fn leaving_after_the_workspace_exists_focuses_it_without_typing(cx: &mut TestApp
     let inputs: &[(&str, Input)] = &[
         ("Esc", |cx| press(cx, "escape")),
         ("Enter on back", |cx| press(cx, "down enter")),
-        ("a click outside the dialog", |cx| {
-            cx.simulate_click(point(px(10.), px(300.)), Modifiers::default());
-        }),
+        ("a click outside the dialog", click_outside),
     ];
     for (input, give) in inputs {
         let (view, test_cx, mut peer) = git_page(cx, &start_methods());
@@ -173,9 +149,7 @@ fn leaving_while_the_host_is_not_connected_focuses_nothing(cx: &mut TestAppConte
     type Input = fn(&mut VisualTestContext);
     let inputs: &[(&str, Input)] = &[
         ("Esc", |cx| press(cx, "escape")),
-        ("a click outside the dialog", |cx| {
-            cx.simulate_click(point(px(10.), px(300.)), Modifiers::default());
-        }),
+        ("a click outside the dialog", click_outside),
     ];
     for (input, give) in inputs {
         let (view, test_cx, mut peer) = git_page(cx, &start_methods());
