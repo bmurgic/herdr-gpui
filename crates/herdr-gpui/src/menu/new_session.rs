@@ -16,6 +16,8 @@
 use super::Page;
 use crate::{HerdrWindow, dialog_input::DialogInput};
 use confirm::Project;
+#[cfg(test)]
+pub(crate) use confirm::Project as ConfirmProject;
 use gpui::{Context, KeyDownEvent, Window};
 use herdr_client::Method;
 use projects::{ProjectEntry, filtered_entries, project_entries};

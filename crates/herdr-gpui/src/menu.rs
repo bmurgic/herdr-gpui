@@ -11,6 +11,8 @@ mod fan_out;
 mod git;
 mod github;
 mod new_session;
+#[cfg(test)]
+pub(crate) use new_session::ConfirmProject;
 mod new_workspace;
 mod page;
 mod pr;

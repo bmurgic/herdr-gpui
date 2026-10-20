@@ -50,6 +50,13 @@ enum NextStep {
 }
 
 impl HerdrWindow {
+    /// `start_new_session` for the endpoint lifecycle tests, which cannot
+    /// name this module's private page keys.
+    #[cfg(test)]
+    pub(crate) fn start_new_session_for_tests(&mut self, cx: &mut Context<Self>) {
+        self.start_new_session(cx);
+    }
+
     /// Starts a session from the confirm page, from the first step that has
     /// not succeeded. Does nothing unless the confirm page shows and no
     /// request is out.
