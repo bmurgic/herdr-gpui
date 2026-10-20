@@ -6,7 +6,7 @@ use crate::{
     menu::{Page, new_session::Step},
     sidebar::layout_tests::{painted, redraw},
 };
-use gpui::{Modifiers, MouseButton, point};
+use gpui::{Keystroke, Modifiers, MouseButton, point};
 use std::{path::Path, sync::Arc};
 
 /// The daemon's code and message for a folder that is not in a repository.
@@ -311,6 +311,27 @@ fn an_accepted_folder_on_another_host_is_checked_without_a_local_lookup(cx: &mut
     assert_eq!(status(&view, test_cx), (Step::Checking, None));
     redraw(test_cx);
     assert!(painted(test_cx, "Checking folder…"));
+}
+
+/// A folder that existed when Enter was pressed is dropped when the field
+/// changed before the lookup finished: nothing is sent for the old text.
+#[gpui::test]
+fn an_edit_during_the_existence_check_drops_its_result(cx: &mut TestAppContext) {
+    let home = tempfile::tempdir().unwrap();
+    std::fs::create_dir(home.path().join("a")).unwrap();
+    let (view, test_cx, mut peer) = folder_page(cx, true, true, home.path());
+    set_focused_text(&view, test_cx, "~/a");
+    // Enter queues the lookup; the field changes before the executor runs it.
+    // `press` would run the executor, so the key is dispatched directly.
+    draw(test_cx);
+    test_cx.update(|window, cx| {
+        assert!(window.dispatch_keystroke(Keystroke::parse("enter").unwrap(), cx));
+    });
+    set_focused_text(&view, test_cx, "~/b");
+    test_cx.run_until_parked();
+    assert_eq!(field(&view, test_cx), "~/b");
+    assert_eq!(status(&view, test_cx), (Step::Idle, None));
+    assert_no_request(&mut peer, &view, test_cx);
 }
 
 /// Folders `photos` and `Projects` under a home, listed in that order for `~/p`.
