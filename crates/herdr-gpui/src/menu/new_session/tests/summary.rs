@@ -154,10 +154,7 @@ fn a_narrow_summary_keeps_its_reason() {
     ] {
         let line = summary(&git, false, command, true, home, columns);
         assert_eq!(line, expected, "{command} in {columns} columns");
-        assert!(
-            line.width() <= columns || columns < 45,
-            "{line} is wider than {columns}"
-        );
+        assert!(line.width() <= columns, "{line} is wider than {columns}");
     }
 }
 

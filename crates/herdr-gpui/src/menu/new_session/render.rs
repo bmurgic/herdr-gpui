@@ -3,13 +3,14 @@
 
 use super::{
     confirm::{Confirm, ConfirmRow},
-    projects::visible_entries,
+    projects::{ProjectEntry, visible_entries},
     summary::{display_path, shorten_home},
 };
 use crate::{
     HerdrWindow, menu::chrome::CREATION_DIALOG_WIDTH, sidebar::glyph_width, toggles::checkbox,
 };
 use gpui::{prelude::*, *};
+use std::path::Path;
 use unicode_width::UnicodeWidthStr;
 
 /// The filter field's placeholder while it is empty.
@@ -37,9 +38,10 @@ impl HerdrWindow {
         let theme = &self.theme;
         let font = &self.config.ui;
         let host = self.endpoints[self.selected_endpoint].label.clone();
-        let dialog = self.menu.new_session.as_ref();
-        let confirm = dialog.and_then(|dialog| dialog.confirm.as_ref());
-        let home = dialog.map(|dialog| dialog.home.clone()).unwrap_or_default();
+        let confirm = self.menu.new_session.as_ref().and_then(|dialog| {
+            let confirm = dialog.confirm.as_ref()?;
+            Some((confirm, dialog.home.as_path()))
+        });
         let header = div()
             .debug_selector(|| "new-session-header".into())
             .flex()
@@ -55,16 +57,16 @@ impl HerdrWindow {
                     .child("New session"),
             )
             .child(div().truncate().text_color(rgb(theme.muted)).child(host))
-            .when_some(confirm, |header, confirm| {
+            .when_some(confirm, |header, (confirm, home)| {
                 header.child(
                     div()
                         .debug_selector(|| "new-session-path".into())
                         .text_color(rgb(theme.subtext()))
-                        .child(shorten_home(&confirm.project.path, &home)),
+                        .child(shorten_home(&confirm.project.path, home)),
                 )
             });
         let body = match confirm {
-            Some(confirm) => self.render_confirm_body(confirm, viewport_width, cx),
+            Some((confirm, home)) => self.render_confirm_body(confirm, home, viewport_width, cx),
             None => self.render_project_body(viewport_width, cx),
         };
         div().flex().flex_col().child(header).child(body)
@@ -138,10 +140,10 @@ impl HerdrWindow {
             let entry = &shown.rows[position];
             let label_width = entry.label().width() as f32 * glyph_width(&self.config.ui);
             let path = match entry {
-                super::projects::ProjectEntry::Workspace { path, .. } => {
+                ProjectEntry::Workspace { path, .. } => {
                     display_path(path, home, self.text_columns((room - label_width).max(0.)))
                 }
-                super::projects::ProjectEntry::OtherFolder => String::new(),
+                ProjectEntry::OtherFolder => String::new(),
             };
             div()
                 .debug_selector(move || format!("new-session-row-{position}"))
@@ -165,11 +167,12 @@ impl HerdrWindow {
     fn render_confirm_body(
         &self,
         confirm: &Confirm,
+        home: &Path,
         viewport_width: Pixels,
         cx: &mut Context<Self>,
     ) -> Div {
         let theme = &self.theme;
-        let summary = self.confirm_summary(viewport_width).unwrap_or_default();
+        let summary = self.confirm_summary(confirm, home, viewport_width);
         let command_is_on = confirm.command_on && confirm.can_type;
         div()
             .flex()

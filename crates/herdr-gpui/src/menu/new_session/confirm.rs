@@ -8,8 +8,9 @@
 
 use super::summary::summary;
 use crate::{HerdrWindow, dialog_input::DialogInput};
-use gpui::{Context, KeyDownEvent, Window};
+use gpui::{Context, KeyDownEvent, Pixels, Window};
 use herdr_client::Method;
+use std::path::Path;
 
 /// The folder a session starts in.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -121,6 +122,11 @@ fn field_at_end(text: String) -> DialogInput {
 }
 
 impl HerdrWindow {
+    /// The confirm page, while it shows.
+    pub(super) fn new_session_confirm(&self) -> Option<&Confirm> {
+        self.menu.new_session.as_ref()?.confirm.as_ref()
+    }
+
     /// Shows the confirm page for `project`, with both boxes on, a fresh
     /// branch, the command setting, and the focus on `start`. Sends nothing.
     /// The project page's filter is parked until the page is left.
@@ -184,12 +190,7 @@ impl HerdrWindow {
     /// Moves the focus one row that is not skipped, up for a negative `step`
     /// and down for a positive one, and stays put at the first and last row.
     fn move_confirm_focus(&mut self, step: isize, cx: &mut Context<Self>) {
-        let Some(confirm) = self
-            .menu
-            .new_session
-            .as_ref()
-            .and_then(|dialog| dialog.confirm.as_ref())
-        else {
+        let Some(confirm) = self.new_session_confirm() else {
             return;
         };
         let rows = confirm.rows();
@@ -233,7 +234,7 @@ impl HerdrWindow {
             }
             ConfirmRow::Branch | ConfirmRow::Command => self.move_confirm_focus(1, cx),
             ConfirmRow::Back => self.leave_new_session_confirm(cx),
-            // Start waits for the slice that sends the requests.
+            // Start sends nothing yet.
             ConfirmRow::Start => {}
         }
     }
@@ -242,10 +243,7 @@ impl HerdrWindow {
     /// what Enter does there. A skipped row ignores it.
     pub(super) fn click_confirm_row(&mut self, row: ConfirmRow, cx: &mut Context<Self>) {
         let is_reachable = self
-            .menu
-            .new_session
-            .as_ref()
-            .and_then(|dialog| dialog.confirm.as_ref())
+            .new_session_confirm()
             .is_some_and(|confirm| confirm.rows().contains(&row));
         if !is_reachable {
             return;
@@ -268,13 +266,7 @@ impl HerdrWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        let Some(focus) = self
-            .menu
-            .new_session
-            .as_ref()
-            .and_then(|dialog| dialog.confirm.as_ref())
-            .map(|confirm| confirm.focus)
-        else {
+        let Some(focus) = self.new_session_confirm().map(|confirm| confirm.focus) else {
             return false;
         };
         let is_field = matches!(focus, ConfirmRow::Branch | ConfirmRow::Command);
@@ -294,12 +286,7 @@ impl HerdrWindow {
     /// The text of `row`'s field, wherever it is held. Empty for a row without
     /// a field.
     pub(super) fn confirm_field_text(&self, row: ConfirmRow) -> &str {
-        let Some(confirm) = self
-            .menu
-            .new_session
-            .as_ref()
-            .and_then(|dialog| dialog.confirm.as_ref())
-        else {
+        let Some(confirm) = self.new_session_confirm() else {
             return "";
         };
         if confirm.focus == row {
@@ -308,25 +295,27 @@ impl HerdrWindow {
         confirm.parked_text(row)
     }
 
-    /// The confirm page's summary line, cut to the columns the dialog's text
+    /// The summary line of `confirm`, cut to the columns the dialog's text
     /// width holds in a window `viewport_width` wide. Computed from the page's
-    /// state at each call, so it follows every flip and edit. `None` while the
-    /// confirm page is not showing.
-    pub(super) fn confirm_summary(&self, viewport_width: gpui::Pixels) -> Option<String> {
-        let dialog = self.menu.new_session.as_ref()?;
-        let confirm = dialog.confirm.as_ref()?;
+    /// state at each call, so it follows every flip and edit.
+    pub(super) fn confirm_summary(
+        &self,
+        confirm: &Confirm,
+        home: &Path,
+        viewport_width: Pixels,
+    ) -> String {
         let command = if confirm.command_on {
             self.confirm_field_text(ConfirmRow::Command)
         } else {
             ""
         };
-        Some(summary(
+        summary(
             &confirm.project,
             confirm.worktree_on,
             command,
             confirm.can_type,
-            &dialog.home,
+            home,
             self.new_session_text_columns(viewport_width),
-        ))
+        )
     }
 }

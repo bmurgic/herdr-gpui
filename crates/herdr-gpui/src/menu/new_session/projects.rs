@@ -103,8 +103,8 @@ pub(super) fn visible_entries(highlighted: usize, len: usize) -> Range<usize> {
 
 impl HerdrWindow {
     /// Picks `entry`. A workspace whose repository the daemon reported opens
-    /// the confirm page for the repository root, with no request. The other
-    /// picks wait for the slice that checks the folder with the daemon.
+    /// the confirm page for the repository root, with no request. Other picks
+    /// do nothing yet.
     pub(super) fn pick_project(&mut self, entry: &ProjectEntry, cx: &mut Context<Self>) {
         let ProjectEntry::Workspace {
             workspace_id,

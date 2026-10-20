@@ -1,6 +1,7 @@
 //! The new-session dialog the Agents tab's `new` control opens, as myherdr's
-//! new-session overlay does. This slice builds its project page: one entry per
-//! workspace on the host, filtered by what the user types.
+//! new-session overlay does. Its project page lists one entry per workspace on
+//! the host, filtered by what the user types, and its confirm page sets up the
+//! session for the picked project.
 //!
 //! The filter lives in `MenuState::input`, so typing, selection, paste, and IME
 //! composition work as in every other menu dialog. The dialog belongs to the
@@ -101,11 +102,10 @@ impl HerdrWindow {
     /// workspace that closed, or a `repository` record that arrived, shows.
     /// `None` when the page is not open or has no snapshot.
     fn shown_projects(&self) -> Option<ShownProjects> {
-        let dialog = self
-            .menu
-            .new_session
-            .as_ref()
-            .filter(|dialog| dialog.confirm.is_none())?;
+        let dialog = self.menu.new_session.as_ref()?;
+        if dialog.confirm.is_some() {
+            return None;
+        }
         let snapshot = self.live.snapshot.as_ref()?;
         let filter = &self.menu.input.as_ref()?.text;
         let entries = project_entries(snapshot);
@@ -117,8 +117,9 @@ impl HerdrWindow {
         Some(ShownProjects { rows, highlighted })
     }
 
-    /// The filter text while the project page shows, for `new_session_edited` to compare against once an
-    /// edit is done. `None` when the project page is not showing.
+    /// The filter text while the project page shows, for `new_session_edited`
+    /// to compare against once an edit is done. `None` when the project page
+    /// is not showing.
     pub(crate) fn new_session_text(&self) -> Option<String> {
         if self.menu.page != Some(Page::NewSession)
             || self
@@ -192,12 +193,7 @@ impl HerdrWindow {
         if composing {
             return false;
         }
-        if self
-            .menu
-            .new_session
-            .as_ref()
-            .is_some_and(|dialog| dialog.confirm.is_some())
-        {
+        if self.new_session_confirm().is_some() {
             return self.confirm_key(event, window, cx);
         }
         let Some(shown) = self.shown_projects() else {
@@ -205,16 +201,8 @@ impl HerdrWindow {
         };
         let last = shown.rows.len().saturating_sub(1);
         match event.keystroke.key.as_str() {
-            "up" | "down" => {
-                let Some(dialog) = self.menu.new_session.as_mut() else {
-                    return false;
-                };
-                dialog.highlighted = if event.keystroke.key == "up" {
-                    shown.highlighted.saturating_sub(1)
-                } else {
-                    (shown.highlighted + 1).min(last)
-                };
-            }
+            "up" => self.highlight_project(shown.highlighted.saturating_sub(1)),
+            "down" => self.highlight_project((shown.highlighted + 1).min(last)),
             "enter" => {
                 if let Some(entry) = shown.rows.get(shown.highlighted) {
                     self.pick_project(entry, cx);
@@ -226,5 +214,11 @@ impl HerdrWindow {
         window.prevent_default();
         cx.notify();
         true
+    }
+
+    fn highlight_project(&mut self, highlighted: usize) {
+        if let Some(dialog) = self.menu.new_session.as_mut() {
+            dialog.highlighted = highlighted;
+        }
     }
 }

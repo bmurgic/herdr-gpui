@@ -65,21 +65,27 @@ fn sentence(is_git: bool, worktree_on: bool, command: Option<&str>, path: &str) 
 /// `path` for the project page: the home folder as `~`, then, when that is too
 /// wide for `columns`, the middle folders as `…`, then cut at the end.
 pub(super) fn display_path(path: &str, home: &Path, columns: usize) -> String {
-    let shortened = shorten_home(path, home);
-    if shortened.width() <= columns {
-        return shortened;
-    }
-    let elided = elide_middle_folders(&shortened);
-    if elided.width() <= columns {
-        return elided;
-    }
-    truncate_end(&elided, columns)
+    shorten_path(path, home, columns, |shortened| {
+        truncate_end(&elide_middle_folders(shortened), columns)
+    })
 }
 
 /// `path` for a sentence that must name it: as `display_path`, but the last
 /// step is `…/<last folder>`, which is never cut, so the folder's name shows
 /// even past `columns`.
 fn display_path_keeping_last_folder(path: &str, home: &Path, columns: usize) -> String {
+    shorten_path(path, home, columns, last_folder_only)
+}
+
+/// The first of `path`'s shorter forms that fits `columns`: the home folder as
+/// `~`, then the middle folders as `…` too. When neither fits, `narrowest`
+/// makes the result from the form with `~`.
+fn shorten_path(
+    path: &str,
+    home: &Path,
+    columns: usize,
+    narrowest: impl FnOnce(&str) -> String,
+) -> String {
     let shortened = shorten_home(path, home);
     if shortened.width() <= columns {
         return shortened;
@@ -88,16 +94,15 @@ fn display_path_keeping_last_folder(path: &str, home: &Path, columns: usize) -> 
     if elided.width() <= columns {
         return elided;
     }
-    last_folder_only(&shortened)
+    narrowest(&shortened)
 }
 
 /// `…/<last folder>` of `path`, or `path` itself when that is no narrower.
 fn last_folder_only(path: &str) -> String {
-    let last_folder = path
-        .trim_end_matches('/')
-        .rsplit('/')
-        .next()
-        .unwrap_or_default();
+    let trimmed = path.trim_end_matches('/');
+    let last_folder = trimmed
+        .rsplit_once('/')
+        .map_or(trimmed, |(_, last_folder)| last_folder);
     let last_folder_form = format!("…/{last_folder}");
     if last_folder.is_empty() || path.width() <= last_folder_form.width() {
         return path.to_owned();
