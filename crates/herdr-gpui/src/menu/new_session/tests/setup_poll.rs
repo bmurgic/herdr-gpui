@@ -3,6 +3,7 @@
 //! failure after the wait returns to.
 
 use super::progress::pass;
+use super::setup_checklist::FAILED_ROW_LINES;
 use super::start::{Boxes, configure, exchange, git_page, is_closed, make_input_ready, step};
 use super::*;
 use crate::{
@@ -443,10 +444,7 @@ fn a_late_list_answer_after_skip_waiting_is_ignored(cx: &mut TestAppContext) {
     expect_request(&mut peer, "pane.send_text");
     assert_eq!(step(&view, test_cx), Step::Typing);
     redraw(test_cx);
-    assert!(!painted(
-        test_cx,
-        "✗ Setup failed (exit 1). Log: /s/plugin-logs/qa/plugin-log-4.log"
-    ));
+    assert!(!painted(test_cx, FAILED_ROW_LINES[0]));
     assert_eq!(row_statuses(&view, test_cx), [HookStatus::Running]);
     answer(&mut peer, &view, test_cx, ok());
     expect_request(&mut peer, "tab.focus");

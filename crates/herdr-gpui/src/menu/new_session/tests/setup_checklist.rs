@@ -18,7 +18,7 @@ use std::time::Duration;
 
 /// The failed row as these tests' narrow window wraps it (D14): the second
 /// line, indented under the text after `✗ `, holds the rest of the row.
-const FAILED_ROW_LINES: [&str; 2] = [
+pub(super) const FAILED_ROW_LINES: [&str; 2] = [
     "✗ Setup failed (exit 1). Log:",
     "  /s/plugin-logs/qa/plugin-log-4.log",
 ];
