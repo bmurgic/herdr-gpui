@@ -312,6 +312,37 @@ fn a_client_side_error_for_the_list_shows_its_text_and_lists_again(cx: &mut Test
     next_list(&mut peer, &view, test_cx);
 }
 
+/// A poll that cannot be queued does not fail the start. With the connection's
+/// mailbox busy, `request_dialog` refuses the poll: the message shows in red,
+/// the dialog stays in the wait with its row, and the poll tries again 500 ms
+/// later and goes out once the mailbox is free.
+#[gpui::test]
+fn a_poll_that_cannot_be_queued_shows_its_text_and_lists_again(cx: &mut TestAppContext) {
+    let (view, test_cx, mut peer) = running_checklist(cx);
+    let inbox = view.read_with(test_cx, |view, _| {
+        Arc::clone(&view.endpoints[view.selected_endpoint].connection.inbox)
+    });
+    let busy = inbox.lock().unwrap();
+    pass_in_steps(&view, test_cx, Duration::from_millis(500));
+    assert_eq!(
+        error_line(&view, test_cx).as_deref(),
+        Some("Connection is busy. Try again.")
+    );
+    assert_eq!(step(&view, test_cx), Step::Waiting);
+    assert!(has_checklist(&view, test_cx));
+    assert_eq!(row_statuses(&view, test_cx), [HookStatus::Running]);
+    redraw(test_cx);
+    assert!(painted(test_cx, "Connection is busy. Try again."));
+    assert_no_request(&mut peer, &view, test_cx);
+    // Still busy: the next try is 500 ms after this one, not at once.
+    pass_in_steps(&view, test_cx, Duration::from_millis(400));
+    assert_no_request(&mut peer, &view, test_cx);
+    drop(busy);
+    pass(&view, test_cx, TIMER_STEP);
+    assert_eq!(expect_request(&mut peer, "plugin.log.list"), list_params());
+    assert_eq!(step(&view, test_cx), Step::Waiting);
+}
+
 /// New session setup wait 14, one case per failing first answer (the
 /// `bad filter` error, and the two unexpected ones): the confirm page stays
 /// with the message in red above its buttons, and one new list for `w2` goes
