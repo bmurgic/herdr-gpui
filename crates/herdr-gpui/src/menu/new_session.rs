@@ -23,6 +23,8 @@ use herdr_client::Method;
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 pub(crate) use native::NewSessionStage;
 use outage::DialogError;
+#[cfg(test)]
+pub(crate) use probe::DialogProbe;
 use projects::{ProjectEntry, filtered_entries, project_entries};
 use std::path::PathBuf;
 
@@ -31,6 +33,8 @@ mod folder;
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 mod native;
 mod outage;
+#[cfg(test)]
+mod probe;
 mod progress;
 mod projects;
 mod render;

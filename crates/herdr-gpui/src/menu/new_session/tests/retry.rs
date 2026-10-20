@@ -159,33 +159,3 @@ fn leaving_after_the_workspace_exists_focuses_it_without_typing(cx: &mut TestApp
         assert_no_request(&mut peer, &view, test_cx);
     }
 }
-
-/// Esc and a click outside, while the host is not connected, close the dialog,
-/// leave `pending_navigation` empty, and send no request. The state is set by
-/// hand, so this does not cover a focus replayed after a real redial, which is
-/// start 18's lifecycle test.
-#[gpui::test]
-fn leaving_while_the_host_is_not_connected_focuses_nothing(cx: &mut TestAppContext) {
-    type Input = fn(&mut VisualTestContext);
-    let inputs: &[(&str, Input)] = &[
-        ("Esc", |cx| press(cx, "escape")),
-        ("a click outside the dialog", click_outside),
-    ];
-    for (input, give) in inputs {
-        let (view, test_cx, mut peer) = created_page(cx);
-        update(&view, test_cx, |view, _, _| {
-            view.live.status = crate::state::ConnectionStatus::Disconnected;
-        });
-        redraw(test_cx);
-        give(test_cx);
-        assert!(is_closed(&view, test_cx), "{input}");
-        assert!(
-            view.read_with(test_cx, |view, _| view.pending_navigation.is_none()),
-            "{input}"
-        );
-        update(&view, test_cx, |view, _, _| {
-            view.live.status = crate::state::ConnectionStatus::Connected;
-        });
-        assert_no_request(&mut peer, &view, test_cx);
-    }
-}

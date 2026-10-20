@@ -45,6 +45,8 @@ mod mouse_cell_motion;
 mod mouse_frame_gap;
 mod mouse_gestures;
 mod mouse_targets;
+mod new_session_redial;
+mod new_session_resume;
 mod new_session_staleness;
 mod new_workspace_staleness;
 mod plugin_selection;
@@ -364,13 +366,28 @@ fn bind_keys(
 
 /// Connects a window endpoint to a mock daemon whose welcome selects
 /// `snapshot_codec` and then sends `snapshot` as a control of that kind. Returns
-/// once the endpoint holds the snapshot and a zero-pane 80x24 surface.
+/// once the endpoint holds the snapshot and a zero-pane 80x24 surface. The
+/// daemon stops listening on return, so the endpoint cannot connect again.
 fn connect_endpoint(
     id: &str,
     snapshot_codec: &str,
     snapshot: ClientShellSnapshotV2,
     configure_welcome: impl FnOnce(&mut EndpointServerWelcome),
 ) -> (Endpoint, Server) {
+    let (endpoint, server, _listener) =
+        connect_endpoint_keeping_listener(id, snapshot_codec, snapshot, configure_welcome);
+    (endpoint, server)
+}
+
+/// `connect_endpoint` for a daemon that goes on listening, so a test can end
+/// the connection and accept the endpoint's redial with `accept_connection`.
+/// The returned `Server` owns the socket path: keep it alive until the redial.
+fn connect_endpoint_keeping_listener(
+    id: &str,
+    snapshot_codec: &str,
+    snapshot: ClientShellSnapshotV2,
+    configure_welcome: impl FnOnce(&mut EndpointServerWelcome),
+) -> (Endpoint, Server, UnixListener) {
     static SERIAL: AtomicU64 = AtomicU64::new(0);
     let path = std::env::temp_dir().join(format!(
         "hg-{}-{}.sock",
@@ -386,6 +403,37 @@ fn connect_endpoint(
         true,
     );
     endpoint.connect(ConnectOptions::default(), true);
+    let server = accept_connection(
+        &listener,
+        path,
+        snapshot_codec,
+        &snapshot,
+        configure_welcome,
+    );
+    wait_until(|| {
+        endpoint.poll(Instant::now());
+        endpoint.connection.handle.is_some() && endpoint.live.snapshot.is_some()
+    });
+    let frame = surface(endpoint.live.snapshot.as_ref().unwrap());
+    endpoint
+        .connection
+        .inbox
+        .lock()
+        .unwrap()
+        .apply(ClientEvent::Surface(frame));
+    endpoint.poll(Instant::now());
+    (endpoint, server, listener)
+}
+
+/// Accepts the next connection on `listener`, reads the client's hello, and
+/// answers with a welcome selecting `snapshot_codec` and then `snapshot`.
+fn accept_connection(
+    listener: &UnixListener,
+    path: PathBuf,
+    snapshot_codec: &str,
+    snapshot: &ClientShellSnapshotV2,
+    configure_welcome: impl FnOnce(&mut EndpointServerWelcome),
+) -> Server {
     let mut accepted = None;
     wait_until(|| {
         accepted = listener.accept().ok();
@@ -424,7 +472,7 @@ fn connect_endpoint(
             ENDPOINT_WELCOME_KIND,
             serde_json::to_string(&welcome).unwrap(),
         ),
-        (snapshot_codec, serde_json::to_string(&snapshot).unwrap()),
+        (snapshot_codec, serde_json::to_string(snapshot).unwrap()),
     ] {
         write_message(
             &mut server.stream,
@@ -436,19 +484,7 @@ fn connect_endpoint(
         )
         .unwrap();
     }
-    wait_until(|| {
-        endpoint.poll(Instant::now());
-        endpoint.connection.handle.is_some() && endpoint.live.snapshot.is_some()
-    });
-    let frame = surface(endpoint.live.snapshot.as_ref().unwrap());
-    endpoint
-        .connection
-        .inbox
-        .lock()
-        .unwrap()
-        .apply(ClientEvent::Surface(frame));
-    endpoint.poll(Instant::now());
-    (endpoint, server)
+    server
 }
 
 fn prepare_mouse(view: &mut HerdrWindow, endpoint: Endpoint, cx: &mut Context<HerdrWindow>) {
