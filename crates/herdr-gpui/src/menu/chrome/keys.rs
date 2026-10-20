@@ -19,6 +19,11 @@ impl HerdrWindow {
         cx: &mut Context<Self>,
         edit: impl FnOnce(&mut DialogInput, &mut Context<Self>) -> bool,
     ) -> Option<bool> {
+        // A dialog that waits for the daemon takes no edits, typed, pasted,
+        // or composed.
+        if self.new_session_locked() {
+            return self.menu.input.as_ref().map(|_| false);
+        }
         let workspace_before = self.new_workspace_text();
         let session_before = self.new_session_text();
         let input = self.menu.input.as_mut()?;

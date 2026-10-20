@@ -4,20 +4,28 @@
 //! session for the picked project.
 //!
 //! The filter lives in `MenuState::input`, so typing, selection, paste, and IME
-//! composition work as in every other menu dialog. The dialog belongs to the
-//! host, and the daemon boot, that were selected when it opened, and closes
-//! when either changes.
+//! composition work as in every other menu dialog. `Other folder…` swaps the
+//! filter for a folder field, parking the filter until Esc brings it back. The
+//! dialog belongs to the host, and the daemon boot, that were selected when it
+//! opened, and closes when either changes.
+//!
+//! A pick that needs to know whether a folder is a git repository asks the
+//! daemon with `worktree.list` and locks the dialog until the answer comes
+//! (`replies.rs`).
 
 use super::Page;
 use crate::{HerdrWindow, dialog_input::DialogInput};
+use confirm::Project;
 use gpui::{Context, KeyDownEvent, Window};
 use herdr_client::Method;
 use projects::{ProjectEntry, filtered_entries, project_entries};
 use std::path::PathBuf;
 
 mod confirm;
+mod folder;
 mod projects;
 mod render;
+mod replies;
 mod summary;
 
 #[cfg(test)]
@@ -46,8 +54,35 @@ pub(crate) struct NewSession {
     /// The project page's filter while the confirm page shows, which gives
     /// `MenuState::input` to its focused field.
     filter: Option<DialogInput>,
+    /// The `Other folder…` page, while it shows. The filter is parked then.
+    folder: Option<folder::FolderPage>,
     /// The confirm page, once a project was picked.
     confirm: Option<confirm::Confirm>,
+    /// Whether a folder check is waiting for the daemon.
+    step: Step,
+    /// The folder check the dialog waits for, set exactly while `step` is
+    /// `Checking`.
+    pending: Option<PendingCheck>,
+    /// Why the last folder check or refusal failed, shown in red under the
+    /// field or the rows. The next check clears it.
+    error: Option<String>,
+}
+
+/// Where the dialog's request to the daemon stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Step {
+    Idle,
+    /// A `worktree.list` is out. The dialog does nothing until it is answered.
+    Checking,
+}
+
+/// The `worktree.list` the dialog waits for.
+struct PendingCheck {
+    /// The request id its answer comes under.
+    id: String,
+    /// The project the confirm page opens for when the folder is not a git
+    /// repository.
+    not_git_project: Project,
 }
 
 /// The rows the project page shows now, and the highlight among them.
@@ -89,7 +124,11 @@ impl HerdrWindow {
             home,
             highlighted: 0,
             filter: None,
+            folder: None,
             confirm: None,
+            step: Step::Idle,
+            pending: None,
+            error: None,
         });
         self.menu.page = Some(Page::NewSession);
         self.discard_composition(cx);
@@ -103,7 +142,7 @@ impl HerdrWindow {
     /// `None` when the page is not open or has no snapshot.
     fn shown_projects(&self) -> Option<ShownProjects> {
         let dialog = self.menu.new_session.as_ref()?;
-        if dialog.confirm.is_some() {
+        if dialog.confirm.is_some() || dialog.folder.is_some() {
             return None;
         }
         let snapshot = self.live.snapshot.as_ref()?;
@@ -117,9 +156,9 @@ impl HerdrWindow {
         Some(ShownProjects { rows, highlighted })
     }
 
-    /// The filter text while the project page shows, for `new_session_edited`
-    /// to compare against once an edit is done. `None` when the project page
-    /// is not showing.
+    /// The text of the field being edited while the project page or the
+    /// folder page shows, for `new_session_edited` to compare against once an
+    /// edit is done. `None` when the confirm page shows.
     pub(crate) fn new_session_text(&self) -> Option<String> {
         if self.menu.page != Some(Page::NewSession)
             || self
@@ -133,9 +172,10 @@ impl HerdrWindow {
         self.menu.input.as_ref().map(|input| input.text.clone())
     }
 
-    /// Refilters the list when an edit changed the filter from `before`, which
-    /// `new_session_text` returned ahead of it. The highlight moves to the
-    /// first entry that stays.
+    /// Follows an edit that changed the field's text from `before`, which
+    /// `new_session_text` returned ahead of it. On the project page the
+    /// highlight moves to the first entry that stays. On the folder page the
+    /// suggestions follow the text and a refusal is forgotten.
     pub(crate) fn new_session_edited(&mut self, before: Option<String>, cx: &mut Context<Self>) {
         let (Some(before), Some(input), Some(dialog)) = (
             before,
@@ -147,7 +187,16 @@ impl HerdrWindow {
         if input.text == before {
             return;
         }
-        dialog.highlighted = 0;
+        let Some(folder) = dialog.folder.as_mut() else {
+            dialog.highlighted = 0;
+            cx.notify();
+            return;
+        };
+        dialog.error = None;
+        let listing = folder.retarget(&input.text);
+        if let Some(listing) = listing {
+            self.list_new_session_folder(listing, cx);
+        }
         cx.notify();
     }
 
@@ -172,7 +221,28 @@ impl HerdrWindow {
                 .is_some_and(|snapshot| snapshot.boot_id != dialog.boot_id);
         if host_changed || boot_changed {
             self.dismiss_menu(window, cx);
+            return;
         }
+        self.apply_pending_check(cx);
+    }
+
+    /// Whether a folder check is out, so the dialog does nothing until the
+    /// daemon answers it.
+    pub(crate) fn new_session_locked(&self) -> bool {
+        self.menu
+            .new_session
+            .as_ref()
+            .is_some_and(|dialog| dialog.step == Step::Checking)
+    }
+
+    /// Called first by the overlay's outside-click handler. Returns whether
+    /// the dialog swallows the click: it does while it is locked.
+    pub(crate) fn new_session_outside_click(&mut self, cx: &mut Context<Self>) -> bool {
+        if !self.new_session_locked() {
+            return false;
+        }
+        cx.stop_propagation();
+        true
     }
 
     /// On the project page, Up and Down move the highlight, stopping at the
@@ -185,6 +255,11 @@ impl HerdrWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        if self.new_session_locked() {
+            cx.stop_propagation();
+            window.prevent_default();
+            return true;
+        }
         let composing = self
             .menu
             .input
@@ -195,6 +270,14 @@ impl HerdrWindow {
         }
         if self.new_session_confirm().is_some() {
             return self.confirm_key(event, window, cx);
+        }
+        if self
+            .menu
+            .new_session
+            .as_ref()
+            .is_some_and(|dialog| dialog.folder.is_some())
+        {
+            return self.folder_key(event, window, cx);
         }
         let Some(shown) = self.shown_projects() else {
             return false;
@@ -219,6 +302,9 @@ impl HerdrWindow {
     /// A left click on the entry at `position`: highlight it and pick it, as
     /// Enter does.
     pub(super) fn click_project(&mut self, position: usize, cx: &mut Context<Self>) {
+        if self.new_session_locked() {
+            return;
+        }
         let Some(entry) = self
             .shown_projects()
             .and_then(|shown| shown.rows.get(position).cloned())

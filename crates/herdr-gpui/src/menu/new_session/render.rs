@@ -2,13 +2,15 @@
 //! entries, each with its folder dimmed beside it, and the confirm page's rows.
 
 use super::{
+    Step,
     confirm::{Confirm, ConfirmRow},
+    folder::FolderPage,
     projects::{ProjectEntry, visible_entries},
     summary::{display_path, shorten_home},
 };
 use crate::{
     HerdrWindow,
-    menu::chrome::CREATION_DIALOG_WIDTH,
+    menu::{chrome::CREATION_DIALOG_WIDTH, danger, new_workspace::VISIBLE_ROWS},
     sidebar::{glyph_width, label_text},
     toggles::checkbox,
 };
@@ -18,6 +20,9 @@ use unicode_width::UnicodeWidthStr;
 
 /// The filter field's placeholder while it is empty.
 const FILTER_PLACEHOLDER: &str = "type to filter";
+
+/// The dim line under the field while the daemon checks the folder.
+const CHECKING_FOLDER: &str = "Checking folder…";
 
 /// The dim line under the rows of a server that cannot type a command.
 const CANNOT_TYPE: &str = "This server cannot type a command.";
@@ -68,9 +73,17 @@ impl HerdrWindow {
                         .child(shorten_home(&confirm.project.path, home)),
                 )
             });
-        let body = match confirm {
-            Some((confirm, home)) => self.render_confirm_body(confirm, home, viewport_width, cx),
-            None => self.render_project_body(viewport_width, cx),
+        let folder = self
+            .menu
+            .new_session
+            .as_ref()
+            .and_then(|dialog| dialog.folder.as_ref());
+        let body = match (confirm, folder) {
+            (Some((confirm, home)), _) => {
+                self.render_confirm_body(confirm, home, viewport_width, cx)
+            }
+            (None, Some(folder)) => self.render_folder_body(folder, cx),
+            (None, None) => self.render_project_body(viewport_width, cx),
         };
         div().flex().flex_col().child(header).child(body)
     }
@@ -129,6 +142,85 @@ impl HerdrWindow {
                     .flex_col()
                     .children(self.project_rows(viewport_width, cx)),
             )
+            .children(self.check_status_lines())
+    }
+
+    /// The folder page: the field, the visible suggestions, and the status
+    /// lines.
+    fn render_folder_body(&self, folder: &FolderPage, cx: &mut Context<Self>) -> Div {
+        let theme = &self.theme;
+        let suggestions = folder.suggestions();
+        let rows = suggestions
+            .visible(VISIBLE_ROWS)
+            .map(|(index, name)| {
+                div()
+                    .id(("new-session-folder-row", index))
+                    .debug_selector(move || format!("new-session-folder-row-{index}"))
+                    .cursor_pointer()
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        cx.stop_propagation();
+                        this.click_new_session_suggestion(index, cx);
+                    }))
+                    .px(px(ENTRY_INSET))
+                    .py(px(3.))
+                    .rounded(px(crate::config::corners::CONTROL))
+                    .truncate()
+                    .when(suggestions.is_selected(index), |row| {
+                        row.bg(rgb(theme.active))
+                    })
+                    .child(name.to_owned())
+            })
+            .collect::<Vec<_>>();
+        let listing_error = suggestions
+            .listing_error()
+            .filter(|_| {
+                self.menu
+                    .new_session
+                    .as_ref()
+                    .is_some_and(|dialog| dialog.error.is_none())
+            })
+            .map(|error| div().text_color(danger(theme)).child(error.to_owned()));
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .px(px(BODY_INSET))
+            .py(px(12.))
+            .child(div().text_color(rgb(theme.subtext())).child("Folder"))
+            .child(self.render_dialog_input(cx))
+            .child(
+                div()
+                    .debug_selector(|| "new-session-folder-rows".into())
+                    .flex()
+                    .flex_col()
+                    .children(rows),
+            )
+            .children(listing_error)
+            .children(self.check_status_lines())
+    }
+
+    /// The lines under the field or the rows: the step the dialog waits on,
+    /// dim, then why the last check failed, in red.
+    fn check_status_lines(&self) -> Vec<Div> {
+        let theme = &self.theme;
+        let Some(dialog) = self.menu.new_session.as_ref() else {
+            return Vec::new();
+        };
+        let step = (dialog.step == Step::Checking).then(|| {
+            div()
+                .debug_selector(|| "new-session-step".into())
+                .px(px(ENTRY_INSET))
+                .text_color(rgb(theme.subtext()))
+                .child(label_text(CHECKING_FOLDER))
+        });
+        let error = dialog.error.as_ref().map(|error| {
+            div()
+                .debug_selector(|| "new-session-error".into())
+                .px(px(ENTRY_INSET))
+                .text_color(danger(theme))
+                .child(label_text(error))
+        });
+        step.into_iter().chain(error).collect()
     }
 
     /// The rows in the visible window of the entries that pass the filter.

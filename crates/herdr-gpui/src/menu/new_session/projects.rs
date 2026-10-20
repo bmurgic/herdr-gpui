@@ -103,24 +103,28 @@ pub(super) fn visible_entries(highlighted: usize, len: usize) -> Range<usize> {
 
 impl HerdrWindow {
     /// Picks `entry`. A workspace whose repository the daemon reported opens
-    /// the confirm page for the repository root, with no request. Other picks
-    /// do nothing yet.
+    /// the confirm page for the repository root, with no request. A workspace
+    /// without one asks the daemon about its folder, because a missing record
+    /// can also mean the daemon does not know yet. `Other folder…` opens the
+    /// folder page.
     pub(super) fn pick_project(&mut self, entry: &ProjectEntry, cx: &mut Context<Self>) {
-        let ProjectEntry::Workspace {
-            workspace_id,
-            repository: Some(repository),
-            ..
-        } = entry
-        else {
-            return;
-        };
-        self.open_new_session_confirm(
-            Project {
-                source_workspace_id: Some(workspace_id.clone()),
-                path: repository.repo_root.clone(),
-                is_git: true,
-            },
-            cx,
-        );
+        match entry {
+            ProjectEntry::Workspace {
+                workspace_id,
+                repository: Some(repository),
+                ..
+            } => self.open_new_session_confirm(
+                Project {
+                    source_workspace_id: Some(workspace_id.clone()),
+                    path: repository.repo_root.clone(),
+                    is_git: true,
+                },
+                cx,
+            ),
+            ProjectEntry::Workspace {
+                workspace_id, path, ..
+            } => self.check_folder(path, Some(workspace_id.clone()), cx),
+            ProjectEntry::OtherFolder => self.open_new_session_folder(cx),
+        }
     }
 }

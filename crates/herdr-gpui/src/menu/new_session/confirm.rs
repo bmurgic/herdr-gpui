@@ -142,6 +142,11 @@ impl HerdrWindow {
         let Some(dialog) = self.menu.new_session.as_mut() else {
             return;
         };
+        // A project picked from the folder page leaves it, so Back returns to
+        // the project page with its filter.
+        if dialog.folder.take().is_some() {
+            self.menu.input = dialog.filter.take();
+        }
         dialog.filter = self.menu.input.take();
         dialog.confirm = Some(confirm);
         self.discard_composition(cx);

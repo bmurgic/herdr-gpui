@@ -1,0 +1,163 @@
+//! The folder check and what the dialog reads from its answer. The check asks
+//! the daemon, with `worktree.list`, which repository a folder belongs to, so
+//! the confirm page opens for the repository's main checkout. The answer is
+//! applied by the table in the change's design (D6), and only when it comes
+//! under the id of the pending request.
+
+use super::{PendingCheck, Step, confirm::Project};
+use crate::{
+    HerdrWindow,
+    menu::{endpoint_error, new_workspace::DirectoryRefusal},
+    state::DialogResponse,
+};
+use gpui::Context;
+use herdr_client::Method;
+use serde::Deserialize;
+use serde_json::{Value, json};
+
+/// What the page shows for an answer of a shape the dialog does not know.
+const UNEXPECTED_REPLY: &str = "Unexpected reply from the server";
+
+/// The daemon's code for a folder that is not in a git repository.
+const NOT_GIT_WORKTREE: &str = "not_git_worktree";
+
+/// The part of a `worktree_list` answer's `source` the dialog reads. Other
+/// fields are ignored.
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub(super) struct WorktreeListSource {
+    pub(super) source_workspace_id: Option<String>,
+    pub(super) source_checkout_path: String,
+}
+
+/// The `source` of a `worktree_list` result, or `None` for another result
+/// type or a source without a usable `source_checkout_path`.
+pub(super) fn parse_worktree_list_source(result: &Value) -> Option<WorktreeListSource> {
+    if result["type"] != "worktree_list" {
+        return None;
+    }
+    let source: WorktreeListSource = serde_json::from_value(result["source"].clone()).ok()?;
+    (!source.source_checkout_path.is_empty()).then_some(source)
+}
+
+/// The daemon's `result`, or the text the page shows in red: a daemon error's
+/// message alone, without its code, or a client-side error's display text.
+pub(super) fn reply_message(result: &DialogResponse) -> Result<Value, String> {
+    let response = result.as_ref().map_err(|error| error.to_string())?;
+    match response.get("error") {
+        Some(error) => Err(endpoint_error(error).1.to_owned()),
+        None => Ok(response["result"].clone()),
+    }
+}
+
+/// Whether the daemon answered that the folder is not in a git repository.
+fn is_not_git_worktree(result: &DialogResponse) -> bool {
+    result
+        .as_ref()
+        .is_ok_and(|response| response["error"]["code"].as_str() == Some(NOT_GIT_WORKTREE))
+}
+
+impl HerdrWindow {
+    /// Asks the daemon which repository the folder `text` belongs to, and
+    /// locks the dialog until it answers. `text` is sent as the daemon reads
+    /// it (`new_session_request_cwd`). A folder that is not a git repository
+    /// opens the confirm page for that folder with `source_workspace_id`.
+    /// A request that cannot be queued shows why and sends nothing.
+    pub(super) fn check_folder(
+        &mut self,
+        text: &str,
+        source_workspace_id: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(cwd) = self.new_session_request_cwd(text) else {
+            // Only a home that is not UTF-8 gets here, and JSON cannot carry
+            // the path it would expand to.
+            self.set_new_session_error(DirectoryRefusal::Missing.message().to_owned(), cx);
+            return;
+        };
+        let Some(boot_id) = self
+            .menu
+            .new_session
+            .as_ref()
+            .map(|dialog| dialog.boot_id.clone())
+        else {
+            return;
+        };
+        let queued = self.endpoints[self.selected_endpoint]
+            .connection
+            .request_dialog(
+                &boot_id,
+                Method::WorktreeList,
+                json!({"cwd": cwd, "trust_repository": false}),
+            );
+        let Some(dialog) = self.menu.new_session.as_mut() else {
+            return;
+        };
+        match queued {
+            Ok(id) => {
+                dialog.error = None;
+                dialog.step = Step::Checking;
+                dialog.pending = Some(PendingCheck {
+                    id,
+                    not_git_project: Project {
+                        source_workspace_id,
+                        path: cwd,
+                        is_git: false,
+                    },
+                });
+            }
+            Err(error) => dialog.error = Some(error.to_string()),
+        }
+        cx.notify();
+    }
+
+    fn set_new_session_error(&mut self, error: String, cx: &mut Context<Self>) {
+        if let Some(dialog) = self.menu.new_session.as_mut() {
+            dialog.error = Some(error);
+            cx.notify();
+        }
+    }
+
+    /// Applies the answer in the dialog's slot when it is the pending
+    /// check's. An answer under any other id is ignored.
+    pub(super) fn apply_pending_check(&mut self, cx: &mut Context<Self>) {
+        let Some((id, Some(result))) = &self.live.dialog_response else {
+            return;
+        };
+        let Some(dialog) = self.menu.new_session.as_mut() else {
+            return;
+        };
+        if dialog.pending.as_ref().map(|pending| &pending.id) != Some(id) {
+            return;
+        }
+        let result = result.clone();
+        let Some(pending) = dialog.pending.take() else {
+            return;
+        };
+        dialog.step = Step::Idle;
+        let project = if is_not_git_worktree(&result) {
+            Some(pending.not_git_project)
+        } else {
+            match reply_message(&result) {
+                Ok(reply) => {
+                    let source = parse_worktree_list_source(&reply);
+                    if source.is_none() {
+                        dialog.error = Some(UNEXPECTED_REPLY.to_owned());
+                    }
+                    source.map(|source| Project {
+                        source_workspace_id: source.source_workspace_id,
+                        path: source.source_checkout_path,
+                        is_git: true,
+                    })
+                }
+                Err(message) => {
+                    dialog.error = Some(message);
+                    None
+                }
+            }
+        };
+        match project {
+            Some(project) => self.open_new_session_confirm(project, cx),
+            None => cx.notify(),
+        }
+    }
+}

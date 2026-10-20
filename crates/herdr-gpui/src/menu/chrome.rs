@@ -821,6 +821,9 @@ impl HerdrWindow {
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, window, cx| {
                     cx.stop_propagation();
+                    if this.new_session_outside_click(cx) {
+                        return;
+                    }
                     // The picker shows Spaces over the selected tab, and the
                     // overlay occludes the tab bar, so a press on a tab picks
                     // that tab as the picker closes.

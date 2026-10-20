@@ -13,8 +13,10 @@ use serde_json::{Value, json};
 
 mod confirm_page;
 mod opening;
+mod other_folder;
 mod project_entries;
 mod project_page;
+mod replies;
 mod summary;
 
 /// The methods the dialog needs.
@@ -46,7 +48,14 @@ pub(super) fn dialog_window<'a>(
     // The first frames send the daemon the window's own focus and size, and
     // the tab it shows, none of which the dialog asks for.
     let mut peer = peer;
-    drain(&mut peer, &view, cx);
+    // The connection holds a request back until the one before it is
+    // answered, and the tab focus above never was.
+    for request in drain(&mut peer, &view, cx) {
+        let request: Value = serde_json::from_str(&request).unwrap();
+        let id = request["id"].as_str().unwrap();
+        let ok = json!({"id": id, "result": {"type": "ok"}});
+        peer.respond("boot-v1", id, &ok);
+    }
     (view, cx, peer)
 }
 
@@ -157,6 +166,43 @@ pub(super) fn highlighted(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext
         let shown = view.shown_projects().unwrap();
         shown.rows[shown.highlighted].label().to_owned()
     })
+}
+
+/// The next API request the peer was sent, as JSON. The connection holds
+/// back everything queued after a request until it is answered, so a test
+/// cannot ask what else was sent while one is pending: it answers first and
+/// then uses `assert_no_request`.
+pub(super) fn sent(peer: &mut MockPeer) -> Value {
+    peer.request()
+}
+
+/// Answers the dialog's pending request with `response`, an endpoint
+/// envelope. The peer gets it first, which frees the connection for the next
+/// request, then the window's slot, and the window updates.
+pub(super) fn answer(
+    peer: &mut MockPeer,
+    view: &Entity<HerdrWindow>,
+    cx: &mut VisualTestContext,
+    response: Value,
+) {
+    let id = view.read_with(cx, |view, _| {
+        view.menu
+            .new_session
+            .as_ref()
+            .unwrap()
+            .pending
+            .as_ref()
+            .unwrap()
+            .id
+            .clone()
+    });
+    let mut envelope = response;
+    envelope["id"] = id.as_str().into();
+    peer.respond("boot-v1", &id, &envelope);
+    update(view, cx, |view, window, cx| {
+        view.live.dialog_response = Some((id, Some(Ok(envelope))));
+        view.update_workspace_dialog(window, cx);
+    });
 }
 
 /// Reads what the peer was sent up to a marker queued now, which orders after
