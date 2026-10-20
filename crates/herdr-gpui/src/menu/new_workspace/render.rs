@@ -76,7 +76,8 @@ impl HerdrWindow {
     ) -> Div {
         let theme = &self.theme;
         let rows = form.map(|form| {
-            form.visible(VISIBLE_ROWS)
+            form.suggestions
+                .visible(VISIBLE_ROWS)
                 .zip(ROW_SELECTORS)
                 .map(|((index, name), selector)| {
                     div()
@@ -85,7 +86,9 @@ impl HerdrWindow {
                         .py(px(3.))
                         .rounded(px(crate::config::corners::CONTROL))
                         .truncate()
-                        .when(index == form.selected, |row| row.bg(rgb(theme.active)))
+                        .when(form.suggestions.is_selected(index), |row| {
+                            row.bg(rgb(theme.active))
+                        })
                         .child(name.to_owned())
                 })
                 .collect::<Vec<_>>()

@@ -16,24 +16,22 @@ use super::Page;
 use crate::{HerdrWindow, dialog_input::DialogInput};
 use gpui::{Context, KeyDownEvent, Window};
 use herdr_client::Method;
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
-use suggestions::{
-    DirectoryRefusal, MAX_FOLDER_ENTRIES, expand_tilde, list_folders, ranked_matches,
-};
+use std::path::PathBuf;
 
+mod folder;
 mod render;
 mod submit;
 mod suggestions;
+
+pub(in crate::menu) use folder::FolderSuggestions;
+pub(in crate::menu) use suggestions::{DirectoryRefusal, check_form, request_cwd};
 
 #[cfg(test)]
 mod tests;
 
 /// How many suggestions the page shows at once. The rest scroll into view
 /// as the selection moves down to them.
-const VISIBLE_ROWS: usize = 6;
+pub(in crate::menu) const VISIBLE_ROWS: usize = 6;
 
 /// Which question the page is asking.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,25 +43,10 @@ enum Step {
     Name { cwd: String, proposal: String },
 }
 
-/// The page's state: where the typed text points, the folders
-/// found there, and which of them is selected.
+/// The page's state: the suggestions for the typed text, and the step the
+/// page is on.
 pub(crate) struct NewWorkspaceForm {
-    /// Whether the page's host is this computer, the only host whose disk
-    /// the client may read.
-    local: bool,
-    /// What a leading `~` expands to, read once when the page opens.
-    home: Option<PathBuf>,
-    /// The text through its last `/`, which Tab completion puts a folder
-    /// name after. `None` when there is nothing to complete.
-    parent: Option<String>,
-    /// The absolute folder `parent` names, which `children` came from or is
-    /// being listed from.
-    folder: Option<PathBuf>,
-    children: Vec<String>,
-    matches: Vec<String>,
-    selected: usize,
-    /// Why the folder could not be read.
-    listing_error: Option<String>,
+    suggestions: FolderSuggestions,
     step: Step,
     /// The daemon boot the page opened on, which a creation is addressed to.
     boot_id: String,
@@ -87,14 +70,7 @@ impl NewWorkspaceForm {
         source_workspace_id: Option<String>,
     ) -> Self {
         Self {
-            local,
-            home,
-            parent: None,
-            folder: None,
-            children: Vec::new(),
-            matches: Vec::new(),
-            selected: 0,
-            listing_error: None,
+            suggestions: FolderSuggestions::new(local, home),
             step: Step::Directory,
             boot_id,
             source_workspace_id,
@@ -109,108 +85,14 @@ impl NewWorkspaceForm {
         matches!(self.step, Step::Name { .. })
     }
 
-    /// The suggestion rows shown, at most `rows`, scrolled so the selected one
-    /// is among them, each with its index in `matches`.
-    fn visible(&self, rows: usize) -> impl Iterator<Item = (usize, &str)> {
-        self.matches
-            .iter()
-            .enumerate()
-            .skip(self.visible_start(rows))
-            .take(rows)
-            .map(|(index, name)| (index, name.as_str()))
-    }
-
-    /// Forgets the listing, for a text with no parent folder to list.
-    fn clear_listing(&mut self) {
-        self.parent = None;
-        self.folder = None;
-        self.children.clear();
-        self.matches.clear();
-        self.selected = 0;
-        self.listing_error = None;
-    }
-
     /// The message under the field: why Enter was refused, why the creation
     /// was not sent, else why the folder could not be read.
     fn error(&self) -> Option<&str> {
         self.refusal
             .map(DirectoryRefusal::message)
             .or(self.send_error.as_deref())
-            .or(self.listing_error.as_deref())
+            .or(self.suggestions.listing_error())
     }
-
-    /// Follows an edit of the text. A change of only the part after the last
-    /// `/` ranks the folders already listed again. A change of the parent
-    /// forgets them, so Tab and the arrow keys never act on another parent's
-    /// folders, and returns the folder to list.
-    fn retarget(&mut self, text: &str) -> Option<PathBuf> {
-        let text = if text.is_empty() { "~/" } else { text };
-        let Some((parent, _)) = text.rsplit_once('/').filter(|_| self.local) else {
-            self.clear_listing();
-            return None;
-        };
-        let parent = format!("{parent}/");
-        let folder = expand_tilde(&parent, self.home.as_deref()).filter(|path| path.is_absolute());
-        let changed = self.folder != folder;
-        if changed {
-            self.children.clear();
-            self.listing_error = None;
-            self.folder = folder.clone();
-        }
-        self.parent = Some(parent);
-        self.matches = ranked_matches(&self.children, query(text));
-        self.selected = 0;
-        folder.filter(|_| changed)
-    }
-
-    /// Takes the result of listing `folder`. A result for a folder the text
-    /// has since moved away from is dropped. Returns whether the page changed.
-    fn finish_listing(
-        &mut self,
-        folder: &Path,
-        listed: io::Result<Vec<String>>,
-        text: &str,
-    ) -> bool {
-        if self.folder.as_deref() != Some(folder) {
-            return false;
-        }
-        match listed {
-            Ok(children) => self.children = children,
-            Err(error) => self.listing_error = Some(format!("Cannot read folders: {error}")),
-        }
-        self.matches = ranked_matches(&self.children, query(text));
-        self.selected = 0;
-        true
-    }
-
-    /// Moves the selection by `delta`, stopping at either end.
-    fn move_selection(&mut self, delta: isize) {
-        self.selected = self
-            .selected
-            .saturating_add_signed(delta)
-            .min(self.matches.len().saturating_sub(1));
-    }
-
-    /// The text Tab puts in the field: the parent and the selected folder,
-    /// with no trailing `/`, so a second `/` descends on purpose.
-    fn completion(&self) -> Option<String> {
-        Some(format!(
-            "{}{}",
-            self.parent.as_ref()?,
-            self.matches.get(self.selected)?
-        ))
-    }
-
-    /// The first row shown, so the selected one is the last when it is below
-    /// the first screenful.
-    fn visible_start(&self, rows: usize) -> usize {
-        self.selected.saturating_sub(rows.saturating_sub(1))
-    }
-}
-
-/// The part of `text` after its last `/`, which folder names are ranked by.
-fn query(text: &str) -> &str {
-    text.rsplit_once('/').map_or("", |(_, query)| query)
 }
 
 impl HerdrWindow {
@@ -256,7 +138,7 @@ impl HerdrWindow {
         let mut input = DialogInput::new("~/".into());
         input.selection = input.text.len()..input.text.len();
         let mut form = NewWorkspaceForm::new(local, home, boot_id, source);
-        let folder = form.retarget(&input.text);
+        let folder = form.suggestions.retarget(&input.text);
         self.menu.input = Some(input);
         self.menu.new_workspace = Some(form);
         self.menu.page = Some(Page::NewWorkspace);
@@ -298,7 +180,7 @@ impl HerdrWindow {
             cx.notify();
             return;
         }
-        let folder = form.retarget(&input.text);
+        let folder = form.suggestions.retarget(&input.text);
         if let Some(folder) = folder {
             self.list_new_workspace_folder(folder, cx);
         }
@@ -308,24 +190,16 @@ impl HerdrWindow {
     /// Lists `folder` off the UI thread and applies the result if the page
     /// still points at it.
     fn list_new_workspace_folder(&mut self, folder: PathBuf, cx: &mut Context<Self>) {
-        let listing = cx.background_executor().spawn({
-            let folder = folder.clone();
-            async move { list_folders(&folder, MAX_FOLDER_ENTRIES) }
+        self.list_folder_in_background(folder, cx, |this, folder, listed, cx| {
+            let (Some(form), Some(input)) =
+                (this.menu.new_workspace.as_mut(), this.menu.input.as_ref())
+            else {
+                return;
+            };
+            if form.suggestions.finish_listing(folder, listed, &input.text) {
+                cx.notify();
+            }
         });
-        cx.spawn(async move |this, cx| {
-            let listed = listing.await;
-            let _ = this.update(cx, |this, cx| {
-                let (Some(form), Some(input)) =
-                    (this.menu.new_workspace.as_mut(), this.menu.input.as_ref())
-                else {
-                    return;
-                };
-                if form.finish_listing(&folder, listed, &input.text) {
-                    cx.notify();
-                }
-            });
-        })
-        .detach();
     }
 
     /// Up and Down move the selection and Tab completes it, on the directory
@@ -348,14 +222,14 @@ impl HerdrWindow {
         let suggesting = form.step == Step::Directory;
         let completion = match event.keystroke.key.as_str() {
             "up" if suggesting => {
-                form.move_selection(-1);
+                form.suggestions.move_selection(-1);
                 None
             }
             "down" if suggesting => {
-                form.move_selection(1);
+                form.suggestions.move_selection(1);
                 None
             }
-            "tab" if suggesting => form.completion(),
+            "tab" if suggesting => form.suggestions.completion(),
             "enter" => {
                 cx.stop_propagation();
                 window.prevent_default();
