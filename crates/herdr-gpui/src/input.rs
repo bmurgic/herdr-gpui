@@ -142,14 +142,10 @@ impl EntityInputHandler for HerdrWindow {
     ) {
         self.shift_taps.cancel();
         if self.menu.page.is_some() {
-            let before = self.new_workspace_text();
-            let session_before = self.new_session_text();
-            if let Some(input) = self.menu.input.as_mut() {
+            self.edit_menu_input(cx, |input, _| {
                 input.replace(range, text, false, None);
-                self.new_workspace_edited(before, cx);
-                self.new_session_edited(session_before, cx);
-                cx.notify();
-            }
+                true
+            });
             return;
         }
         if self.copy_mode_active() {
@@ -177,14 +173,10 @@ impl EntityInputHandler for HerdrWindow {
     ) {
         self.shift_taps.cancel();
         if self.menu.page.is_some() {
-            let before = self.new_workspace_text();
-            let session_before = self.new_session_text();
-            if let Some(input) = self.menu.input.as_mut() {
+            self.edit_menu_input(cx, |input, _| {
                 input.replace(range, text, true, selected);
-                self.new_workspace_edited(before, cx);
-                self.new_session_edited(session_before, cx);
-                cx.notify();
-            }
+                true
+            });
             return;
         }
         // Copy mode has no composition: a key it does not know types nothing.

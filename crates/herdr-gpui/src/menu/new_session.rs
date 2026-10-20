@@ -67,17 +67,7 @@ impl HerdrWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        if self.menu.page.is_some()
-            || !self.live.status.is_connected()
-            || !REQUIRED_METHODS
-                .iter()
-                .all(|method| method.advertised_in(&self.live.methods))
-            || self.activation_deadline.is_some()
-            || !self.endpoints[self.selected_endpoint].surface_requested()
-        {
-            return false;
-        }
-        let Some(snapshot) = self.live.snapshot.as_ref() else {
+        let Some(snapshot) = self.creation_dialog_snapshot(&REQUIRED_METHODS) else {
             return false;
         };
         let boot_id = snapshot.boot_id.clone();
@@ -112,15 +102,6 @@ impl HerdrWindow {
             .collect();
         let highlighted = dialog.highlighted.min(rows.len().saturating_sub(1));
         Some(ShownProjects { rows, highlighted })
-    }
-
-    /// The `(selection_epoch, generation)` pair that names the selected host's
-    /// current connection.
-    fn current_endpoint_target(&self) -> (u64, u64) {
-        (
-            self.selection_epoch,
-            self.endpoints[self.selected_endpoint].generation,
-        )
     }
 
     /// The filter text, for `new_session_edited` to compare against once an

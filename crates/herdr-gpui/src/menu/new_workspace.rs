@@ -240,16 +240,7 @@ impl HerdrWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        if self.menu.page.is_some()
-            || !self.live.status.is_connected()
-            || !Method::WorkspaceCreate.advertised_in(&self.live.methods)
-            || self.activation_deadline.is_some()
-            || !self.endpoints[self.selected_endpoint].surface_requested()
-        {
-            return false;
-        }
-        // A creation is addressed to a daemon boot, which only a snapshot names.
-        let Some(snapshot) = self.live.snapshot.as_ref() else {
+        let Some(snapshot) = self.creation_dialog_snapshot(&[Method::WorkspaceCreate]) else {
             return false;
         };
         let (boot_id, source) = (
@@ -259,10 +250,7 @@ impl HerdrWindow {
         self.hover = None;
         self.hover_menu = None;
         self.menu.reset();
-        self.menu.endpoint_target = (
-            self.selection_epoch,
-            self.endpoints[self.selected_endpoint].generation,
-        );
+        self.menu.endpoint_target = self.current_endpoint_target();
         let local = self.new_workspace_is_local();
         // The cursor sits after the `~/`, as in myherdr, so typing adds to it.
         let mut input = DialogInput::new("~/".into());

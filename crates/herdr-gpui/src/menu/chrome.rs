@@ -7,7 +7,7 @@ mod keys;
 use super::{MENU_MARGIN, Page, WorkspaceAction, devices::rail};
 use crate::{HerdrWindow, actions, fonts::StyledFont};
 use gpui::{prelude::*, *};
-use herdr_client::Method;
+use herdr_client::{Method, protocol::ClientShellSnapshotV2};
 
 /// How far past its panel a popover counts as covering, for the native pages
 /// that step aside for it.
@@ -71,12 +71,39 @@ impl HerdrWindow {
         }
     }
 
+    /// The `(selection_epoch, generation)` pair that names the selected host's
+    /// current connection.
+    pub(crate) fn current_endpoint_target(&self) -> (u64, u64) {
+        (
+            self.selection_epoch,
+            self.endpoints[self.selected_endpoint].generation,
+        )
+    }
+
     pub(crate) fn menu_target_current(&self) -> bool {
-        self.menu.endpoint_target
-            == (
-                self.selection_epoch,
-                self.endpoints[self.selected_endpoint].generation,
-            )
+        self.menu.endpoint_target == self.current_endpoint_target()
+    }
+
+    /// The snapshot a dialog that creates on the selected host opens against,
+    /// or `None` when it must not open: a menu page is already open, the host
+    /// is not connected or does not advertise every one of `methods`, an
+    /// activation is pending, the host's surface is not requested, or no
+    /// snapshot names the daemon boot to address.
+    pub(crate) fn creation_dialog_snapshot(
+        &self,
+        methods: &[Method],
+    ) -> Option<&ClientShellSnapshotV2> {
+        if self.menu.page.is_some()
+            || !self.live.status.is_connected()
+            || !methods
+                .iter()
+                .all(|method| method.advertised_in(&self.live.methods))
+            || self.activation_deadline.is_some()
+            || !self.endpoints[self.selected_endpoint].surface_requested()
+        {
+            return None;
+        }
+        self.live.snapshot.as_deref()
     }
 
     /// Asks the selected daemon to reread its config file.
