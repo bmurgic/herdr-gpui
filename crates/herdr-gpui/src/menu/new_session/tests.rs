@@ -192,9 +192,14 @@ pub(super) fn click(cx: &mut VisualTestContext, selector: &'static str) {
     cx.simulate_click(center, Modifiers::default());
 }
 
+/// A point in the window that the dialog does not cover.
+pub(super) fn outside_the_dialog() -> gpui::Point<gpui::Pixels> {
+    gpui::point(px(10.), px(300.))
+}
+
 /// Clicks the window at a point the dialog does not cover.
 pub(super) fn click_outside(cx: &mut VisualTestContext) {
-    cx.simulate_click(gpui::point(px(10.), px(300.)), Modifiers::default());
+    cx.simulate_click(outside_the_dialog(), Modifiers::default());
 }
 
 /// The next API request the peer was sent, as JSON. The connection holds

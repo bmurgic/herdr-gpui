@@ -13,7 +13,7 @@ use crate::{
 /// Presses and releases the right button at a point the dialog does not
 /// cover.
 fn right_click_outside(cx: &mut VisualTestContext) {
-    let outside = gpui::point(px(10.), px(300.));
+    let outside = outside_the_dialog();
     cx.simulate_mouse_down(outside, gpui::MouseButton::Right, Modifiers::default());
     cx.simulate_mouse_up(outside, gpui::MouseButton::Right, Modifiers::default());
 }
@@ -33,6 +33,17 @@ fn fail_typing(peer: &mut MockPeer, view: &Entity<HerdrWindow>, cx: &mut VisualT
         ],
     );
     assert_eq!(step(view, cx), Step::Idle);
+}
+
+/// A confirm page whose worktree was created and whose typing failed, with
+/// the host's input ready, so that a way out sends the created tab's focus.
+fn created_page(
+    cx: &mut TestAppContext,
+) -> (Entity<HerdrWindow>, &mut VisualTestContext, MockPeer) {
+    let (view, test_cx, mut peer) = git_page(cx, &start_methods());
+    make_input_ready(&view, test_cx);
+    fail_typing(&mut peer, &view, test_cx);
+    (view, test_cx, peer)
 }
 
 /// The methods of the requests, in the order they were sent.
@@ -132,9 +143,7 @@ fn leaving_after_the_workspace_exists_focuses_it_without_typing(cx: &mut TestApp
         ("a right click outside the dialog", right_click_outside),
     ];
     for (input, give) in inputs {
-        let (view, test_cx, mut peer) = git_page(cx, &start_methods());
-        make_input_ready(&view, test_cx);
-        fail_typing(&mut peer, &view, test_cx);
+        let (view, test_cx, mut peer) = created_page(cx);
         redraw(test_cx);
         give(test_cx);
         assert!(is_closed(&view, test_cx), "{input}");
@@ -163,9 +172,7 @@ fn leaving_while_the_host_is_not_connected_focuses_nothing(cx: &mut TestAppConte
         ("a click outside the dialog", click_outside),
     ];
     for (input, give) in inputs {
-        let (view, test_cx, mut peer) = git_page(cx, &start_methods());
-        make_input_ready(&view, test_cx);
-        fail_typing(&mut peer, &view, test_cx);
+        let (view, test_cx, mut peer) = created_page(cx);
         update(&view, test_cx, |view, _, _| {
             view.live.status = crate::state::ConnectionStatus::Disconnected;
         });

@@ -225,13 +225,7 @@ impl HerdrWindow {
     /// Why the last check or start failed, in red, or nothing.
     fn error_line(&self) -> Option<Div> {
         let error = self.menu.new_session.as_ref()?.error.as_ref()?;
-        Some(
-            div()
-                .debug_selector(|| "new-session-error".into())
-                .px(px(ENTRY_INSET))
-                .text_color(danger(&self.theme))
-                .child(label_text(error)),
-        )
+        Some(self.error_frame().child(label_text(error)))
     }
 
     /// Why a start failed, in red, on at most `ERROR_ROWS` rows that keep the
@@ -247,14 +241,20 @@ impl HerdrWindow {
             return None;
         }
         Some(
-            div()
-                .debug_selector(|| "new-session-error".into())
+            self.error_frame()
                 .flex()
                 .flex_col()
-                .px(px(ENTRY_INSET))
-                .text_color(danger(&self.theme))
                 .children(rows.iter().map(|row| div().child(label_text(row)))),
         )
+    }
+
+    /// The red, inset frame that holds a failure message, on one line or in
+    /// rows.
+    fn error_frame(&self) -> Div {
+        div()
+            .debug_selector(|| "new-session-error".into())
+            .px(px(ENTRY_INSET))
+            .text_color(danger(&self.theme))
     }
 
     /// The rows in the visible window of the entries that pass the filter.
