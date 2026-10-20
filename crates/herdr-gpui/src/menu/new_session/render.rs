@@ -7,7 +7,10 @@ use super::{
     summary::{display_path, shorten_home},
 };
 use crate::{
-    HerdrWindow, menu::chrome::CREATION_DIALOG_WIDTH, sidebar::glyph_width, toggles::checkbox,
+    HerdrWindow,
+    menu::chrome::CREATION_DIALOG_WIDTH,
+    sidebar::{glyph_width, label_text},
+    toggles::checkbox,
 };
 use gpui::{prelude::*, *};
 use std::path::Path;
@@ -235,7 +238,7 @@ impl HerdrWindow {
                     .px(px(ENTRY_INSET))
                     .whitespace_nowrap()
                     .overflow_hidden()
-                    .child(summary),
+                    .child(label_text(&summary)),
             )
             .child(
                 div()

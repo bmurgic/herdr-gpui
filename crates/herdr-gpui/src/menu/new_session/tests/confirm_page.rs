@@ -5,10 +5,9 @@ use crate::{
         Page,
         new_session::confirm::{Confirm, ConfirmRow},
     },
-    sidebar::glyph_width,
+    sidebar::layout_tests::{inside, painted, redraw, text_bounds},
 };
 use gpui::{Modifiers, point};
-use unicode_width::UnicodeWidthStr;
 
 /// The method the confirm page needs on top of the dialog's own.
 const SEND_TEXT: &str = "pane.send_text";
@@ -92,14 +91,19 @@ fn field(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, row: ConfirmRow
     view.read_with(cx, |view, _| view.confirm_field_text(row).to_owned())
 }
 
-/// The summary line as the next draw gives it.
-fn summary_line(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> String {
-    draw(cx);
-    update(view, cx, |view, window, _| {
-        let dialog = view.menu.new_session.as_ref().unwrap();
-        let confirm = dialog.confirm.as_ref().unwrap();
-        view.confirm_summary(confirm, &dialog.home, window.viewport_size().width)
-    })
+/// Asserts that the next frame paints `expected` as the summary line, inside
+/// the summary row. The text is read from the paint, not from page state.
+fn assert_summary(cx: &mut VisualTestContext, expected: &str) {
+    redraw(cx);
+    assert!(
+        painted(cx, expected),
+        "the summary {expected:?} was not drawn"
+    );
+    let row = cx.debug_bounds("new-session-summary").unwrap();
+    assert!(
+        inside(row, text_bounds(cx, expected)),
+        "{expected:?} is drawn outside the summary row"
+    );
 }
 
 /// Replaces the focused field's text, as a paste over a selection would.
@@ -299,27 +303,14 @@ fn the_drawn_summary_follows_the_page_and_fits_the_dialog(cx: &mut TestAppContex
         json!([main_checkout("w1", "herdr", &root)]),
     );
     press(test_cx, "enter");
-    assert_eq!(
-        summary_line(&view, test_cx),
-        "Will create a worktree and start claude in it."
-    );
+    assert_summary(test_cx, "Will create a worktree and start claude in it.");
     press(test_cx, "up up up up space");
-    let line = summary_line(&view, test_cx);
-    let glyph = view.read_with(test_cx, |view, _| glyph_width(&view.config.ui));
-    // The dialog is 520 px wide, with its border and the body's inset.
-    assert!(
-        line.width() as f32 * glyph <= 520. - 2. - 32.,
-        "{line} is wider than the dialog"
-    );
-    assert_eq!(line, "Will start claude in ~/…/herdr (main checkout).");
+    assert_summary(test_cx, "Will start claude in ~/…/herdr (main checkout).");
 
     press(test_cx, "down down");
     assert_eq!(focus(&view, test_cx), ConfirmRow::Command);
     set_focused_text(&view, test_cx, "codex");
-    assert_eq!(
-        summary_line(&view, test_cx),
-        "Will start codex in ~/…/herdr (main checkout)."
-    );
+    assert_summary(test_cx, "Will start codex in ~/…/herdr (main checkout).");
 }
 
 /// Agent new session 25: without `pane.send_text` the drawn summary reads as
@@ -327,10 +318,7 @@ fn the_drawn_summary_follows_the_page_and_fits_the_dialog(cx: &mut TestAppContex
 #[gpui::test]
 fn a_server_that_cannot_type_draws_the_command_off(cx: &mut TestAppContext) {
     let (view, test_cx, _peer) = confirm_page(cx, &METHODS);
-    assert_eq!(
-        summary_line(&view, test_cx),
-        "Will open a shell in a new worktree."
-    );
+    assert_summary(test_cx, "Will open a shell in a new worktree.");
     assert_eq!(
         confirm_of(&view, test_cx, Confirm::rows),
         [
@@ -414,7 +402,7 @@ fn picking_a_known_repository_opens_the_confirm_page_with_the_setting(cx: &mut T
         );
         let branch = field(&view, test_cx, ConfirmRow::Branch);
         assert!(is_proposed_branch(&branch), "{branch}");
-        assert_eq!(summary_line(&view, test_cx), summary, "{config:?}");
+        assert_summary(test_cx, summary);
         // Drawing never regenerates the branch.
         draw(test_cx);
         assert_eq!(field(&view, test_cx, ConfirmRow::Branch), branch);

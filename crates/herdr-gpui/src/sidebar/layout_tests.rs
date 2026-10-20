@@ -537,7 +537,7 @@ pub(super) fn session_window(
 
 /// A full frame with the painted text recorded afresh.
 #[cfg(test)]
-pub(super) fn redraw(cx: &mut gpui::VisualTestContext) {
+pub(crate) fn redraw(cx: &mut gpui::VisualTestContext) {
     cx.update(|window, cx| {
         cx.default_global::<TextProbes>().0.clear();
         full_draw(window, cx).clear(cx);
@@ -545,17 +545,17 @@ pub(super) fn redraw(cx: &mut gpui::VisualTestContext) {
 }
 
 #[cfg(test)]
-pub(super) fn painted(cx: &mut gpui::VisualTestContext, text: &str) -> bool {
+pub(crate) fn painted(cx: &mut gpui::VisualTestContext, text: &str) -> bool {
     cx.update(|_, cx| cx.global::<TextProbes>().0.contains_key(text))
 }
 
 #[cfg(test)]
-pub(super) fn text_bounds(cx: &mut gpui::VisualTestContext, text: &str) -> Bounds<Pixels> {
+pub(crate) fn text_bounds(cx: &mut gpui::VisualTestContext, text: &str) -> Bounds<Pixels> {
     cx.update(|_, cx| cx.global::<TextProbes>().0[text].0)
 }
 
 #[cfg(test)]
-pub(super) fn inside(outer: Bounds<Pixels>, inner: Bounds<Pixels>) -> bool {
+pub(crate) fn inside(outer: Bounds<Pixels>, inner: Bounds<Pixels>) -> bool {
     outer.left() <= inner.left()
         && inner.right() <= outer.right()
         && outer.top() <= inner.top()
