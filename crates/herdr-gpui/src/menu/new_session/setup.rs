@@ -406,9 +406,7 @@ impl HerdrWindow {
         }
         cx.notify();
     }
-}
 
-impl HerdrWindow {
     /// Keys on the checklist: Up and Down move between the buttons, Enter
     /// presses the focused one, and Esc leaves for the created tab. Every other
     /// key is used and does nothing, as no field takes text here. `focused` is
