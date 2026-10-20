@@ -821,7 +821,7 @@ impl HerdrWindow {
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, window, cx| {
                     cx.stop_propagation();
-                    if this.new_session_outside_click(cx) {
+                    if this.new_session_outside_click(window, cx) {
                         return;
                     }
                     // The picker shows Spaces over the selected tab, and the
@@ -842,7 +842,11 @@ impl HerdrWindow {
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(|this, _, window, cx| {
-                    if this.menu.opening_right_click || this.new_session_locked() {
+                    if this.menu.opening_right_click {
+                        cx.stop_propagation();
+                        return;
+                    }
+                    if this.new_session_outside_click(window, cx) {
                         cx.stop_propagation();
                         return;
                     }

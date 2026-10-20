@@ -34,17 +34,20 @@ pub(crate) enum ConfirmRow {
 
 /// The rows Up and Down visit, top to bottom. A row is skipped when its
 /// checkbox is off, when the server cannot type, and, for the worktree rows,
-/// when the folder is not a git repository.
+/// when the folder is not a git repository. Once the workspace exists
+/// (`is_created`) the worktree, branch, and run-command rows are read-only and
+/// skipped; the command field stays, as a retry can still type it.
 pub(crate) fn focus_order(
     is_git: bool,
     worktree_on: bool,
     command_on: bool,
     can_type: bool,
+    is_created: bool,
 ) -> Vec<ConfirmRow> {
     let rows = [
-        (ConfirmRow::Worktree, is_git),
-        (ConfirmRow::Branch, is_git && worktree_on),
-        (ConfirmRow::CommandToggle, can_type),
+        (ConfirmRow::Worktree, is_git && !is_created),
+        (ConfirmRow::Branch, is_git && worktree_on && !is_created),
+        (ConfirmRow::CommandToggle, can_type && !is_created),
         (ConfirmRow::Command, can_type && command_on),
         (ConfirmRow::Start, true),
         (ConfirmRow::Back, true),
@@ -93,6 +96,7 @@ impl Confirm {
             self.worktree_on,
             self.command_on,
             self.can_type,
+            self.started.created.is_some(),
         )
     }
 
@@ -162,8 +166,13 @@ impl HerdrWindow {
         cx.notify();
     }
 
-    /// Returns to the project page and drops the confirm page's edits.
-    fn leave_new_session_confirm(&mut self, cx: &mut Context<Self>) {
+    /// Returns to the project page and drops the confirm page's edits. After
+    /// a create there is no page to return to, so the dialog leaves for the
+    /// created tab instead.
+    fn leave_new_session_confirm(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.leave_created_session(window, cx) {
+            return;
+        }
         let Some(dialog) = self.menu.new_session.as_mut() else {
             return;
         };
@@ -247,20 +256,30 @@ impl HerdrWindow {
     }
 
     /// What Enter does on `row`.
-    fn activate_confirm_row(&mut self, row: ConfirmRow, cx: &mut Context<Self>) {
+    fn activate_confirm_row(
+        &mut self,
+        row: ConfirmRow,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         match row {
             ConfirmRow::Worktree | ConfirmRow::CommandToggle => {
                 self.flip_confirm_checkbox(row, cx);
             }
             ConfirmRow::Branch | ConfirmRow::Command => self.move_confirm_focus(1, cx),
-            ConfirmRow::Back => self.leave_new_session_confirm(cx),
+            ConfirmRow::Back => self.leave_new_session_confirm(window, cx),
             ConfirmRow::Start => self.start_new_session(cx),
         }
     }
 
     /// A left click on `row`: focus it, then, for a checkbox or a button, do
     /// what Enter does there. A skipped row ignores it.
-    pub(super) fn click_confirm_row(&mut self, row: ConfirmRow, cx: &mut Context<Self>) {
+    pub(super) fn click_confirm_row(
+        &mut self,
+        row: ConfirmRow,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.new_session_locked() {
             return;
         }
@@ -276,7 +295,7 @@ impl HerdrWindow {
             ConfirmRow::Worktree
             | ConfirmRow::CommandToggle
             | ConfirmRow::Start
-            | ConfirmRow::Back => self.activate_confirm_row(row, cx),
+            | ConfirmRow::Back => self.activate_confirm_row(row, window, cx),
         }
     }
 
@@ -294,10 +313,10 @@ impl HerdrWindow {
         match event.keystroke.key.as_str() {
             "up" => self.move_confirm_focus(-1, cx),
             "down" => self.move_confirm_focus(1, cx),
-            "escape" => self.leave_new_session_confirm(cx),
-            "enter" => self.activate_confirm_row(focus, cx),
+            "escape" => self.leave_new_session_confirm(window, cx),
+            "enter" => self.activate_confirm_row(focus, window, cx),
             "space" if matches!(focus, ConfirmRow::Worktree | ConfirmRow::CommandToggle) => {
-                self.activate_confirm_row(focus, cx);
+                self.activate_confirm_row(focus, window, cx);
             }
             _ => return false,
         }

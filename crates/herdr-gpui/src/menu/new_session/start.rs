@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     HerdrWindow,
-    navigation::OwnedNavigationTarget,
+    navigation::{NavigationTarget, OwnedNavigationTarget},
     state::DialogResponse,
     teleport::{WorkspaceCreated, WorktreeCreated},
 };
@@ -289,6 +289,44 @@ impl HerdrWindow {
         if let Some(tab_id) = tab_id {
             self.fence_focus_change(Some(OwnedNavigationTarget::Tab(tab_id)));
         }
+    }
+}
+
+impl HerdrWindow {
+    /// Leaves the dialog for the tab a start created, when it may: the
+    /// workspace exists and no request of the dialog is unanswered. Closes the
+    /// dialog at once, types nothing, and asks the daemon to focus the tab
+    /// without waiting for its answer, as soon as the window is ready for
+    /// input. While the host is not connected the dialog only closes, so no
+    /// focus is stored to fire after a reconnect. Returns whether it left.
+    pub(super) fn leave_created_session(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(dialog) = self
+            .menu
+            .new_session
+            .as_ref()
+            .filter(|dialog| dialog.step == Step::Idle)
+        else {
+            return false;
+        };
+        let Some(tab_id) = dialog
+            .confirm
+            .as_ref()
+            .and_then(|confirm| confirm.started.created.as_ref())
+            .map(|created| created.tab_id.clone())
+        else {
+            return false;
+        };
+        let endpoint = self.endpoints[self.selected_endpoint].id.clone();
+        let is_connected = self.live.status.is_connected();
+        self.dismiss_menu(window, cx);
+        if is_connected {
+            self.navigate_endpoint(&endpoint, NavigationTarget::Tab(&tab_id), cx);
+        }
+        true
     }
 }
 

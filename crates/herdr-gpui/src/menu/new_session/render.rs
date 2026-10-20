@@ -402,9 +402,9 @@ impl HerdrWindow {
             .when(confirm.focus == row, |frame| frame.bg(rgb(theme.active)))
             .when(is_skipped, |frame| frame.text_color(rgb(theme.subtext())))
             .when(!is_skipped, |frame| frame.cursor_pointer())
-            .on_click(cx.listener(move |this, _, _, cx| {
+            .on_click(cx.listener(move |this, _, window, cx| {
                 cx.stop_propagation();
-                this.click_confirm_row(row, cx);
+                this.click_confirm_row(row, window, cx);
             }))
     }
 
@@ -490,9 +490,9 @@ impl HerdrWindow {
             .hover(|button| button.bg(rgb(theme.active)))
             .cursor_pointer()
             .child(label_text(label))
-            .on_click(cx.listener(move |this, _, _, cx| {
+            .on_click(cx.listener(move |this, _, window, cx| {
                 cx.stop_propagation();
-                this.click_confirm_row(row, cx);
+                this.click_confirm_row(row, window, cx);
             }))
     }
 
@@ -532,9 +532,9 @@ impl HerdrWindow {
                     )))),
             )
             .child(label_text("starting…"))
-            .on_click(cx.listener(|this, _, _, cx| {
+            .on_click(cx.listener(|this, _, window, cx| {
                 cx.stop_propagation();
-                this.click_confirm_row(ConfirmRow::Start, cx);
+                this.click_confirm_row(ConfirmRow::Start, window, cx);
             }))
     }
 }

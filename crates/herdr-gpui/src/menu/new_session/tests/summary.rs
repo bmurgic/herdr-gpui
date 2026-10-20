@@ -50,7 +50,7 @@ fn focus_order_skips_the_rows_a_rule_turns_off() {
         (true, true, true, false, vec![Worktree, Branch, Start, Back]),
     ] {
         assert_eq!(
-            focus_order(is_git, worktree_on, command_on, can_type),
+            focus_order(is_git, worktree_on, command_on, can_type, false),
             order,
             "git {is_git}, worktree {worktree_on}, command {command_on}, can type {can_type}"
         );

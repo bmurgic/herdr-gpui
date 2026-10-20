@@ -296,7 +296,7 @@ fn a_workspace_answer_without_its_tab_or_pane_types_nothing(cx: &mut TestAppCont
 
 /// Lets the window send keys to the focused pane: the daemon's surface is the
 /// size the window asked for, and the window draws surfaces.
-fn make_input_ready(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
+pub(super) fn make_input_ready(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
     update(view, cx, |view, _, _| {
         view.live.supports_surface = true;
         let size = view.options.surface_size;

@@ -269,14 +269,20 @@ impl HerdrWindow {
         })
     }
 
-    /// Called first by the overlay's outside-click handler. Returns whether
-    /// the dialog swallows the click: it does while it is locked.
-    pub(crate) fn new_session_outside_click(&mut self, cx: &mut Context<Self>) -> bool {
-        if !self.new_session_locked() {
-            return false;
+    /// Called first by the overlay's outside-click handlers, for a click of
+    /// either button. Returns whether the dialog handles the click: it
+    /// swallows it while it is locked, and after a create it leaves for the
+    /// created tab.
+    pub(crate) fn new_session_outside_click(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if self.new_session_locked() {
+            cx.stop_propagation();
+            return true;
         }
-        cx.stop_propagation();
-        true
+        self.leave_created_session(window, cx)
     }
 
     /// On the project page, Up and Down move the highlight, stopping at the
