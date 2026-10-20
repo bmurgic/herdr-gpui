@@ -13,8 +13,8 @@
 //! the host picker chose another one, as a dispatch job.
 
 use super::{
-    NewWorkspaceForm, Page, Step,
-    suggestions::{DirectoryRefusal, check_form, expand_tilde, proposed_label, request_cwd},
+    Page, Step,
+    suggestions::{DirectoryRefusal, expand_tilde, proposed_label, request_cwd},
 };
 use crate::{
     Error, HerdrWindow,
@@ -37,20 +37,6 @@ enum Checked {
     Directory {
         proposal: Option<String>,
     },
-}
-
-impl NewWorkspaceForm {
-    /// Why `text`, already trimmed, cannot be sent. A folder on this computer
-    /// is checked afterwards, and a daemon checks its own.
-    fn refusal_before_check(&self, text: &str, snapshot_v2: bool) -> Option<DirectoryRefusal> {
-        if let Err(refusal) = check_form(text) {
-            return Some(refusal);
-        }
-        // Without the v2 codec the daemon neither expands `~` nor checks the
-        // folder, and only this computer's home is known here.
-        (!self.suggestions.is_local() && !snapshot_v2 && text.starts_with('~'))
-            .then_some(DirectoryRefusal::Tilde)
-    }
 }
 
 impl HerdrWindow {
@@ -94,7 +80,10 @@ impl HerdrWindow {
             return;
         }
         let text = input.text.trim().to_owned();
-        if let Some(refusal) = form.refusal_before_check(&text, self.live.snapshot_v2) {
+        if let Some(refusal) = form
+            .suggestions
+            .refusal_before_check(&text, self.live.snapshot_v2)
+        {
             form.refusal = Some(refusal);
             cx.notify();
             return;

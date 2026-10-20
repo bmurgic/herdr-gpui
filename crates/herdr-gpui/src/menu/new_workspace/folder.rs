@@ -8,7 +8,9 @@
 //! background executor and hands the result to `finish_listing`, which drops
 //! it unless the text still points at the folder that was listed.
 
-use super::suggestions::{MAX_FOLDER_ENTRIES, expand_tilde, list_folders, ranked_matches};
+use super::suggestions::{
+    DirectoryRefusal, MAX_FOLDER_ENTRIES, check_form, expand_tilde, list_folders, ranked_matches,
+};
 use crate::HerdrWindow;
 use gpui::Context;
 use std::{
@@ -72,6 +74,27 @@ impl FolderSuggestions {
             .skip(self.visible_start(rows))
             .take(rows)
             .map(|(index, name)| (index, name.as_str()))
+    }
+
+    /// Why `text`, already trimmed, cannot be sent. A folder on this computer
+    /// is checked afterwards, and a daemon checks its own.
+    pub(in crate::menu) fn refusal_before_check(
+        &self,
+        text: &str,
+        snapshot_v2: bool,
+    ) -> Option<DirectoryRefusal> {
+        if let Err(refusal) = check_form(text) {
+            return Some(refusal);
+        }
+        // Without the v2 codec the daemon neither expands `~` nor checks the
+        // folder, and only this computer's home is known here.
+        (!self.local && !snapshot_v2 && text.starts_with('~')).then_some(DirectoryRefusal::Tilde)
+    }
+
+    /// `text` with a leading `~` expanded to the home folder. `None` when
+    /// that needs a home and there is none.
+    pub(in crate::menu) fn expand(&self, text: &str) -> Option<PathBuf> {
+        expand_tilde(text, self.home.as_deref())
     }
 
     /// Whether `index`, an index in `matches`, is the selected suggestion.

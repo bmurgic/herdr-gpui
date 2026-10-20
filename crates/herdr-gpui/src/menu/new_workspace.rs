@@ -24,7 +24,7 @@ mod submit;
 mod suggestions;
 
 pub(in crate::menu) use folder::FolderSuggestions;
-pub(in crate::menu) use suggestions::{DirectoryRefusal, check_form, request_cwd};
+pub(in crate::menu) use suggestions::{DirectoryRefusal, request_cwd};
 
 #[cfg(test)]
 mod tests;
@@ -110,7 +110,7 @@ impl HerdrWindow {
 
     /// Whether the selected host is this computer: the window's first host,
     /// when its daemon is the trusted one on the standard session socket.
-    fn new_workspace_is_local(&self) -> bool {
+    pub(in crate::menu) fn new_workspace_is_local(&self) -> bool {
         self.selected_endpoint == 0 && self.live.local_daemon_peer
     }
 
