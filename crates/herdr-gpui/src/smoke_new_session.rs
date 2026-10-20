@@ -584,7 +584,7 @@ impl Driver {
         let Some(directory) = std::env::var_os(CAPTURE_VARIABLE) else {
             return Ok(());
         };
-        let path = std::path::PathBuf::from(directory).join(format!("new-session-{name}.png"));
+        let path = PathBuf::from(directory).join(format!("new-session-{name}.png"));
         ensure!(path.is_absolute(), "{CAPTURE_VARIABLE} must be absolute");
         let image = AnyWindowHandle::from(self.handle).update(cx, |_, window, cx| {
             window.draw(cx).clear(cx);
