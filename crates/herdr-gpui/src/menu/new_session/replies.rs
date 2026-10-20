@@ -39,6 +39,65 @@ pub(super) fn parse_worktree_list_source(result: &Value) -> Option<WorktreeListS
     (!source.source_checkout_path.is_empty()).then_some(source)
 }
 
+/// A hook run's state, from the daemon's snake_case strings. An unknown one
+/// makes the whole `plugin_log_list` reply unexpected.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum HookStatus {
+    Running,
+    Succeeded,
+    Failed,
+}
+
+/// One hook run of a `plugin_log_list` reply. Unknown fields are ignored.
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub(super) struct PluginLogRecord {
+    pub(super) log_id: String,
+    pub(super) plugin_id: String,
+    pub(super) command: Vec<String>,
+    pub(super) status: HookStatus,
+    pub(super) started_unix_ms: u64,
+    pub(super) exit_code: Option<i32>,
+    pub(super) error: Option<String>,
+    pub(super) workspace_id: Option<String>,
+    pub(super) event: Option<String>,
+    pub(super) output_path: Option<String>,
+}
+
+/// A `plugin_log_list` result.
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub(super) struct PluginLogList {
+    pub(super) logs: Vec<PluginLogRecord>,
+}
+
+/// The event whose hooks the setup wait follows.
+pub(super) const WORKTREE_CREATED_EVENT: &str = "worktree.created";
+
+/// The list in a `plugin_log_list` result, or `None` for another result type
+/// or a record the dialog cannot read, such as an unknown status.
+pub(super) fn parse_plugin_log_list(result: &Value) -> Option<PluginLogList> {
+    if result["type"] != "plugin_log_list" {
+        return None;
+    }
+    serde_json::from_value(result.clone()).ok()
+}
+
+/// The records of `list` for `workspace_id` and the `worktree.created` event,
+/// in the order the daemon sent them. The daemon filters too, but a daemon
+/// that ignores a filter must not change the checklist.
+pub(super) fn kept_records<'a>(
+    list: &'a PluginLogList,
+    workspace_id: &str,
+) -> Vec<&'a PluginLogRecord> {
+    list.logs
+        .iter()
+        .filter(|record| {
+            record.workspace_id.as_deref() == Some(workspace_id)
+                && record.event.as_deref() == Some(WORKTREE_CREATED_EVENT)
+        })
+        .collect()
+}
+
 /// The daemon's `result`, or the text the page shows in red: a daemon error's
 /// message alone, without its code, or a client-side error's display text.
 pub(super) fn reply_message(result: &DialogResponse) -> Result<Value, String> {
