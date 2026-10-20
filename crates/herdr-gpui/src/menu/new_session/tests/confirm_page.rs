@@ -471,3 +471,15 @@ fn the_summary_is_cut_to_the_columns_inside_its_own_padding(cx: &mut TestAppCont
         "{expected:?} is wider than the summary's text box"
     );
 }
+
+/// New session command setting, D16: while the shared settings are not
+/// loaded, the command field starts as `claude`.
+#[gpui::test]
+fn the_command_is_claude_while_the_shared_settings_are_not_loaded(cx: &mut TestAppContext) {
+    let (view, test_cx, _peer) =
+        project_page(cx, &methods_with_send_text(), "[ui]\n", herdr_and_docs());
+    update(&view, test_cx, |view, _, _| view.settings.shared = None);
+    press(test_cx, "enter");
+    assert!(is_confirming(&view, test_cx));
+    assert_eq!(field(&view, test_cx, ConfirmRow::Command), "claude");
+}
