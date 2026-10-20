@@ -1,5 +1,8 @@
 //! Herdr's shared settings as this window loaded them, read off the UI thread.
-use crate::{HerdrWindow, herdr_settings::Settings};
+use crate::{
+    HerdrWindow,
+    herdr_settings::{DEFAULT_NEW_SESSION_COMMAND, Settings},
+};
 use gpui::*;
 
 #[derive(Default)]
@@ -59,11 +62,12 @@ impl HerdrWindow {
     }
 
     /// What the Agents tab's new dialog types: the loaded `ui.new_session_command`,
-    /// or `claude` while the shared settings are not loaded. A loaded empty
-    /// setting stays empty, because it means "type nothing".
+    /// or `DEFAULT_NEW_SESSION_COMMAND` while the shared settings are not
+    /// loaded. A loaded empty setting stays empty, because it means "type
+    /// nothing".
     pub(crate) fn new_session_command(&self) -> String {
         self.settings.shared.as_ref().map_or_else(
-            || "claude".to_owned(),
+            || DEFAULT_NEW_SESSION_COMMAND.to_owned(),
             |shared| shared.new_session_command.clone(),
         )
     }
