@@ -9,6 +9,10 @@ use crate::{HerdrWindow, actions, fonts::StyledFont};
 use gpui::{prelude::*, *};
 use herdr_client::{Method, protocol::ClientShellSnapshotV2};
 
+/// The width of the New Workspace and New Session dialogs: room for a path and
+/// the folders under it.
+pub(super) const CREATION_DIALOG_WIDTH: f32 = 520.;
+
 /// How far past its panel a popover counts as covering, for the native pages
 /// that step aside for it.
 const COVER_MARGIN: f32 = 8.;
@@ -334,8 +338,7 @@ impl HerdrWindow {
                         .w(px(if page == Page::Workspace {
                             340.
                         } else if matches!(page, Page::NewWorkspace | Page::NewSession) {
-                            // Room for a path and the folders under it.
-                            520.
+                            CREATION_DIALOG_WIDTH
                         } else if page == Page::Dialog(WorkspaceAction::DeleteWorktree) {
                             480.
                         } else if settled {
@@ -657,7 +660,7 @@ impl HerdrWindow {
         } else if let Page::Dialog(action) = page {
             panel = panel.child(self.render_workspace_dialog(action, cx));
         } else if page == Page::NewSession {
-            panel = panel.child(self.render_new_session(cx));
+            panel = panel.child(self.render_new_session(viewport.width, cx));
         } else if page == Page::NewWorkspace {
             panel = panel.child(self.render_new_workspace(cx));
         } else if page == Page::CarryPane {

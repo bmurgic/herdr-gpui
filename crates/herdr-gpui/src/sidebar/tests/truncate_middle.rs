@@ -12,7 +12,11 @@ fn truncate_middle_keeps_both_ends_of_ascii_text() {
         ("abcdefghij", 1, "…"),
         ("abcdefghij", 0, ""),
     ] {
-        assert_eq!(truncate_middle(text, columns), expected, "{text} in {columns}");
+        assert_eq!(
+            truncate_middle(text, columns),
+            expected,
+            "{text} in {columns}"
+        );
     }
 }
 

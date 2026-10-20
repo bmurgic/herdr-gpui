@@ -28,7 +28,7 @@ mod session_ages;
 mod session_colors;
 mod session_row;
 mod session_text;
-mod truncate_middle;
 mod statuses;
 mod sticky_hosts;
 mod tabs;
+mod truncate_middle;

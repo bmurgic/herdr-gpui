@@ -11,9 +11,11 @@ use gpui::{
 use herdr_client::protocol::{ClientMessage, ClientShellWorkspaceV2};
 use serde_json::{Value, json};
 
+mod confirm_page;
 mod opening;
 mod project_entries;
 mod project_page;
+mod summary;
 
 /// The methods the dialog needs.
 pub(super) const METHODS: [&str; 4] = [

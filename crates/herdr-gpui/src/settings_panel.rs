@@ -58,6 +58,16 @@ impl HerdrWindow {
             .is_none_or(|shared| shared.session_sidebar)
     }
 
+    /// What the Agents tab's new dialog types: the loaded `ui.new_session_command`,
+    /// or `claude` while the shared settings are not loaded. A loaded empty
+    /// setting stays empty, because it means "type nothing".
+    pub(crate) fn new_session_command(&self) -> String {
+        self.settings.shared.as_ref().map_or_else(
+            || "claude".to_owned(),
+            |shared| shared.new_session_command.clone(),
+        )
+    }
+
     /// Follows the daemon's `ui.agent_panel_sort` on every load, so a config
     /// reload changes the order too, unless the user toggled the panel.
     pub(crate) fn apply_shared_agent_sort(&mut self) {

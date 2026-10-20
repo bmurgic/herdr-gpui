@@ -14,8 +14,10 @@ use herdr_client::Method;
 use projects::{ProjectEntry, filtered_entries, project_entries};
 use std::path::PathBuf;
 
+mod confirm;
 mod projects;
 mod render;
+mod summary;
 
 #[cfg(test)]
 mod tests;
@@ -40,6 +42,11 @@ pub(crate) struct NewSession {
     /// page shows it clamped, because a filter or a new snapshot can shrink
     /// the list under it.
     highlighted: usize,
+    /// The project page's filter while the confirm page shows, which gives
+    /// `MenuState::input` to its focused field.
+    filter: Option<DialogInput>,
+    /// The confirm page, once a project was picked.
+    confirm: Option<confirm::Confirm>,
 }
 
 /// The rows the project page shows now, and the highlight among them.
@@ -80,6 +87,8 @@ impl HerdrWindow {
             endpoint_target: self.current_endpoint_target(),
             home,
             highlighted: 0,
+            filter: None,
+            confirm: None,
         });
         self.menu.page = Some(Page::NewSession);
         self.discard_composition(cx);
@@ -92,11 +101,15 @@ impl HerdrWindow {
     /// workspace that closed, or a `repository` record that arrived, shows.
     /// `None` when the page is not open or has no snapshot.
     fn shown_projects(&self) -> Option<ShownProjects> {
-        let dialog = self.menu.new_session.as_ref()?;
+        let dialog = self
+            .menu
+            .new_session
+            .as_ref()
+            .filter(|dialog| dialog.confirm.is_none())?;
         let snapshot = self.live.snapshot.as_ref()?;
         let filter = &self.menu.input.as_ref()?.text;
-        let entries = project_entries(snapshot, &dialog.home);
-        let rows: Vec<ProjectEntry> = filtered_entries(&entries, filter)
+        let entries = project_entries(snapshot);
+        let rows: Vec<ProjectEntry> = filtered_entries(&entries, filter, &dialog.home)
             .into_iter()
             .map(|position| entries[position].clone())
             .collect();
@@ -104,10 +117,16 @@ impl HerdrWindow {
         Some(ShownProjects { rows, highlighted })
     }
 
-    /// The filter text, for `new_session_edited` to compare against once an
-    /// edit is done. `None` when the page is not showing.
+    /// The filter text while the project page shows, for `new_session_edited` to compare against once an
+    /// edit is done. `None` when the project page is not showing.
     pub(crate) fn new_session_text(&self) -> Option<String> {
-        if self.menu.page != Some(Page::NewSession) {
+        if self.menu.page != Some(Page::NewSession)
+            || self
+                .menu
+                .new_session
+                .as_ref()
+                .is_none_or(|dialog| dialog.confirm.is_some())
+        {
             return None;
         }
         self.menu.input.as_ref().map(|input| input.text.clone())
@@ -155,9 +174,10 @@ impl HerdrWindow {
         }
     }
 
-    /// Up and Down move the highlight, stopping at the ends. Enter is taken
-    /// and picks nothing yet. Returns whether the key was used.
-    /// While an input method composes text, every key is the method's.
+    /// On the project page, Up and Down move the highlight, stopping at the
+    /// ends, and Enter picks it. On the confirm page, the keys move through
+    /// its rows. Returns whether the key was used. While an input method
+    /// composes text, every key is the method's.
     pub(super) fn new_session_key(
         &mut self,
         event: &KeyDownEvent,
@@ -169,20 +189,37 @@ impl HerdrWindow {
             .input
             .as_ref()
             .is_some_and(|input| input.marked.is_some());
-        let Some(shown) = self.shown_projects() else {
-            return false;
-        };
         if composing {
             return false;
         }
-        let Some(dialog) = self.menu.new_session.as_mut() else {
+        if self
+            .menu
+            .new_session
+            .as_ref()
+            .is_some_and(|dialog| dialog.confirm.is_some())
+        {
+            return self.confirm_key(event, window, cx);
+        }
+        let Some(shown) = self.shown_projects() else {
             return false;
         };
         let last = shown.rows.len().saturating_sub(1);
         match event.keystroke.key.as_str() {
-            "up" => dialog.highlighted = shown.highlighted.saturating_sub(1),
-            "down" => dialog.highlighted = (shown.highlighted + 1).min(last),
-            "enter" => {}
+            "up" | "down" => {
+                let Some(dialog) = self.menu.new_session.as_mut() else {
+                    return false;
+                };
+                dialog.highlighted = if event.keystroke.key == "up" {
+                    shown.highlighted.saturating_sub(1)
+                } else {
+                    (shown.highlighted + 1).min(last)
+                };
+            }
+            "enter" => {
+                if let Some(entry) = shown.rows.get(shown.highlighted) {
+                    self.pick_project(entry, cx);
+                }
+            }
             _ => return false,
         }
         cx.stop_propagation();

@@ -2,6 +2,7 @@ use super::*;
 use crate::menu::new_session::projects::{
     OTHER_FOLDER, ProjectEntry, filtered_entries, project_entries, visible_entries,
 };
+use herdr_client::protocol::WorkspaceRepositoryInfo;
 use std::path::Path;
 
 fn snapshot_of(workspaces: Value) -> herdr_client::protocol::ClientShellSnapshotV2 {
@@ -10,19 +11,25 @@ fn snapshot_of(workspaces: Value) -> herdr_client::protocol::ClientShellSnapshot
     snapshot
 }
 
-fn entry(label: &str, shown_path: &str) -> ProjectEntry {
+/// The entry of a workspace `id` whose folder is `path`, with the repository
+/// record a main checkout has when `is_repository`.
+fn entry(id: &str, label: &str, path: &str, is_repository: bool) -> ProjectEntry {
     ProjectEntry::Workspace {
         label: label.into(),
-        shown_path: shown_path.into(),
+        workspace_id: id.into(),
+        path: path.into(),
+        repository: is_repository.then(|| WorkspaceRepositoryInfo {
+            repo_root: path.into(),
+            is_linked_worktree: false,
+        }),
     }
 }
 
 /// Agent new session 07: a linked worktree is dropped, whichever of its two
 /// records says so, and the shown folder is the repository root or the new
-/// workspace folder, with the home folder as `~`.
+/// workspace folder.
 #[test]
 fn project_entries_drop_each_linked_worktree() {
-    let home = Path::new("/home/b");
     let snapshot = snapshot_of(json!([
         main_checkout("w1", "herdr", "/home/b/dev/herdr"),
         linked_by_repository("w2", "herdr-feature", "/home/b/dev/herdr-feature"),
@@ -32,21 +39,18 @@ fn project_entries_drop_each_linked_worktree() {
         plain_workspace("w6", "srv", "/srv/app"),
     ]));
     assert_eq!(
-        project_entries(&snapshot, home),
+        project_entries(&snapshot),
         [
-            entry("herdr", "~/dev/herdr"),
-            entry("notes", "~/notes"),
-            entry("home", "~"),
-            entry("srv", "/srv/app"),
+            entry("w1", "herdr", "/home/b/dev/herdr", true),
+            entry("w4", "notes", "/home/b/notes", false),
+            entry("w5", "home", "/home/b", false),
+            entry("w6", "srv", "/srv/app", false),
             ProjectEntry::OtherFolder,
         ]
     );
 
     let only_linked = snapshot_of(json!([linked_by_repository("w1", "feature", "/home/b/f")]));
-    assert_eq!(
-        project_entries(&only_linked, home),
-        [ProjectEntry::OtherFolder]
-    );
+    assert_eq!(project_entries(&only_linked), [ProjectEntry::OtherFolder]);
 }
 
 /// A main checkout shows its repository root, not the folder a new workspace
@@ -55,16 +59,16 @@ fn project_entries_drop_each_linked_worktree() {
 fn a_repository_shows_its_root_not_its_working_folder() {
     let mut workspace = main_checkout("w1", "herdr", "/home/b/dev/herdr");
     workspace["new_workspace_cwd"] = json!("/home/b/dev/herdr/crates");
-    let entries = project_entries(&snapshot_of(json!([workspace])), Path::new("/home/b"));
-    assert_eq!(entries[0], entry("herdr", "~/dev/herdr"));
+    let entries = project_entries(&snapshot_of(json!([workspace])));
+    assert_eq!(entries[0], entry("w1", "herdr", "/home/b/dev/herdr", true));
 }
 
 /// Agent new session 08, one case per Examples row.
 #[test]
 fn the_filter_keeps_entries_by_label_or_shown_path() {
     let entries = [
-        entry("herdr", "~/dev/herdr"),
-        entry("docs", "~/notes/docs"),
+        entry("w1", "herdr", "/home/b/dev/herdr", true),
+        entry("w2", "docs", "/home/b/notes/docs", false),
         ProjectEntry::OtherFolder,
     ];
     for (typed, kept) in [
@@ -76,7 +80,11 @@ fn the_filter_keeps_entries_by_label_or_shown_path() {
         ("zzz", vec![2]),
         ("", vec![0, 1, 2]),
     ] {
-        assert_eq!(filtered_entries(&entries, typed), kept, "typed {typed:?}");
+        assert_eq!(
+            filtered_entries(&entries, typed, Path::new("/home/b")),
+            kept,
+            "typed {typed:?}"
+        );
     }
 }
 
@@ -94,10 +102,12 @@ fn the_visible_window_is_eight_entries_ending_at_the_highlight() {
 /// any other; only the folder entry always stays.
 #[test]
 fn a_workspace_labelled_like_the_folder_entry_is_filtered() {
-    let entries = project_entries(
-        &snapshot_of(json!([plain_workspace("w1", OTHER_FOLDER, "/srv/x")])),
-        Path::new("/home/b"),
-    );
-    assert_eq!(filtered_entries(&entries, "zzz"), [1]);
-    assert_eq!(filtered_entries(&entries, "x"), [0, 1]);
+    let entries = project_entries(&snapshot_of(json!([plain_workspace(
+        "w1",
+        OTHER_FOLDER,
+        "/srv/x"
+    )])));
+    let home = Path::new("/home/b");
+    assert_eq!(filtered_entries(&entries, "zzz", home), [1]);
+    assert_eq!(filtered_entries(&entries, "x", home), [0, 1]);
 }
