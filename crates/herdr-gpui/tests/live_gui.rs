@@ -444,18 +444,33 @@ fn native_new_session(walk: &str) {
     fs::create_dir_all(home.join("photos")).unwrap();
     fs::create_dir_all(home.join("Projects")).unwrap();
 
-    let socket = sandbox.socket();
+    // The daemon binds the standard session socket for the sandbox's
+    // `XDG_CONFIG_HOME`, `config/herdr/herdr-client.sock`, whichever build
+    // (release or development) it is. The GUI dials exactly that path, so the
+    // connector's own check finds the daemon on the user's standard endpoint
+    // and trusts it as local, which the folder page needs. A socket anywhere
+    // else would never be trusted. The integration mode requires `--socket`.
+    let socket = sandbox.dir.join("config/herdr/herdr-client.sock");
+    assert!(
+        socket.as_os_str().len() < 104,
+        "standard socket path too long for Unix socket; set HERDR_TEST_TMPDIR to a shorter parent"
+    );
     let mut daemon = sandbox.command(&binary, "daemon.log");
-    daemon.env("LC_ALL", "en_US.UTF-8");
+    daemon
+        .env(
+            "HERDR_SOCKET_PATH",
+            sandbox.dir.join("config/herdr/herdr.sock"),
+        )
+        .env_remove("HERDR_CLIENT_SOCKET_PATH")
+        .env("LC_ALL", "en_US.UTF-8");
     isolated.daemon = Some(daemon.arg("server").spawn().unwrap());
-    isolated
-        .sandbox
-        .wait_for_daemon(isolated.daemon.as_mut().unwrap(), Duration::from_secs(20));
+    wait_for_socket(&socket, isolated.daemon.as_mut().unwrap());
     let mut command = gui_command(&isolated.sandbox, |name| std::env::var_os(name));
     command
         .env("HERDR_TEST_NEW_SESSION", walk)
         .env("HERDR_TEST_NEW_SESSION_REPO", &repo)
-        .env("HERDR_TEST_NEW_SESSION_MARKER", NEW_SESSION_MARKER);
+        .env("HERDR_TEST_NEW_SESSION_MARKER", NEW_SESSION_MARKER)
+        .env("HERDR_TEST_NEW_SESSION_SANDBOX", &isolated.sandbox.dir);
     if walk == "folder" {
         command.env("HOME", &home);
     }
@@ -476,6 +491,25 @@ fn native_new_session(walk: &str) {
     assert!(status.success(), "native new session walk failed: {status}");
     let passed = format!("NEW SESSION native PASS: {}:", walk_name(walk));
     assert!(log.contains(&passed), "no {passed:?} line in the GUI log");
+}
+
+/// Waits for the daemon to bind `socket`, failing when it exits first.
+#[cfg(target_os = "macos")]
+fn wait_for_socket(socket: &Path, daemon: &mut Child) {
+    eprintln!(
+        "isolated daemon pid={} socket={}",
+        daemon.id(),
+        socket.display()
+    );
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !socket.exists() {
+        assert!(
+            daemon.try_wait().unwrap().is_none(),
+            "daemon exited during startup"
+        );
+        assert!(Instant::now() < deadline, "daemon startup timed out");
+        thread::sleep(Duration::from_millis(20));
+    }
 }
 
 #[cfg(target_os = "macos")]

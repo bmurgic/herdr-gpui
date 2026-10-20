@@ -16,7 +16,10 @@ use crate::{
     sidebar::{layout_tests::PaintedProbes, native_tests::Target},
 };
 use anyhow::ensure;
-use std::sync::mpsc::{self, TryRecvError};
+use std::{
+    path::PathBuf,
+    sync::mpsc::{self, TryRecvError},
+};
 
 /// Names the walk to run: `project` or `folder`.
 const WALK_VARIABLE: &str = "HERDR_TEST_NEW_SESSION";
@@ -25,6 +28,10 @@ const REPO_VARIABLE: &str = "HERDR_TEST_NEW_SESSION_REPO";
 /// The text the configured `new_session_command` types, which a closed
 /// checklist must not.
 const MARKER_VARIABLE: &str = "HERDR_TEST_NEW_SESSION_MARKER";
+/// The sandbox directory the daemon, its socket, and the GUI's environment live
+/// in. The walk refuses to send anything unless the socket the window dials is
+/// inside it.
+const SANDBOX_VARIABLE: &str = "HERDR_TEST_NEW_SESSION_SANDBOX";
 /// A directory that receives a PNG of the window at each stage. Used only
 /// when built with the `mockup` feature, which can render a window to an image.
 const CAPTURE_VARIABLE: &str = "HERDR_TEST_NEW_SESSION_CAPTURE";
@@ -107,11 +114,53 @@ impl Driver {
         cx: &mut AsyncApp,
     ) -> Result<Self> {
         let target = handle.update(cx, |_, window, _| Target::acquire(window))??;
-        Ok(Self {
+        let driver = Self {
             handle,
             timer,
             target,
-        })
+        };
+        driver.check_socket_is_in_sandbox(cx)?;
+        Ok(driver)
+    }
+
+    /// Fails unless the window dials the sandbox daemon's standard session
+    /// socket, inside the sandbox. The window then trusts the daemon as local
+    /// by the connector's own check, which compares the dialed path with the
+    /// standard path for the process's `XDG_CONFIG_HOME`. Both paths come from
+    /// the window's environment; a lookup that ignored `$HOME` and the XDG
+    /// variables could otherwise reach a user's real daemon. This runs before
+    /// the walk sends anything.
+    fn check_socket_is_in_sandbox(&self, cx: &mut AsyncApp) -> Result<()> {
+        let root = std::env::var_os(SANDBOX_VARIABLE)
+            .map(PathBuf::from)
+            .with_context(|| format!("{SANDBOX_VARIABLE} unset"))?;
+        ensure!(
+            root.is_absolute() && root.is_dir(),
+            "{SANDBOX_VARIABLE} must name an absolute directory, not {root:?}"
+        );
+        let target = self.handle.read_with(cx, |view, _| {
+            view.endpoints[view.selected_endpoint]
+                .connection
+                .target
+                .clone()
+        })?;
+        let ConnectTarget::Socket(dialed) = &target else {
+            bail!("the window connects to {target:?}, not to a socket in the sandbox");
+        };
+        let standard = target
+            .local_session_socket_path()
+            .context("resolving the standard session socket")?;
+        for (what, path) in [("dials", dialed), ("trusts", &standard)] {
+            ensure!(
+                path.starts_with(&root),
+                "the window {what} {path:?}, which is outside the sandbox {root:?}"
+            );
+        }
+        ensure!(
+            *dialed == standard,
+            "the window dials {dialed:?}, not the standard session socket {standard:?}"
+        );
+        Ok(())
     }
 
     /// The project walk, described at the top of this file.
@@ -226,7 +275,12 @@ impl Driver {
     /// The folder walk, described at the top of this file.
     async fn folder(&self, cx: &mut AsyncApp) -> Result<String> {
         self.ready(cx).await?;
-        self.mark_daemon_local(cx).await?;
+        // The folder page lists this computer's folders only for a daemon the
+        // window trusts as local, which the connector decides from the socket.
+        self.until(cx, "the window to trust the daemon as local", |view| {
+            Ok(view.live.local_daemon_peer.then_some(()))
+        })
+        .await?;
         self.open_dialog(cx).await?;
         self.click_text(cx, "the Other folder row", |text| text == "Other folder…")
             .await?;
@@ -292,26 +346,6 @@ impl Driver {
             }
             self.timer.timer(POLL).await;
         }
-    }
-
-    /// The folder page lists this computer's folders only for a daemon the
-    /// window trusts as local, and an explicit `--socket` target is never
-    /// trusted. The sandbox daemon runs here as the same user, so the walk
-    /// records it as local the way the connector records a verified one.
-    async fn mark_daemon_local(&self, cx: &mut AsyncApp) -> Result<()> {
-        self.handle.read_with(cx, |view, _| -> Result<()> {
-            let inbox = &view.endpoints[view.selected_endpoint].connection.inbox;
-            let mut state = inbox
-                .lock()
-                .map_err(|_| anyhow!("the connection inbox is poisoned"))?;
-            state.local_daemon_peer = true;
-            state.dirty = true;
-            Ok(())
-        })??;
-        self.until(cx, "the window to see a local daemon", |view| {
-            Ok(view.live.local_daemon_peer.then_some(()))
-        })
-        .await
     }
 
     fn workspace_ids(&self, cx: &mut AsyncApp) -> Result<Vec<String>> {
