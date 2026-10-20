@@ -160,6 +160,7 @@ const OFFERED: &[&str] = &[
 const MYHERDR_OFFERED: &[&str] = &[
     "pane.mark_unread",
     "pane.send_text",
+    "plugin.log.list",
     "workspace.focus.v2",
     "workspace.move.v2",
     "workspace.move_block.v2",
@@ -194,6 +195,7 @@ const ALL: &[Method] = &[
     Method::PaneSplit,
     Method::PaneSwap,
     Method::PaneZoom,
+    Method::PluginLogList,
     Method::ProductAnnouncementDismiss,
     Method::ReleaseNotesDismiss,
     Method::ServerReloadConfig,
@@ -270,6 +272,7 @@ fn every_method_is_offered_to_endpoint_clients() {
             }
             Method::PaneMarkUnread
             | Method::PaneSendText
+            | Method::PluginLogList
             | Method::WorkspaceFocusV2
             | Method::WorkspaceMoveBlockV2
             | Method::WorkspaceMoveV2
