@@ -842,7 +842,7 @@ impl HerdrWindow {
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(|this, _, window, cx| {
-                    if this.menu.opening_right_click {
+                    if this.menu.opening_right_click || this.new_session_locked() {
                         cx.stop_propagation();
                         return;
                     }

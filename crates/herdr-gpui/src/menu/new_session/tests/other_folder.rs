@@ -6,7 +6,7 @@ use crate::{
     menu::{Page, new_session::Step},
     sidebar::layout_tests::{painted, redraw},
 };
-use gpui::{Modifiers, point};
+use gpui::{Modifiers, MouseButton, point};
 use std::{path::Path, sync::Arc};
 
 /// The daemon's code and message for a folder that is not in a repository.
@@ -472,6 +472,11 @@ fn the_dialog_is_locked_while_the_check_is_unanswered(cx: &mut TestAppContext) {
     type_text(&view, test_cx, "y");
     click(test_cx, "new-session-row-0");
     test_cx.simulate_click(point(px(10.), px(300.)), Modifiers::default());
+    test_cx.simulate_mouse_down(
+        point(px(10.), px(300.)),
+        MouseButton::Right,
+        Modifiers::default(),
+    );
     assert_eq!(
         view.read_with(test_cx, |view, _| view.menu.page),
         Some(Page::NewSession)
