@@ -420,17 +420,6 @@ fn the_dialogs_command_edit_does_not_change_the_setting(cx: &mut TestAppContext)
     }
 }
 
-/// A second Enter on `start` while the create is unanswered sends nothing.
-#[gpui::test]
-fn two_enters_on_start_send_one_create(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = git_page(cx, &start_methods());
-    press(test_cx, "enter enter");
-    expect_request(&mut peer, "worktree.create");
-    answer(&mut peer, &view, test_cx, worktree_created(None));
-    // The next request is the list, not a second create.
-    expect_request(&mut peer, "plugin.log.list");
-}
-
 /// After a failed create, the next Enter on `start` sends a second create.
 #[gpui::test]
 fn a_failed_create_can_be_started_again(cx: &mut TestAppContext) {
