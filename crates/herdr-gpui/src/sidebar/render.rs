@@ -18,7 +18,7 @@ use super::{
     workspaces::{displayed_workspace_status, workspace_badge, workspace_label, workspace_note},
 };
 use crate::{
-    Command, HerdrWindow, NavigationTarget,
+    HerdrWindow, NavigationTarget,
     config::{FontConfig, Theme},
     fonts::StyledFont,
 };
@@ -873,7 +873,7 @@ impl HerdrWindow {
                     .hover(|s| s.text_color(rgb(theme.foreground)))
                     .child("new")
                     .on_click(cx.listener(|this, _, window, cx| {
-                        this.command(Command::Workspace, window, cx)
+                        this.command(this.footer_new_command(), window, cx)
                     })),
             )
             .child(

@@ -66,6 +66,8 @@ Every command accepts:
 | `run COMMAND` | Any app command by its `[keybindings]` name, as the palette runs it |
 | `commands` | The names `run` accepts (no app needed) |
 
+`run new_session` opens the Agents tab's new-session dialog on its project page. It does nothing when the host is not connected, the daemon lacks a method the dialog needs, or another dialog is open.
+
 ### The app's own tabs
 
 | Command | What it does |

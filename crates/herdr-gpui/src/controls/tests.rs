@@ -15,6 +15,7 @@ fn catalog_has_all_native_commands_and_gpui_shortcuts() {
         (Logs, &[]),
         (NewWindow, &["cmd-alt-shift-n"]),
         (Workspace, &["cmd-shift-n"]),
+        (NewSession, &[]),
         (NewWorktree, &["cmd-n"]),
         (OpenWorktree, &[]),
         (RemoveWorktree, &[]),
@@ -148,6 +149,12 @@ fn catalog_has_all_native_commands_and_gpui_shortcuts() {
         };
         assert_eq!(serde_json::from_value::<Command>(value).unwrap(), command);
     }
+    let new_session = COMMANDS
+        .iter()
+        .find(|info| info.command == NewSession)
+        .unwrap();
+    assert_eq!(new_session.name, "new_session");
+    assert_eq!(new_session.label, "New Session");
 }
 
 /// `cmd--` is the one shortcut whose key is itself the separator, so it

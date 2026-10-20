@@ -143,9 +143,11 @@ impl EntityInputHandler for HerdrWindow {
         self.shift_taps.cancel();
         if self.menu.page.is_some() {
             let before = self.new_workspace_text();
+            let session_before = self.new_session_text();
             if let Some(input) = self.menu.input.as_mut() {
                 input.replace(range, text, false, None);
                 self.new_workspace_edited(before, cx);
+                self.new_session_edited(session_before, cx);
                 cx.notify();
             }
             return;
@@ -176,9 +178,11 @@ impl EntityInputHandler for HerdrWindow {
         self.shift_taps.cancel();
         if self.menu.page.is_some() {
             let before = self.new_workspace_text();
+            let session_before = self.new_session_text();
             if let Some(input) = self.menu.input.as_mut() {
                 input.replace(range, text, true, selected);
                 self.new_workspace_edited(before, cx);
+                self.new_session_edited(session_before, cx);
                 cx.notify();
             }
             return;

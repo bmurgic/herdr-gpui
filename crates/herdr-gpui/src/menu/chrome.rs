@@ -298,12 +298,15 @@ impl HerdrWindow {
             .id("menu-panel")
             .debug_selector(|| "menu-panel".into())
             .when(
-                matches!(page, Page::Workspace | Page::Dialog(_) | Page::NewWorkspace),
+                matches!(
+                    page,
+                    Page::Workspace | Page::Dialog(_) | Page::NewWorkspace | Page::NewSession
+                ),
                 |panel| {
                     panel
                         .w(px(if page == Page::Workspace {
                             340.
-                        } else if page == Page::NewWorkspace {
+                        } else if matches!(page, Page::NewWorkspace | Page::NewSession) {
                             // Room for a path and the folders under it.
                             520.
                         } else if page == Page::Dialog(WorkspaceAction::DeleteWorktree) {
@@ -436,7 +439,10 @@ impl HerdrWindow {
                 !footer_anchored
                     && !matches!(page, Page::Usage(_))
                     && !pointer_anchored
-                    && !matches!(page, Page::Dialog(_) | Page::NewWorkspace),
+                    && !matches!(
+                        page,
+                        Page::Dialog(_) | Page::NewWorkspace | Page::NewSession
+                    ),
                 |panel| {
                     panel
                         .w((viewport.width - px(32.))
@@ -483,7 +489,10 @@ impl HerdrWindow {
                         .when(!settled && !lists, |panel| panel.overflow_y_scroll())
                         .when(lists, |panel| panel.overflow_hidden())
                         .when(
-                            !matches!(page, Page::Dialog(_) | Page::NewWorkspace),
+                            !matches!(
+                                page,
+                                Page::Dialog(_) | Page::NewWorkspace | Page::NewSession
+                            ),
                             |panel| panel.p(px(6.)),
                         )
                 },
@@ -620,6 +629,8 @@ impl HerdrWindow {
             ));
         } else if let Page::Dialog(action) = page {
             panel = panel.child(self.render_workspace_dialog(action, cx));
+        } else if page == Page::NewSession {
+            panel = panel.child(self.render_new_session(cx));
         } else if page == Page::NewWorkspace {
             panel = panel.child(self.render_new_workspace(cx));
         } else if page == Page::CarryPane {

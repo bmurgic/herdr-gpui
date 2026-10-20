@@ -52,6 +52,8 @@ pub(crate) enum Page {
     Menu,
     /// Where the pane menu's pane can move: new places, then other tabs.
     MovePane,
+    /// The Agents tab's new-session dialog. Its state is `MenuState::new_session`.
+    NewSession,
     /// Asks which directory a new workspace opens in, then optionally what to
     /// call it. The page's state is `MenuState::new_workspace`.
     NewWorkspace,

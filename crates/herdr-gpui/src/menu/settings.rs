@@ -299,6 +299,7 @@ impl HerdrWindow {
             }
             let group = match info.command {
                 Command::Workspace
+                | Command::NewSession
                 | Command::NewWorktree
                 | Command::OpenWorktree
                 | Command::RemoveWorktree

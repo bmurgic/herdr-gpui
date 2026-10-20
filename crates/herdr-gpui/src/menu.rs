@@ -10,6 +10,7 @@ mod devices;
 mod fan_out;
 mod git;
 mod github;
+mod new_session;
 mod new_workspace;
 mod page;
 mod pr;

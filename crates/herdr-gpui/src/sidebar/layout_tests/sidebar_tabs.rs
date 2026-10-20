@@ -342,8 +342,14 @@ fn connected_window<'a>(
 
 #[gpui::test]
 fn footer_controls_work_under_both_tabs(cx: &mut gpui::TestAppContext) {
-    // The page `new` opens needs a daemon that can create workspaces.
-    let peer = crate::window::MockPeer::advertising(&["workspace.create"]);
+    // The pages `new` opens need a daemon that can create workspaces, and the
+    // new-session dialog also needs worktrees and tab focus.
+    let peer = crate::window::MockPeer::advertising(&[
+        "workspace.create",
+        "worktree.list",
+        "worktree.create",
+        "tab.focus",
+    ]);
     let new_page = |view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext| {
         let new = cx.debug_bounds("new-workspace").unwrap().center();
         cx.simulate_click(new, Modifiers::default());
@@ -355,7 +361,11 @@ fn footer_controls_work_under_both_tabs(cx: &mut gpui::TestAppContext) {
     assert_eq!(expected, Some(crate::menu::Page::NewWorkspace));
 
     let (view, tab_cx) = connected_window(cx, &peer, |_| {});
-    assert_eq!(new_page(&view, tab_cx), expected, "agents");
+    assert_eq!(
+        new_page(&view, tab_cx),
+        Some(crate::menu::Page::NewSession),
+        "agents"
+    );
     let (view, tab_cx) = connected_window(cx, &peer, show_spaces_tab);
     assert_eq!(new_page(&view, tab_cx), expected, "spaces");
 

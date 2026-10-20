@@ -28,9 +28,11 @@ impl HerdrWindow {
             return;
         }
         let before = self.new_workspace_text();
+        let session_before = self.new_session_text();
         if let Some(input) = self.menu.input.as_mut() {
             if input.key(&event.keystroke, cx) {
                 self.new_workspace_edited(before, cx);
+                self.new_session_edited(session_before, cx);
                 cx.notify();
             }
             return;
@@ -95,10 +97,15 @@ impl HerdrWindow {
         if self.menu.page == Some(Page::NewWorkspace) && self.new_workspace_key(event, window, cx) {
             return;
         }
+        if self.menu.page == Some(Page::NewSession) && self.new_session_key(event, window, cx) {
+            return;
+        }
         let before = self.new_workspace_text();
+        let session_before = self.new_session_text();
         if let Some(input) = self.menu.input.as_mut().filter(|_| !listing && !naming) {
             if input.key(&event.keystroke, cx) {
                 self.new_workspace_edited(before, cx);
+                self.new_session_edited(session_before, cx);
                 cx.stop_propagation();
                 window.prevent_default();
                 cx.notify();

@@ -11,6 +11,7 @@ use super::{
 use crate::{
     HerdrWindow,
     config::{FontConfig, Theme, corners},
+    controls::Command,
     fonts::StyledFont,
 };
 use gpui::{prelude::*, *};
@@ -123,6 +124,16 @@ impl HerdrWindow {
     /// connection drew, and tabs over them would suggest they can be browsed.
     pub(crate) fn sidebar_tabbed(&self) -> bool {
         self.session_sidebar() && !self.reconnecting() && self.config.show_agents
+    }
+
+    /// What the footer's `new` control runs: the new-session dialog while the
+    /// tab bar shows the Agents list, New Workspace otherwise.
+    pub(crate) fn footer_new_command(&self) -> Command {
+        if self.sidebar_tabbed() && self.shown_sidebar_tab() == SidebarTab::Agents {
+            Command::NewSession
+        } else {
+            Command::Workspace
+        }
     }
 
     /// The columns the first agent row's line one leaves free at its right

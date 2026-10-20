@@ -369,6 +369,11 @@ impl HerdrWindow {
                 self.open_new_workspace(window, cx);
                 return;
             }
+            // Sends nothing until a project is picked.
+            Command::NewSession => {
+                self.open_new_session(window, cx);
+                return;
+            }
             Command::Keybinds => {
                 self.open_keybinds(window, cx);
                 return;
