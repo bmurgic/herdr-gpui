@@ -112,8 +112,8 @@ fn escape_closes_the_page_without_a_request(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_workspace_closed_after_open_leaves_the_page(cx: &mut TestAppContext) {
     let (view, test_cx, _peer) = opened(cx, herdr_and_docs());
-    press(test_cx, "down");
-    assert_eq!(highlighted(&view, test_cx), "docs");
+    press(test_cx, "down down");
+    assert_eq!(highlighted(&view, test_cx), "Other folder…");
     set_workspaces(
         &view,
         test_cx,
