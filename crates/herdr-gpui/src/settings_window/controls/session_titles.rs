@@ -3,7 +3,7 @@
 //! `[session_titles]` section holds. A daemon that does not advertise
 //! `session_titles` ignores that section, so the three title rows show only
 //! on one that does.
-use super::{Edit, SettingsWindow, keep_focus};
+use super::{Edit, SettingsWindow, claim_field_key, field_key, keep_focus};
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 use super::{clear_native_bounds, native_probe};
 use crate::{
@@ -490,24 +490,18 @@ impl SettingsWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let key = event.keystroke.key.as_str();
-        if event.keystroke.modifiers.modified()
-            || !matches!(key, "up" | "down" | "enter" | "escape" | "tab")
-        {
+        let Some(key) = field_key(event) else {
             return;
-        }
+        };
         let Some(field) = &mut self.controls.session_titles.model_field else {
             return;
         };
         if !matches!(field.phase, ModelPhase::Editing(_)) {
             return;
         }
-        cx.stop_propagation();
-        // The input method owns these keys while it composes.
-        if field.input.read(cx).is_composing() {
+        if !claim_field_key(&field.input, window, cx) {
             return;
         }
-        window.prevent_default();
         let last = field.suggestions.len().saturating_sub(1);
         match key {
             "up" => field.highlighted = field.highlighted.saturating_sub(1),

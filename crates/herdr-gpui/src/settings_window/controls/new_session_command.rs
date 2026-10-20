@@ -4,7 +4,7 @@
 //! `save_shared_then`, whose hook ends the edit on success. A failed save is
 //! told apart in `apply_loaded`, which calls `sync_new_session_command_field`
 //! while the field is still submitted.
-use super::{Edit, SettingsWindow, keep_focus};
+use super::{Edit, SettingsWindow, claim_field_key, field_key, keep_focus};
 use crate::{
     config::{FontConfig, Theme},
     herdr_settings::{DEFAULT_NEW_SESSION_COMMAND, Settings},
@@ -319,12 +319,9 @@ impl SettingsWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let key = event.keystroke.key.as_str();
-        if event.keystroke.modifiers.modified()
-            || !matches!(key, "up" | "down" | "tab" | "enter" | "escape")
-        {
+        let Some(key) = field_key(event) else {
             return;
-        }
+        };
         let Some(field) = &self.controls.new_session_command.field else {
             return;
         };
@@ -332,12 +329,9 @@ impl SettingsWindow {
         if submits_or_cancels && field.phase != CommandPhase::Editing {
             return;
         }
-        cx.stop_propagation();
-        // The input method owns these keys while it composes.
-        if field.input.read(cx).is_composing() {
+        if !claim_field_key(&field.input, window, cx) {
             return;
         }
-        window.prevent_default();
         match key {
             "enter" => self.submit_new_session_command(cx),
             "escape" => self.finish_new_session_command_edit(cx),

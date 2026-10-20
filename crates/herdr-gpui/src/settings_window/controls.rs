@@ -812,6 +812,30 @@ fn keep_focus(_: &MouseDownEvent, window: &mut Window, _: &mut App) {
     window.prevent_default();
 }
 
+/// The keys `SearchInput` leaves to its owner, Up, Down, Tab, Enter, and Esc,
+/// when pressed without a modifier.
+fn field_key(event: &KeyDownEvent) -> Option<&str> {
+    let key = event.keystroke.key.as_str();
+    if event.keystroke.modifiers.modified()
+        || !matches!(key, "up" | "down" | "tab" | "enter" | "escape")
+    {
+        return None;
+    }
+    Some(key)
+}
+
+/// Keeps a field key from every other handler. Returns `false` while the input
+/// method composes, since it owns these keys then; otherwise the field acts on
+/// the key and nothing else does.
+fn claim_field_key(input: &Entity<SearchInput>, window: &mut Window, cx: &mut App) -> bool {
+    cx.stop_propagation();
+    if input.read(cx).is_composing() {
+        return false;
+    }
+    window.prevent_default();
+    true
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests;
