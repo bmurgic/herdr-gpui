@@ -421,3 +421,16 @@ fn picking_a_known_repository_opens_the_confirm_page_with_the_setting(cx: &mut T
         assert_no_request(&mut peer, &view, test_cx);
     }
 }
+
+/// Agent new session 5: a left click on an entry picks it, as Enter does. A
+/// repository's entry opens the confirm page for its root and sends nothing.
+#[gpui::test]
+fn a_click_on_a_repository_entry_opens_its_confirm_page(cx: &mut TestAppContext) {
+    let (view, test_cx, mut peer) =
+        project_page(cx, &methods_with_send_text(), "[ui]\n", herdr_and_docs());
+    click(test_cx, "new-session-row-0");
+    assert!(is_confirming(&view, test_cx));
+    let project = confirm_of(&view, test_cx, |confirm| confirm.project.clone());
+    assert_eq!(project.source_workspace_id.as_deref(), Some("w1"));
+    assert_no_request(&mut peer, &view, test_cx);
+}

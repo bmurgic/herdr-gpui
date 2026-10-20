@@ -216,6 +216,20 @@ impl HerdrWindow {
         true
     }
 
+    /// A left click on the entry at `position`: highlight it and pick it, as
+    /// Enter does.
+    pub(super) fn click_project(&mut self, position: usize, cx: &mut Context<Self>) {
+        let Some(entry) = self
+            .shown_projects()
+            .and_then(|shown| shown.rows.get(position).cloned())
+        else {
+            return;
+        };
+        self.highlight_project(position);
+        self.pick_project(&entry, cx);
+        cx.notify();
+    }
+
     fn highlight_project(&mut self, highlighted: usize) {
         if let Some(dialog) = self.menu.new_session.as_mut() {
             dialog.highlighted = highlighted;

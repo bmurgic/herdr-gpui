@@ -124,12 +124,12 @@ impl HerdrWindow {
                     .debug_selector(|| "new-session-rows".into())
                     .flex()
                     .flex_col()
-                    .children(self.project_rows(viewport_width)),
+                    .children(self.project_rows(viewport_width, cx)),
             )
     }
 
     /// The rows in the visible window of the entries that pass the filter.
-    fn project_rows(&self, viewport_width: Pixels) -> Option<Div> {
+    fn project_rows(&self, viewport_width: Pixels, cx: &mut Context<Self>) -> Option<Div> {
         let theme = &self.theme;
         let shown = self.shown_projects()?;
         let home = &self.menu.new_session.as_ref()?.home;
@@ -146,7 +146,13 @@ impl HerdrWindow {
                 ProjectEntry::OtherFolder => String::new(),
             };
             div()
+                .id(("new-session-row", position))
                 .debug_selector(move || format!("new-session-row-{position}"))
+                .cursor_pointer()
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    cx.stop_propagation();
+                    this.click_project(position, cx);
+                }))
                 .flex()
                 .gap(px(ENTRY_GAP))
                 .px(px(ENTRY_INSET))
