@@ -151,9 +151,10 @@ fn leaving_after_the_workspace_exists_focuses_it_without_typing(cx: &mut TestApp
     }
 }
 
-/// New session start 18, one case per Examples row: while the host is not
-/// connected the dialog closes and no focus is sent, or kept to be sent after
-/// the host connects again.
+/// Esc and a click outside, while the host is not connected, close the dialog,
+/// leave `pending_navigation` empty, and send no request. The state is set by
+/// hand, so this does not cover a focus replayed after a real redial, which is
+/// start 18's lifecycle test.
 #[gpui::test]
 fn leaving_while_the_host_is_not_connected_focuses_nothing(cx: &mut TestAppContext) {
     type Input = fn(&mut VisualTestContext);
