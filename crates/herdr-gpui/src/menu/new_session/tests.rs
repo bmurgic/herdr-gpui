@@ -21,6 +21,7 @@ mod project_entries;
 mod project_page;
 mod replies;
 mod retry;
+mod setup_rows;
 mod setup_wait;
 mod start;
 mod start_replies;

@@ -30,6 +30,7 @@ mod projects;
 mod render;
 mod replies;
 mod setup;
+mod setup_rows;
 mod start;
 mod summary;
 
