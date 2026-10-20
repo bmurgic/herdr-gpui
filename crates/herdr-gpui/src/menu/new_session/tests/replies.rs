@@ -1,5 +1,9 @@
 use super::*;
-use crate::menu::new_session::replies::{WorktreeListSource, parse_worktree_list_source};
+use crate::menu::new_session::replies::{
+    ReplyError, WorktreeListSource, parse_worktree_list_source, reply_result,
+};
+use herdr_client::scrollback::EndpointErrorCode;
+use std::{error::Error as _, sync::Arc};
 
 fn source(workspace_id: Option<&str>, path: &str) -> Option<WorktreeListSource> {
     Some(WorktreeListSource {
@@ -141,4 +145,48 @@ fn kept_records_follow_the_workspace_and_event_in_reply_order() {
         .map(|record| record.log_id.as_str())
         .collect();
     assert_eq!(kept, ["later-plugin", "earlier-plugin"]);
+}
+
+/// A failed answer is typed by where it failed, and its text is the red line:
+/// a daemon error keeps its code as a variant and shows its message alone, a
+/// daemon error without a code or message reads as the workspace menu words
+/// it, and a client-side failure keeps that error as its source.
+#[test]
+fn a_failed_answer_is_typed_by_where_it_failed() {
+    let daemon = reply_result(&Ok(json!({"id": "r1", "error": {
+        "code": "not_git_worktree", "message": "not a repository",
+    }})))
+    .unwrap_err();
+    assert!(matches!(
+        &daemon,
+        ReplyError::Daemon { code: EndpointErrorCode::NotGitWorktree, message }
+            if message == "not a repository"
+    ));
+    assert_eq!(daemon.to_string(), "not a repository");
+
+    let bare = reply_result(&Ok(json!({"id": "r1", "error": {}}))).unwrap_err();
+    assert!(matches!(
+        &bare,
+        ReplyError::Daemon { code: EndpointErrorCode::Other(code), .. } if code == "endpoint_error"
+    ));
+    assert_eq!(bare.to_string(), "Invalid daemon error");
+
+    let client = reply_result(&Err(Arc::new(crate::Error::ConnectionBusy))).unwrap_err();
+    assert!(matches!(
+        &client,
+        ReplyError::Client(error) if matches!(**error, crate::Error::ConnectionBusy)
+    ));
+    assert_eq!(client.to_string(), "Connection is busy. Try again.");
+    let source = client.source().unwrap();
+    assert!(matches!(
+        source
+            .downcast_ref::<Arc<crate::Error>>()
+            .map(|error| &**error),
+        Some(crate::Error::ConnectionBusy)
+    ));
+
+    assert_eq!(
+        ReplyError::Unexpected.to_string(),
+        "Unexpected reply from the server"
+    );
 }

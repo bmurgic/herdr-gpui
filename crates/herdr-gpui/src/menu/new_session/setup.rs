@@ -11,14 +11,14 @@ use super::{
     confirm::ConfirmRow,
     outage::DialogError,
     replies::{
-        HookStatus, PluginLogRecord, UNEXPECTED_REPLY, WORKTREE_CREATED_EVENT, error_code,
-        kept_records, parse_plugin_log_list,
+        HookStatus, PluginLogRecord, ReplyError, WORKTREE_CREATED_EVENT, kept_records,
+        parse_plugin_log_list,
     },
     start::StartProgress,
 };
-use crate::{HerdrWindow, state::DialogResponse};
+use crate::HerdrWindow;
 use gpui::{Context, KeyDownEvent, Window};
-use herdr_client::Method;
+use herdr_client::{Method, scrollback::EndpointErrorCode};
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
@@ -30,9 +30,6 @@ const LIST_LIMIT: u32 = 200;
 
 /// How long after a list answer the next list is due.
 const LIST_INTERVAL: Duration = Duration::from_millis(500);
-
-/// The codes of a daemon that does not know `plugin.log.list`.
-const UNSUPPORTED_CODES: [&str; 2] = ["unsupported_method", "unsupported_endpoint_command"];
 
 /// One setup hook the dialog has seen in a list.
 #[derive(Debug)]
@@ -268,7 +265,7 @@ impl HerdrWindow {
     pub(super) fn apply_setup_list_answer(&mut self, reply: &Value, cx: &mut Context<Self>) {
         let now = cx.background_executor().now();
         let Some(list) = parse_plugin_log_list(reply) else {
-            self.keep_waiting_with_error(UNEXPECTED_REPLY.to_owned(), cx);
+            self.keep_waiting_with_error(&ReplyError::Unexpected, cx);
             return;
         };
         let Some(dialog) = self.menu.new_session.as_mut() else {
@@ -308,13 +305,14 @@ impl HerdrWindow {
 
     /// Applies a list's error. A daemon without the list gets the status
     /// notice and no wait. Any other error is shown and the poll goes on.
-    pub(super) fn apply_setup_list_failure(
-        &mut self,
-        result: &DialogResponse,
-        message: String,
-        cx: &mut Context<Self>,
-    ) {
-        if error_code(result).is_some_and(|code| UNSUPPORTED_CODES.contains(&code)) {
+    pub(super) fn apply_setup_list_failure(&mut self, error: &ReplyError, cx: &mut Context<Self>) {
+        // The codes of a daemon that does not know `plugin.log.list`.
+        if let ReplyError::Daemon {
+            code:
+                EndpointErrorCode::UnsupportedMethod | EndpointErrorCode::UnsupportedEndpointCommand,
+            ..
+        } = error
+        {
             self.skip_setup_wait(cx);
             return;
         }
@@ -326,17 +324,17 @@ impl HerdrWindow {
             .and_then(|dialog| dialog.confirm.as_mut())
             .and_then(|confirm| confirm.started.setup.as_mut())
         {
-            wait.trace.record_failure(&message);
+            wait.trace.record_failure(&error.to_string());
         }
-        self.keep_waiting_with_error(message, cx);
+        self.keep_waiting_with_error(error, cx);
     }
 
-    /// Shows `message` in red, leaves the rows as they are, and schedules the
+    /// Shows `error` in red, leaves the rows as they are, and schedules the
     /// next list.
-    fn keep_waiting_with_error(&mut self, message: String, cx: &mut Context<Self>) {
+    fn keep_waiting_with_error(&mut self, error: &ReplyError, cx: &mut Context<Self>) {
         let now = cx.background_executor().now();
         if let Some(dialog) = self.menu.new_session.as_mut() {
-            dialog.error = Some(DialogError::Message(message));
+            dialog.error = Some(DialogError::Message(error.to_string()));
             if let Some(wait) = dialog
                 .confirm
                 .as_mut()

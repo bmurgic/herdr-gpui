@@ -8,7 +8,7 @@ use super::{
     Pending, PendingKind, Step,
     confirm::ConfirmRow,
     outage::DialogError,
-    replies::{UNEXPECTED_REPLY, reply_message},
+    replies::{ReplyError, reply_result},
     setup::SetupWait,
 };
 use crate::{
@@ -175,7 +175,7 @@ impl HerdrWindow {
             .as_ref()
             .is_some_and(|dialog| dialog.step.is_spinning());
         if let Err(error) = self.try_queue_start_request(step, method, params) {
-            self.fail_start(error.to_string(), cx);
+            self.fail_start(&error, cx);
             return;
         }
         if let Some(dialog) = self.menu.new_session.as_mut() {
@@ -217,12 +217,12 @@ impl HerdrWindow {
         Ok(())
     }
 
-    /// Shows `message` in red and returns the dialog to `Idle`, so the next
+    /// Shows `error` in red and returns the dialog to `Idle`, so the next
     /// start resumes. A checklist that was showing gives way to the confirm
     /// page, with the created rows read-only; a retry never lists again.
-    pub(super) fn fail_start(&mut self, message: String, cx: &mut Context<Self>) {
+    pub(super) fn fail_start(&mut self, error: &impl std::error::Error, cx: &mut Context<Self>) {
         if let Some(dialog) = self.menu.new_session.as_mut() {
-            dialog.error = Some(DialogError::Message(message));
+            dialog.error = Some(DialogError::Message(error.to_string()));
             dialog.step = Step::Idle;
             dialog.pending = None;
             if let Some(confirm) = dialog.confirm.as_mut() {
@@ -242,14 +242,14 @@ impl HerdrWindow {
         let Some(step) = self.menu.new_session.as_ref().map(|dialog| dialog.step) else {
             return;
         };
-        let reply = match reply_message(result) {
+        let reply = match reply_result(result) {
             Ok(reply) => reply,
-            Err(message) if step == Step::Waiting => {
-                self.apply_setup_list_failure(result, message, cx);
+            Err(error) if step == Step::Waiting => {
+                self.apply_setup_list_failure(&error, cx);
                 return;
             }
-            Err(message) => {
-                self.fail_start(message, cx);
+            Err(error) => {
+                self.fail_start(&error, cx);
                 return;
             }
         };
@@ -261,7 +261,7 @@ impl HerdrWindow {
             }
             Step::Focusing if reply["type"] == "tab_info" => self.finish_start(window, cx),
             Step::Idle | Step::Checking | Step::Typing | Step::Focusing => {
-                self.fail_start(UNEXPECTED_REPLY.to_owned(), cx);
+                self.fail_start(&ReplyError::Unexpected, cx);
             }
         }
     }
@@ -287,7 +287,7 @@ impl HerdrWindow {
             .new_session_confirm()
             .is_some_and(|confirm| confirm.uses_worktree());
         let Some(created) = created_session(reply, via_worktree) else {
-            self.fail_start(UNEXPECTED_REPLY.to_owned(), cx);
+            self.fail_start(&ReplyError::Unexpected, cx);
             return;
         };
         self.finish_start_step(cx, |progress| {

@@ -11,15 +11,32 @@ use crate::{
     state::DialogResponse,
 };
 use gpui::{Context, Window};
-use herdr_client::Method;
+use herdr_client::{Method, scrollback::EndpointErrorCode};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::sync::Arc;
 
 /// What the page shows for an answer of a shape the dialog does not know.
 pub(super) const UNEXPECTED_REPLY: &str = "Unexpected reply from the server";
 
-/// The daemon's code for a folder that is not in a git repository.
-const NOT_GIT_WORKTREE: &str = "not_git_worktree";
+/// Why an answer gave the dialog no result it can use. The display text is
+/// the red line the page shows.
+#[derive(Debug, thiserror::Error)]
+pub(super) enum ReplyError {
+    /// The daemon answered with an error. The page shows its message alone,
+    /// without its code.
+    #[error("{message}")]
+    Daemon {
+        code: EndpointErrorCode,
+        message: String,
+    },
+    /// herdr-client failed the request before the daemon answered it.
+    #[error("{0}")]
+    Client(#[source] Arc<crate::Error>),
+    /// An answer of a shape the dialog does not know.
+    #[error("{UNEXPECTED_REPLY}")]
+    Unexpected,
+}
 
 /// The part of a `worktree_list` answer's `source` the dialog reads. Other
 /// fields are ignored.
@@ -98,30 +115,39 @@ pub(super) fn kept_records<'a>(
         .collect()
 }
 
-/// The daemon's `result`, or the text the page shows in red: a daemon error's
-/// message alone, without its code, or a client-side error's display text.
-pub(super) fn reply_message(result: &DialogResponse) -> Result<Value, String> {
-    let response = result.as_ref().map_err(|error| error.to_string())?;
+/// The daemon's `result`, or why there is none. A daemon error without a
+/// code or a message reads as `menu::endpoint_error` words it.
+pub(super) fn reply_result(result: &DialogResponse) -> Result<Value, ReplyError> {
+    let response = result
+        .as_ref()
+        .map_err(|error| ReplyError::Client(Arc::clone(error)))?;
     match response.get("error") {
-        Some(error) => Err(endpoint_error(error).1.to_owned()),
+        Some(error) => {
+            let (code, message) = endpoint_error(error);
+            Err(ReplyError::Daemon {
+                code: code.to_owned().into(),
+                message: message.to_owned(),
+            })
+        }
         None => Ok(response["result"].clone()),
     }
 }
 
-/// The code of the error the daemon answered with, if it answered with one.
-pub(super) fn error_code(result: &DialogResponse) -> Option<&str> {
-    result.as_ref().ok()?["error"]["code"].as_str()
-}
-
 /// The project a check's answer opens the confirm page for, by the design's
-/// table (D6), or the text the page shows in red instead. A folder outside
+/// table (D6), or why the page shows a red line instead. A folder outside
 /// a git repository opens as `not_git_project`.
-fn checked_project(result: &DialogResponse, not_git_project: Project) -> Result<Project, String> {
-    if error_code(result) == Some(NOT_GIT_WORKTREE) {
-        return Ok(not_git_project);
-    }
-    let source = parse_worktree_list_source(&reply_message(result)?)
-        .ok_or_else(|| UNEXPECTED_REPLY.to_owned())?;
+fn checked_project(
+    result: &DialogResponse,
+    not_git_project: Project,
+) -> Result<Project, ReplyError> {
+    let reply = match reply_result(result) {
+        Err(ReplyError::Daemon {
+            code: EndpointErrorCode::NotGitWorktree,
+            ..
+        }) => return Ok(not_git_project),
+        reply => reply?,
+    };
+    let source = parse_worktree_list_source(&reply).ok_or(ReplyError::Unexpected)?;
     Ok(Project {
         source_workspace_id: source.source_workspace_id,
         path: source.source_checkout_path,
@@ -217,8 +243,8 @@ impl HerdrWindow {
                 dialog.step = Step::Idle;
                 match checked_project(&result, not_git_project) {
                     Ok(project) => self.open_new_session_confirm(project, cx),
-                    Err(message) => {
-                        dialog.error = Some(DialogError::Message(message));
+                    Err(error) => {
+                        dialog.error = Some(DialogError::Message(error.to_string()));
                         cx.notify();
                     }
                 }
