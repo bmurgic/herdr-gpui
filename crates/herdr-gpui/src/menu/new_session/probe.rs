@@ -1,15 +1,15 @@
 //! What the lifecycle tests read of the dialog without drawing the window.
 //! Only the Unix-only lifecycle tests use it, so it is built with them.
 
-use super::Step;
+use super::{NewSessionStage, Step};
 use crate::HerdrWindow;
 use gpui::Context;
 
 /// What a test outside the dialog's module may read of it.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct DialogProbe {
-    /// `project`, `folder`, `confirm`, or `checklist`.
-    pub(crate) page: &'static str,
+    /// The page the dialog shows.
+    pub(crate) page: NewSessionStage,
     /// No request is out, so `start` and the other buttons act.
     pub(crate) is_idle: bool,
     /// The id of the request the dialog waits on.
@@ -21,16 +21,8 @@ pub(crate) struct DialogProbe {
 impl HerdrWindow {
     /// The dialog's page, step, and red line, or `None` when it is closed.
     pub(crate) fn new_session_probe(&self) -> Option<DialogProbe> {
+        let page = self.new_session_stage()?;
         let dialog = self.menu.new_session.as_ref()?;
-        let page = if dialog.folder.is_some() {
-            "folder"
-        } else if self.new_session_checklist().is_some() {
-            "checklist"
-        } else if dialog.confirm.is_some() {
-            "confirm"
-        } else {
-            "project"
-        };
         Some(DialogProbe {
             page,
             is_idle: dialog.step == Step::Idle && dialog.pending.is_none(),

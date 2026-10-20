@@ -20,8 +20,6 @@ use confirm::Project;
 pub(crate) use confirm::Project as ConfirmProject;
 use gpui::{Context, KeyDownEvent, Window};
 use herdr_client::Method;
-#[cfg(all(feature = "integration-test", target_os = "macos"))]
-pub(crate) use native::NewSessionStage;
 use outage::DialogError;
 #[cfg(all(test, unix))]
 pub(crate) use probe::DialogProbe;
@@ -132,6 +130,41 @@ struct ShownProjects {
     /// The entries that pass the filter, top to bottom.
     rows: Vec<ProjectEntry>,
     highlighted: usize,
+}
+
+/// The page the dialog shows. The unit-test probe and the native walk both
+/// read it, so one enum classifies the page for both.
+#[cfg(any(
+    all(test, unix),
+    all(feature = "integration-test", target_os = "macos")
+))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NewSessionStage {
+    Projects,
+    FolderPage,
+    Confirm,
+    /// The setup checklist, with a hook row showing.
+    Checklist,
+}
+
+#[cfg(any(
+    all(test, unix),
+    all(feature = "integration-test", target_os = "macos")
+))]
+impl HerdrWindow {
+    /// The page the dialog shows, or `None` while it is closed.
+    pub(crate) fn new_session_stage(&self) -> Option<NewSessionStage> {
+        let dialog = self.menu.new_session.as_ref()?;
+        Some(if dialog.folder.is_some() {
+            NewSessionStage::FolderPage
+        } else if self.new_session_checklist().is_some() {
+            NewSessionStage::Checklist
+        } else if dialog.confirm.is_some() {
+            NewSessionStage::Confirm
+        } else {
+            NewSessionStage::Projects
+        })
+    }
 }
 
 impl HerdrWindow {

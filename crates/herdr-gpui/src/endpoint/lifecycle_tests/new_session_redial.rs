@@ -4,7 +4,7 @@
 //! check.
 
 use super::*;
-use crate::menu::{ConfirmProject, DialogProbe, Page, new_session_tests::HOST_LABEL};
+use crate::menu::{ConfirmProject, DialogProbe, NewSessionStage, Page, new_session_tests::HOST_LABEL};
 
 /// Every request a start can send.
 const METHODS: &[Method] = &[
@@ -288,13 +288,13 @@ fn a_timed_out_create_shows_the_timeout_after_the_reconnect(cx: &mut gpui::TestA
 
     rig.lose_connection(Some(&create_id));
     let probe = rig.probe().unwrap();
-    assert_eq!(probe.page, "confirm");
+    assert_eq!(probe.page, NewSessionStage::Confirm);
     assert!(probe.is_idle, "start is enabled while the host is down");
     assert_eq!(probe.error_line.as_deref(), Some("Server timed out"));
 
     rig.redial(&boot);
     let probe = rig.probe().unwrap();
-    assert_eq!(probe.page, "confirm");
+    assert_eq!(probe.page, NewSessionStage::Confirm);
     assert!(probe.is_idle);
     assert_eq!(probe.error_line.as_deref(), Some("Server timed out"));
     rig.assert_no_request("the confirm page after the redial");

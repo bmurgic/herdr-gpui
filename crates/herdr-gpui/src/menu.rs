@@ -11,7 +11,10 @@ mod fan_out;
 mod git;
 mod github;
 mod new_session;
-#[cfg(all(feature = "integration-test", target_os = "macos"))]
+#[cfg(any(
+    all(test, unix),
+    all(feature = "integration-test", target_os = "macos")
+))]
 pub(crate) use new_session::NewSessionStage;
 #[cfg(all(test, unix))]
 pub(crate) use new_session::{ConfirmProject, DialogProbe, tests as new_session_tests};

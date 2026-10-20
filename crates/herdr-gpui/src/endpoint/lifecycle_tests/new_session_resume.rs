@@ -3,6 +3,7 @@
 //! connects again.
 
 use super::new_session_redial::Rig;
+use crate::menu::NewSessionStage;
 use crate::menu::new_session_tests::{HOST_LABEL, log_list, ok, tab_info, worktree_created};
 use serde_json::json;
 
@@ -54,7 +55,7 @@ fn start_while_the_host_is_down_sends_nothing_and_works_after_the_reconnect(
 
     rig.press("enter");
     let probe = rig.probe().unwrap();
-    assert_eq!(probe.page, "confirm");
+    assert_eq!(probe.page, NewSessionStage::Confirm);
     assert!(probe.is_idle, "start stays enabled");
     assert_eq!(probe.error_line, Some(format!("{HOST_LABEL} is not ready")));
 
@@ -88,13 +89,13 @@ fn a_folder_check_while_the_host_is_down_sends_nothing_and_works_after_the_recon
 
     rig.check_folder("/home/b/dev/herdr");
     let probe = rig.probe().unwrap();
-    assert_eq!(probe.page, "project");
+    assert_eq!(probe.page, NewSessionStage::Projects);
     assert!(probe.is_idle, "the check sent nothing");
     assert_eq!(probe.error_line, Some(format!("{HOST_LABEL} is not ready")));
 
     rig.redial(&boot);
     let probe = rig.probe().unwrap();
-    assert_eq!(probe.page, "project");
+    assert_eq!(probe.page, NewSessionStage::Projects);
     assert_eq!(probe.error_line, None);
     rig.assert_no_request("the folder check while the host was down");
     rig.check_folder("/home/b/dev/herdr");
