@@ -403,9 +403,10 @@ fn native_gui_live() {
 #[cfg(target_os = "macos")]
 const NEW_SESSION_MARKER: &str = "e2e-typed-marker";
 
-/// Clicks the new session dialog's footer button, project row, `start`, and
-/// `close` on a real window, against a repository whose `worktree.created`
-/// hooks run for 30 seconds and fail. See `smoke_new_session.rs`.
+/// Clicks the new session dialog's footer button, project row, `start`,
+/// `close`, and then `start anyway` on a second session, on a real window,
+/// against a repository whose `worktree.created` hooks run for 30 seconds and
+/// fail. See `smoke_new_session.rs`.
 #[cfg(target_os = "macos")]
 #[test]
 #[ignore = "requires active desktop and explicit HERDR_TEST_BINARY; launches a native GUI and isolated daemon"]

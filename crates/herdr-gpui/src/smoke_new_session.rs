@@ -9,8 +9,10 @@
 //! hooks (one runs until killed, one exits 1), reads the checklist, and closes
 //! it with the `close` button. Closing must focus the new workspace, must
 //! paint nothing of the checklist, and must not type the configured command.
-//! The `folder` walk clicks a folder suggestion and checks that it fills the
-//! field and sends nothing.
+//! The walk then starts a second session and leaves it with `start anyway`,
+//! which must type the command into the second new workspace. The `folder`
+//! walk clicks a folder suggestion and checks that it fills the field and
+//! sends nothing.
 //!
 //! The window dials the sandbox daemon's standard session socket, so the
 //! window trusts the daemon as local on its own. The walk checks that socket
@@ -42,6 +44,10 @@ const SANDBOX_VARIABLE: &str = "HERDR_TEST_NEW_SESSION_SANDBOX";
 const CAPTURE_VARIABLE: &str = "HERDR_TEST_NEW_SESSION_CAPTURE";
 /// How long a click or a daemon reply may take before the walk fails.
 const DEADLINE: Duration = Duration::from_secs(15);
+/// How long a setup hook may take to report. The daemon runs one worktree's
+/// hooks after the previous worktree's, and the sandbox's `e2e.hang` hook
+/// sleeps 30 seconds, so the second session's hooks start up to that long late.
+const HOOK_DEADLINE: Duration = Duration::from_secs(60);
 /// How long the walk keeps watching for a command that must not be typed.
 const QUIET_PERIOD: Duration = Duration::from_millis(1500);
 const POLL: Duration = Duration::from_millis(20);
@@ -257,10 +263,32 @@ impl Driver {
             self.timer.timer(POLL).await;
         }
 
+        // Second session, left with `start anyway`: it types the command into
+        // the new workspace's shell and focuses it. The first row still runs
+        // and the second has failed, so `start anyway` is the failed row's way
+        // out. `skip waiting` stays a headless test.
+        self.start_session(cx, "second-checklist").await?;
+        self.click_text(cx, "the start anyway button", |text| text == "start anyway")
+            .await?;
+        self.dialog_closed(cx).await?;
+        let typed_in = self
+            .until(cx, "the command typed in the second workspace", |view| {
+                Ok(shell_rows(view)
+                    .filter(|(workspace, rows)| {
+                        !known.contains(workspace)
+                            && *workspace != project.id
+                            && *workspace != closed
+                            && rows.iter().any(|row| row.contains(&marker))
+                    })
+                    .map(|(workspace, _)| workspace))
+            })
+            .await?;
+        self.capture(cx, "started-anyway")?;
         Ok(format!(
-            "clicks on the footer new button, the {PROJECT_LABEL:?} project row, start, and \
-             close reached their rows; the checklist showed {running:?} and {failed:?}; close \
-             focused {closed} and typed nothing"
+            "clicks on the footer new button, the {PROJECT_LABEL:?} project row, start, close, \
+             and start anyway reached their rows; the checklist showed {running:?} and \
+             {failed:?}; close focused {closed} and typed nothing; start anyway typed \
+             {marker:?} in {typed_in}"
         ))
     }
 
@@ -281,7 +309,7 @@ impl Driver {
             })
             .await?;
         let failed = self
-            .painted_text(cx, "the failed setup row", DEADLINE, |text| {
+            .painted_text(cx, "the failed setup row", HOOK_DEADLINE, |text| {
                 text.starts_with("✗ Setup failed (exit 1)")
             })
             .await?;
