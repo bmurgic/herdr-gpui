@@ -144,6 +144,10 @@ impl<'a> Rig<'a> {
         self.update(|view, window, cx| view.press_new_session_key_for_tests(key, window, cx));
     }
 
+    pub(super) fn check_folder(&mut self, text: &str) {
+        self.update(|view, _, cx| view.check_folder_for_tests(text, cx));
+    }
+
     pub(super) fn click_outside(&mut self) {
         self.update(|view, window, cx| view.new_session_outside_click(window, cx));
     }

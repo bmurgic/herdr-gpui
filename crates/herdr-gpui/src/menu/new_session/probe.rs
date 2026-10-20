@@ -67,4 +67,10 @@ impl HerdrWindow {
         };
         self.new_session_key(&event, window, cx)
     }
+
+    /// Asks the daemon about `text` as the folder page's Enter does, for tests
+    /// that cannot name `check_folder`.
+    pub(crate) fn check_folder_for_tests(&mut self, text: &str, cx: &mut Context<Self>) {
+        self.check_folder(text, None, cx);
+    }
 }

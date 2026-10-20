@@ -104,6 +104,33 @@ fn start_while_the_host_is_down_sends_nothing_and_works_after_the_reconnect(
     rig.assert_no_request("the start after the redial");
 }
 
+/// Task 8.8: a folder check with the host down sends nothing and stores no
+/// refusal. Once the host connects again, the same check sends one
+/// `worktree.list` and the red line is clear. A check that stored the client's
+/// refusal would show it after the reconnect.
+#[gpui::test]
+fn a_folder_check_while_the_host_is_down_sends_nothing_and_works_after_the_reconnect(
+    cx: &mut gpui::TestAppContext,
+) {
+    let mut rig = Rig::new(cx);
+    rig.open_project_page();
+    let boot = rig.boot_id();
+    rig.lose_connection(None);
+
+    rig.check_folder("/home/b/dev/herdr");
+    let probe = rig.probe().unwrap();
+    assert!(probe.is_idle, "the check sent nothing");
+    assert_eq!(probe.error_line, Some(format!("{HOST_LABEL} is not ready")));
+
+    rig.redial(&boot);
+    assert_eq!(rig.probe().unwrap().error_line, None);
+    rig.assert_no_request("the folder check while the host was down");
+    rig.check_folder("/home/b/dev/herdr");
+    let list = rig.next_request();
+    assert_eq!(list["method"], "worktree.list", "{list}");
+    assert!(!rig.probe().unwrap().is_idle, "the check is out");
+}
+
 /// Start 17: a create that succeeded is not repeated. When the typing or the
 /// focus request times out with the connection, the next `start` after the
 /// reconnect resumes at that step. Typing sends `pane.send_text` to the
