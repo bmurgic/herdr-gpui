@@ -20,6 +20,7 @@ use confirm::Project;
 pub(crate) use confirm::Project as ConfirmProject;
 use gpui::{Context, KeyDownEvent, Window};
 use herdr_client::Method;
+pub(crate) use outage::ConnectionReport;
 use outage::DialogError;
 #[cfg(all(test, unix))]
 pub(crate) use probe::DialogProbe;

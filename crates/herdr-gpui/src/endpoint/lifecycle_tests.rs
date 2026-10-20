@@ -47,6 +47,7 @@ mod mouse_gestures;
 mod mouse_targets;
 mod new_session_redial;
 mod new_session_resume;
+mod new_session_same_tick_redial;
 mod new_session_staleness;
 mod new_workspace_staleness;
 mod plugin_selection;

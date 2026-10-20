@@ -11,6 +11,7 @@ mod fan_out;
 mod git;
 mod github;
 mod new_session;
+pub(crate) use new_session::ConnectionReport;
 #[cfg(any(
     all(test, unix),
     all(feature = "integration-test", target_os = "macos")
