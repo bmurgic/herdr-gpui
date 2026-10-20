@@ -286,8 +286,26 @@ impl ProbeText {
                     .first()
                     .and_then(|run| run.glyphs.first())
                     .context("independent glyph shaping produced no glyph")?;
+                // A font may swap in a contextual alternate, such as the raised
+                // colon between digits of `1:05`. Shaping the whole text again
+                // shows whether the painted glyph is that alternate.
+                let in_context = |window: &mut Window| {
+                    window
+                        .text_system()
+                        .shape_line(
+                            text.clone().into(),
+                            layout.font_size,
+                            &[window.text_style().to_run(text.len())],
+                            None,
+                        )
+                        .runs
+                        .iter()
+                        .flat_map(|run| run.glyphs.iter())
+                        .find(|candidate| candidate.index == glyph.index)
+                        .map(|candidate| candidate.id)
+                };
                 ensure!(
-                    expected.id == glyph.id,
+                    expected.id == glyph.id || in_context(window) == Some(glyph.id),
                     "painted glyph ID for {ch:?}: actual {:?}, expected {:?}",
                     glyph.id,
                     expected.id

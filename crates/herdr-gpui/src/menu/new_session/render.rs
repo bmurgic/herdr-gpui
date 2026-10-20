@@ -178,7 +178,7 @@ impl HerdrWindow {
                     .when(suggestions.is_selected(index), |row| {
                         row.bg(rgb(theme.active))
                     })
-                    .child(name.to_owned())
+                    .child(label_text(name))
             })
             .collect::<Vec<_>>();
         let listing_error = suggestions
@@ -295,7 +295,7 @@ impl HerdrWindow {
                 .py(px(3.))
                 .rounded(px(crate::config::corners::CONTROL))
                 .when(position == highlighted, |row| row.bg(rgb(theme.active)))
-                .child(div().flex_none().child(entry.label().to_owned()))
+                .child(div().flex_none().child(label_text(entry.label())))
                 .child(
                     div()
                         .min_w_0()

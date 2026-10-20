@@ -396,6 +396,179 @@ fn native_gui_live() {
     );
 }
 
+/// The text the seeded `new_session_command` types. A checklist closed with
+/// `close` must leave it untyped.
+#[cfg(target_os = "macos")]
+const NEW_SESSION_MARKER: &str = "e2e-typed-marker";
+
+/// Clicks the new session dialog's footer button, project row, `start`, and
+/// `close` on a real window, against a repository whose `worktree.created`
+/// hooks run for 20 seconds and fail. See `smoke_new_session.rs`.
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires active desktop and explicit HERDR_TEST_BINARY; launches a native GUI and isolated daemon"]
+fn native_new_session_clicks_reach_their_rows() {
+    native_new_session("project");
+}
+
+/// Clicks a folder suggestion on the dialog's folder page.
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires active desktop and explicit HERDR_TEST_BINARY; launches a native GUI and isolated daemon"]
+fn native_new_session_folder_clicks_reach_their_rows() {
+    native_new_session("folder");
+}
+
+#[cfg(target_os = "macos")]
+fn native_new_session(walk: &str) {
+    let binary = daemon_binary();
+    let mut isolated = Isolated {
+        sandbox: Sandbox::new(),
+        daemon: None,
+        gui: None,
+    };
+    let sandbox = &isolated.sandbox;
+    let mut config = fs::read_to_string(sandbox.dir.join("config.toml")).unwrap();
+    config.push_str(&format!(
+        "[ui]\nnew_session_command = \"printf {NEW_SESSION_MARKER}\"\n"
+    ));
+    fs::write(sandbox.dir.join("config.toml"), config).unwrap();
+    let repo = seed_repository(sandbox);
+    link_setup_hook(sandbox, &binary, "e2e.hang", "sleep 20");
+    link_setup_hook(sandbox, &binary, "e2e.fail", "exit 1");
+    // Two folders under a home of their own, so the folder page lists exactly
+    // these, in this order.
+    let home = sandbox.dir.join("folders-home");
+    fs::create_dir_all(home.join("photos")).unwrap();
+    fs::create_dir_all(home.join("Projects")).unwrap();
+
+    let socket = sandbox.socket();
+    let mut daemon = sandbox.command(&binary, "daemon.log");
+    daemon.env("LC_ALL", "en_US.UTF-8");
+    isolated.daemon = Some(daemon.arg("server").spawn().unwrap());
+    isolated
+        .sandbox
+        .wait_for_daemon(isolated.daemon.as_mut().unwrap(), Duration::from_secs(20));
+    let mut command = gui_command(&isolated.sandbox, |name| std::env::var_os(name));
+    command
+        .env("HERDR_TEST_NEW_SESSION", walk)
+        .env("HERDR_TEST_NEW_SESSION_REPO", &repo)
+        .env("HERDR_TEST_NEW_SESSION_MARKER", NEW_SESSION_MARKER);
+    if walk == "folder" {
+        command.env("HOME", &home);
+    }
+    if let Some(path) = std::env::var_os("HERDR_TEST_NEW_SESSION_CAPTURE") {
+        command.env("HERDR_TEST_NEW_SESSION_CAPTURE", path);
+    }
+    isolated.gui = Some(
+        command
+            .arg("--socket")
+            .arg(&socket)
+            .arg("--integration-test")
+            .spawn()
+            .unwrap(),
+    );
+    let deadline = Instant::now() + Duration::from_secs(90);
+    let status = loop {
+        if let Some(status) = isolated.gui.as_mut().unwrap().try_wait().unwrap() {
+            break status;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "native GUI timeout (active desktop required)"
+        );
+        assert!(
+            isolated
+                .daemon
+                .as_mut()
+                .unwrap()
+                .try_wait()
+                .unwrap()
+                .is_none(),
+            "daemon died while GUI was running"
+        );
+        thread::sleep(Duration::from_millis(50));
+    };
+    let log = fs::read_to_string(isolated.sandbox.dir.join("gui.log")).unwrap();
+    eprintln!("{log}");
+    assert!(status.success(), "native new session walk failed: {status}");
+    let passed = format!("NEW SESSION native PASS: {}:", walk_name(walk));
+    assert!(log.contains(&passed), "no {passed:?} line in the GUI log");
+}
+
+#[cfg(target_os = "macos")]
+fn walk_name(walk: &str) -> &'static str {
+    match walk {
+        "project" => "Project",
+        _ => "Folder",
+    }
+}
+
+/// A git repository with one commit, so the daemon reports a repository root
+/// for a workspace opened in it.
+#[cfg(target_os = "macos")]
+fn seed_repository(sandbox: &Sandbox) -> std::path::PathBuf {
+    let repo = sandbox.dir.join("repo");
+    fs::create_dir_all(&repo).unwrap();
+    fs::write(repo.join("README"), "seed\n").unwrap();
+    for args in [
+        &["init", "-b", "main"][..],
+        &["add", "README"],
+        &["commit", "-m", "seed"],
+    ] {
+        let status = Command::new("git")
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+            .env("HOME", &sandbox.dir)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .args([
+                "-c",
+                "user.name=e2e",
+                "-c",
+                "user.email=e2e@example.invalid",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .current_dir(&repo)
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?} failed");
+    }
+    repo
+}
+
+/// Links a plugin into the sandbox's own registry whose `worktree.created`
+/// hook runs `script`.
+#[cfg(target_os = "macos")]
+fn link_setup_hook(sandbox: &Sandbox, binary: &Path, id: &str, script: &str) {
+    let root = sandbox.dir.join(format!("plugin-{id}"));
+    fs::create_dir_all(&root).unwrap();
+    fs::write(
+        root.join("herdr-plugin.toml"),
+        format!(
+            r#"id = "{id}"
+name = "{id}"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+platforms = ["linux", "macos"]
+
+[[events]]
+on = "worktree.created"
+command = ["/bin/sh", "-c", "{script}"]
+"#
+        ),
+    )
+    .unwrap();
+    let status = sandbox
+        .command(binary, format!("plugin-link-{id}.log"))
+        .args(["plugin", "link"])
+        .arg(&root)
+        .status()
+        .unwrap();
+    assert!(status.success(), "plugin link {id} failed");
+}
+
 #[test]
 fn gui_desktop_environment_preserves_sandbox_isolation() {
     use std::{collections::BTreeMap, ffi::OsStr, os::unix::ffi::OsStrExt};

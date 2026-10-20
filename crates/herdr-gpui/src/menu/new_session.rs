@@ -20,11 +20,15 @@ use confirm::Project;
 pub(crate) use confirm::Project as ConfirmProject;
 use gpui::{Context, KeyDownEvent, Window};
 use herdr_client::Method;
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+pub(crate) use native::NewSessionStage;
 use projects::{ProjectEntry, filtered_entries, project_entries};
 use std::path::PathBuf;
 
 mod confirm;
 mod folder;
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+mod native;
 mod progress;
 mod projects;
 mod render;

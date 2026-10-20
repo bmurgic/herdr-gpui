@@ -871,7 +871,7 @@ impl HerdrWindow {
                     .debug_selector(|| "new-workspace".into())
                     .cursor_pointer()
                     .hover(|s| s.text_color(rgb(theme.foreground)))
-                    .child("new")
+                    .child(label_text("new"))
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.command(this.footer_new_command(), window, cx)
                     })),
