@@ -7,9 +7,14 @@
 //! The `project` walk opens the dialog from the sidebar footer, picks a project
 //! that is a git repository, starts a session with two `worktree.created`
 //! hooks (one runs until killed, one exits 1), reads the checklist, and closes
-//! it with the `close` button. Closing must focus the new workspace and must
-//! not type the configured command. The `folder` walk clicks a folder
-//! suggestion and checks that it fills the field and sends nothing.
+//! it with the `close` button. Closing must focus the new workspace, must
+//! paint nothing of the checklist, and must not type the configured command.
+//! The `folder` walk clicks a folder suggestion and checks that it fills the
+//! field and sends nothing.
+//!
+//! The window dials the sandbox daemon's standard session socket, so the
+//! window trusts the daemon as local on its own. The walk checks that socket
+//! lies inside the sandbox before it sends anything.
 use super::*;
 use crate::{
     menu::NewSessionStage,
@@ -214,33 +219,22 @@ impl Driver {
         .await?;
 
         self.capture_old_footer_page(cx).await?;
-        self.open_dialog(cx).await?;
-        self.click_text(cx, "the demo project row", |text| text == PROJECT_LABEL)
-            .await?;
-        self.stage(cx, NewSessionStage::Confirm).await?;
-        self.capture(cx, "confirm")?;
-        self.click_text(cx, "the start button", |text| text == "start")
-            .await?;
-        self.stage(cx, NewSessionStage::Checklist).await?;
-        let running = self
-            .painted_text(cx, "a running setup row", |text| {
-                text.starts_with("Run setup: ")
-            })
-            .await?;
-        let failed = self
-            .painted_text(cx, "the failed setup row", |text| {
-                text.starts_with("✗ Setup failed (exit 1)")
-            })
-            .await?;
-        self.capture(cx, "checklist")?;
+        // The project row is found by its text, and the probe map keeps one
+        // entry per text, so a "demo" painted outside the dialog would be
+        // clicked in its place. Nothing else may paint it.
+        ensure!(
+            self.find_painted(cx, &|text| text == PROJECT_LABEL)?
+                .is_none(),
+            "{PROJECT_LABEL:?} is painted before the dialog opens, so the project row is ambiguous"
+        );
 
+        // First session, closed with `close`: the new workspace takes the
+        // focus and the configured command stays untyped.
+        let (running, failed) = self.start_session(cx, "checklist").await?;
         self.click_text(cx, "the close button", |text| text == "close")
             .await?;
-        self.until(cx, "the closed dialog", |view| {
-            Ok((view.new_session_stage().is_none() && view.menu.page.is_none()).then_some(()))
-        })
-        .await?;
-        let started = self
+        self.dialog_closed(cx).await?;
+        let closed = self
             .until(cx, "the new workspace's shell", |view| {
                 Ok(shell_rows(view)
                     .filter(|(workspace, rows)| {
@@ -259,17 +253,60 @@ impl Driver {
                 shell_rows(view)
                     .is_some_and(|(_, rows)| rows.iter().any(|row| row.contains(&marker)))
             })?;
-            ensure!(
-                !typed,
-                "closing the checklist typed {marker:?} in {started}"
-            );
+            ensure!(!typed, "closing the checklist typed {marker:?} in {closed}");
             self.timer.timer(POLL).await;
         }
+
         Ok(format!(
             "clicks on the footer new button, the {PROJECT_LABEL:?} project row, start, and \
              close reached their rows; the checklist showed {running:?} and {failed:?}; close \
-             focused {started} and typed nothing"
+             focused {closed} and typed nothing"
         ))
+    }
+
+    /// Opens the dialog from the footer, picks the project, clicks `start`, and
+    /// waits for the checklist to paint a running row and a failed one.
+    async fn start_session(&self, cx: &mut AsyncApp, capture: &str) -> Result<(String, String)> {
+        self.open_dialog(cx).await?;
+        self.click_text(cx, "the demo project row", |text| text == PROJECT_LABEL)
+            .await?;
+        self.stage(cx, NewSessionStage::Confirm).await?;
+        self.capture(cx, "confirm")?;
+        self.click_text(cx, "the start button", |text| text == "start")
+            .await?;
+        self.stage(cx, NewSessionStage::Checklist).await?;
+        let running = self
+            .painted_text(cx, "a running setup row", DEADLINE, |text| {
+                text.starts_with("Run setup: ")
+            })
+            .await?;
+        let failed = self
+            .painted_text(cx, "the failed setup row", DEADLINE, |text| {
+                text.starts_with("✗ Setup failed (exit 1)")
+            })
+            .await?;
+        self.capture(cx, capture)?;
+        Ok((running, failed))
+    }
+
+    /// Waits until the window's state says the dialog is closed and a fresh
+    /// frame paints nothing of the checklist.
+    async fn dialog_closed(&self, cx: &mut AsyncApp) -> Result<()> {
+        self.until(cx, "the closed dialog", |view| {
+            Ok((view.new_session_stage().is_none() && view.menu.page.is_none()).then_some(()))
+        })
+        .await?;
+        let deadline = Instant::now() + DEADLINE;
+        loop {
+            let Some((text, _)) = self.find_painted(cx, &is_checklist_text)? else {
+                return Ok(());
+            };
+            ensure!(
+                Instant::now() < deadline,
+                "the window still paints {text:?} {DEADLINE:?} after the dialog closed"
+            );
+            self.timer.timer(POLL).await;
+        }
     }
 
     /// The folder walk, described at the top of this file.
@@ -470,16 +507,17 @@ impl Driver {
         &self,
         cx: &mut AsyncApp,
         what: &str,
+        within: Duration,
         wanted: impl Fn(&str) -> bool,
     ) -> Result<String> {
-        let deadline = Instant::now() + DEADLINE;
+        let deadline = Instant::now() + within;
         loop {
             if let Some((text, _)) = self.find_painted(cx, &wanted)? {
                 return Ok(text);
             }
             if Instant::now() >= deadline {
                 bail!(
-                    "timed out after {DEADLINE:?} waiting for {what} to be painted; painted: {:?}",
+                    "timed out after {within:?} waiting for {what} to be painted; painted: {:?}",
                     self.painted_texts(cx)?
                 );
             }
@@ -536,6 +574,11 @@ impl Driver {
         let _ = CAPTURE_VARIABLE;
         Ok(())
     }
+}
+
+/// The texts only the checklist paints: its buttons and its running rows.
+fn is_checklist_text(text: &str) -> bool {
+    matches!(text, "close" | "start anyway" | "skip waiting") || text.starts_with("Run setup: ")
 }
 
 /// The focused workspace and the text rows of its coherent surface, or `None`
