@@ -8,6 +8,7 @@ use super::{
     Pending, PendingKind, Step,
     confirm::ConfirmRow,
     replies::{UNEXPECTED_REPLY, reply_message},
+    setup::SetupWait,
 };
 use crate::{
     HerdrWindow,
@@ -34,9 +35,12 @@ pub(super) struct CreatedSession {
 #[derive(Debug, Default)]
 pub(super) struct StartProgress {
     pub(super) created: Option<CreatedSession>,
-    /// Whether a worktree was created and its setup hooks were not yet
-    /// listed.
+    /// Whether a worktree was created and the wait for its setup hooks has not
+    /// ended.
     pub(super) setup_pending: bool,
+    /// What the setup wait has seen, from its first list until the wait ends
+    /// or a later step fails.
+    pub(super) setup: Option<SetupWait>,
     /// Whether the command was typed.
     pub(super) typed: bool,
 }
@@ -112,7 +116,7 @@ impl HerdrWindow {
 
     /// The trimmed command start types, or `None` when the box is off, the
     /// server cannot type, or the text is blank.
-    fn command_to_type(&self) -> Option<String> {
+    pub(super) fn command_to_type(&self) -> Option<String> {
         let confirm = self.new_session_confirm()?;
         if !confirm.command_on || !confirm.can_type {
             return None;
@@ -170,13 +174,19 @@ impl HerdrWindow {
             self.fail_start(error.to_string(), cx);
             return;
         }
+        if let Some(dialog) = self.menu.new_session.as_mut() {
+            dialog.error = None;
+        }
         if !was_spinning {
             self.restart_spinner(cx);
         }
         cx.notify();
     }
 
-    fn try_queue_start_request(
+    /// Queues `method` without clearing the dialog's red line or failing the
+    /// start, for the setup polls, whose red line stays until a list is
+    /// answered.
+    pub(super) fn try_queue_start_request(
         &mut self,
         step: Step,
         method: Method,
@@ -194,7 +204,6 @@ impl HerdrWindow {
             .connection
             .request_dialog(&boot_id, method, params)?;
         if let Some(dialog) = self.menu.new_session.as_mut() {
-            dialog.error = None;
             dialog.step = step;
             dialog.pending = Some(Pending {
                 id,
@@ -205,11 +214,16 @@ impl HerdrWindow {
     }
 
     /// Shows `message` in red and returns the dialog to `Idle`, so the next
-    /// start resumes.
+    /// start resumes. A checklist that was showing gives way to the confirm
+    /// page, with the created rows read-only; a retry never lists again.
     pub(super) fn fail_start(&mut self, message: String, cx: &mut Context<Self>) {
         if let Some(dialog) = self.menu.new_session.as_mut() {
             dialog.error = Some(message);
             dialog.step = Step::Idle;
+            dialog.pending = None;
+            if let Some(confirm) = dialog.confirm.as_mut() {
+                confirm.started.setup = None;
+            }
         }
         cx.notify();
     }
@@ -226,8 +240,8 @@ impl HerdrWindow {
         };
         let reply = match reply_message(result) {
             Ok(reply) => reply,
-            Err(_) if step == Step::Waiting => {
-                self.apply_setup_list_failure(result, cx);
+            Err(message) if step == Step::Waiting => {
+                self.apply_setup_list_failure(result, message, cx);
                 return;
             }
             Err(message) => {
@@ -237,7 +251,7 @@ impl HerdrWindow {
         };
         match step {
             Step::Creating => self.apply_create_answer(&reply, cx),
-            Step::Waiting => self.apply_setup_list_answer(cx),
+            Step::Waiting => self.apply_setup_list_answer(&reply, cx),
             Step::Typing if reply["type"] == "ok" => {
                 self.finish_start_step(cx, |progress| progress.typed = true);
             }
@@ -294,7 +308,8 @@ impl HerdrWindow {
 
 impl HerdrWindow {
     /// Leaves the dialog for the tab a start created, when it may: the
-    /// workspace exists and no request of the dialog is unanswered. Closes the
+    /// workspace exists and the dialog is not typing or focusing. A setup list
+    /// may be out, and its answer is then ignored. Closes the
     /// dialog at once, types nothing, and asks the daemon to focus the tab
     /// without waiting for its answer, as soon as the window is ready for
     /// input. While the host is not connected the dialog only closes, so no
@@ -308,7 +323,7 @@ impl HerdrWindow {
             .menu
             .new_session
             .as_ref()
-            .filter(|dialog| dialog.step == Step::Idle)
+            .filter(|dialog| matches!(dialog.step, Step::Idle | Step::Waiting))
         else {
             return false;
         };

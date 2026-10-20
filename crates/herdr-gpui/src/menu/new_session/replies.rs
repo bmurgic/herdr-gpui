@@ -75,10 +75,6 @@ pub(super) const WORKTREE_CREATED_EVENT: &str = "worktree.created";
 
 /// The list in a `plugin_log_list` result, or `None` for another result type
 /// or a record the dialog cannot read, such as an unknown status.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the setup checklist reads it in slice 7")
-)]
 pub(super) fn parse_plugin_log_list(result: &Value) -> Option<PluginLogList> {
     if result["type"] != "plugin_log_list" {
         return None;
@@ -89,10 +85,6 @@ pub(super) fn parse_plugin_log_list(result: &Value) -> Option<PluginLogList> {
 /// The records of `list` for `workspace_id` and the `worktree.created` event,
 /// in the order the daemon sent them. The daemon filters too, but a daemon
 /// that ignores a filter must not change the checklist.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the setup checklist reads it in slice 7")
-)]
 pub(super) fn kept_records<'a>(
     list: &'a PluginLogList,
     workspace_id: &str,

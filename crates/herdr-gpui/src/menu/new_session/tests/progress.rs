@@ -26,7 +26,7 @@ use std::{
 
 /// Lets `time` pass on the test clock and runs the dialog's timer step, as
 /// the window's tick does.
-fn pass(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, time: Duration) {
+pub(super) fn pass(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, time: Duration) {
     cx.executor().advance_clock(time);
     update(view, cx, |view, window, cx| {
         view.update_new_session(window, cx);

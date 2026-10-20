@@ -6,6 +6,9 @@ use super::{
     folder::FolderPage,
     progress::{spinner_turn, status_rows},
     projects::{ProjectEntry, visible_entries},
+    replies::HookStatus,
+    setup::{SetupButton, SetupRow, SetupWait},
+    setup_rows::{elapsed_text, failed_row, failed_row_lines},
     summary::{display_path, shorten_home},
 };
 use crate::{
@@ -15,7 +18,7 @@ use crate::{
     toggles::checkbox,
 };
 use gpui::{prelude::*, *};
-use std::path::Path;
+use std::{path::Path, time::Instant};
 use unicode_width::UnicodeWidthStr;
 
 /// The filter field's placeholder while it is empty.
@@ -24,7 +27,8 @@ const FILTER_PLACEHOLDER: &str = "type to filter";
 /// The most rows a failed start's message takes.
 const ERROR_ROWS: usize = 2;
 
-/// The size of the loading icon on the `start` button, in pixels.
+/// The size of the loading icon on the `start` button and the checklist's
+/// running rows, in pixels.
 const SPINNER_SIZE: f32 = 12.;
 
 /// The dim line under the rows of a server that cannot type a command.
@@ -81,12 +85,15 @@ impl HerdrWindow {
             .new_session
             .as_ref()
             .and_then(|dialog| dialog.folder.as_ref());
-        let body = match (confirm, folder) {
-            (Some((confirm, home)), _) => {
+        let body = match (confirm, folder, self.new_session_checklist()) {
+            (Some((confirm, _)), _, Some(wait)) => {
+                self.render_setup_body(confirm, wait, viewport_width, cx)
+            }
+            (Some((confirm, home)), _, None) => {
                 self.render_confirm_body(confirm, home, viewport_width, cx)
             }
-            (None, Some(folder)) => self.render_folder_body(folder, cx),
-            (None, None) => self.render_project_body(viewport_width, cx),
+            (None, Some(folder), _) => self.render_folder_body(folder, cx),
+            (None, None, _) => self.render_project_body(viewport_width, cx),
         };
         div().flex().flex_col().child(header).child(body)
     }
@@ -379,6 +386,167 @@ impl HerdrWindow {
             )
     }
 
+    /// The setup checklist, which replaces the confirm page while a setup
+    /// hook of the new worktree runs or has failed: the finished create, one
+    /// row per hook, the start still to come, and the two buttons.
+    fn render_setup_body(
+        &self,
+        confirm: &Confirm,
+        wait: &SetupWait,
+        viewport_width: Pixels,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let theme = &self.theme;
+        let now = cx.background_executor().now();
+        let columns = self.new_session_text_columns(viewport_width);
+        let created = match confirm
+            .started
+            .created
+            .as_ref()
+            .and_then(|created| created.branch.as_deref())
+        {
+            Some(branch) => format!("✓ Create worktree {branch}"),
+            None => "✓ Create worktree".to_owned(),
+        };
+        let start = self
+            .command_to_type()
+            .map(|command| format!("· Start {command}"));
+        let is_waiting = self.is_new_session_waiting();
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .px(px(BODY_INSET))
+            .py(px(12.))
+            .child(
+                div()
+                    .debug_selector(|| "new-session-setup-created".into())
+                    .px(px(ENTRY_INSET))
+                    .child(label_text(&created)),
+            )
+            .children(
+                wait.rows
+                    .iter()
+                    .enumerate()
+                    .map(|(index, row)| self.setup_row(index, row, now, columns)),
+            )
+            .children(start.map(|start| {
+                div()
+                    .debug_selector(|| "new-session-setup-start".into())
+                    .px(px(ENTRY_INSET))
+                    .text_color(rgb(theme.subtext()))
+                    .child(label_text(&start))
+            }))
+            .children(self.step_line())
+            .children(self.error_rows(viewport_width))
+            .child(
+                div()
+                    .flex()
+                    .justify_end()
+                    .gap(px(8.))
+                    .mt(px(8.))
+                    .child(self.setup_button(
+                        SetupButton::Proceed,
+                        "new-session-setup-proceed",
+                        if wait.has_failed_row() {
+                            "start anyway"
+                        } else {
+                            "skip waiting"
+                        },
+                        wait,
+                        is_waiting,
+                        cx,
+                    ))
+                    .child(self.setup_button(
+                        SetupButton::Close,
+                        "new-session-setup-close",
+                        "close",
+                        wait,
+                        is_waiting,
+                        cx,
+                    )),
+            )
+    }
+
+    /// One hook of the checklist. Running shows the turning icon, succeeded a
+    /// check mark, and failed the red text of `failed_row` on up to two lines.
+    /// The time is the row's own, frozen once the hook is not running.
+    fn setup_row(&self, index: usize, row: &SetupRow, now: Instant, columns: usize) -> Div {
+        let theme = &self.theme;
+        let line = format!(
+            "Run setup: {}  {}",
+            row.plugin_id,
+            elapsed_text(row.elapsed(now))
+        );
+        let frame = div()
+            .debug_selector(move || format!("new-session-setup-row-{index}"))
+            .px(px(ENTRY_INSET));
+        match row.status {
+            HookStatus::Running => frame
+                .flex()
+                .items_center()
+                .gap(px(6.))
+                .child(
+                    svg()
+                        .debug_selector(move || format!("new-session-setup-spinner-{index}"))
+                        .path("icons/refresh.svg")
+                        .size(px(SPINNER_SIZE))
+                        .flex_none()
+                        .text_color(rgb(theme.subtext()))
+                        .with_transformation(Transformation::rotate(percentage(spinner_turn(
+                            self.new_session_spinner_frame(),
+                        )))),
+                )
+                .child(label_text(&line)),
+            HookStatus::Succeeded => frame.child(label_text(&format!("✓ {line}"))),
+            HookStatus::Failed => {
+                let text = failed_row(
+                    row.exit_code,
+                    row.error.as_deref(),
+                    row.output_path.as_deref(),
+                );
+                frame.flex().flex_col().text_color(danger(theme)).children(
+                    failed_row_lines(&text, columns)
+                        .iter()
+                        .map(|line| div().whitespace_nowrap().child(label_text(line))),
+                )
+            }
+        }
+    }
+
+    /// A button of the checklist. The focused one has the highlight, and both
+    /// draw dim while the typing or the focus runs, as they do nothing then.
+    fn setup_button(
+        &self,
+        button: SetupButton,
+        id: &'static str,
+        label: &'static str,
+        wait: &SetupWait,
+        is_enabled: bool,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
+        let theme = &self.theme;
+        let is_focused = wait.focused_button == button;
+        framed_button(id)
+            .on_click(cx.listener(move |this, _, window, cx| {
+                cx.stop_propagation();
+                this.press_setup_button(button, window, cx);
+            }))
+            .border_color(rgb(if is_focused {
+                theme.foreground
+            } else {
+                theme.active
+            }))
+            .when(is_focused, |frame| frame.bg(rgb(theme.active)))
+            .when(is_enabled, |frame| {
+                frame
+                    .hover(|frame| frame.bg(rgb(theme.active)))
+                    .cursor_pointer()
+            })
+            .when(!is_enabled, |frame| frame.text_color(rgb(theme.subtext())))
+            .child(label_text(label))
+    }
+
     /// A row's frame: the focused row has a highlighted background, and a row
     /// that is skipped draws dim.
     fn confirm_row_frame(
@@ -519,10 +687,9 @@ impl HerdrWindow {
     }
 }
 
-/// The frame every confirm-page button shares, the turning `start` button
-/// included: its padding, corners, and border, and the click that acts on
-/// `row`.
-fn button_frame(row: ConfirmRow, id: &'static str, cx: &mut Context<HerdrWindow>) -> Stateful<Div> {
+/// The frame every button of the dialog shares: its padding, corners, and
+/// border.
+fn framed_button(id: &'static str) -> Stateful<Div> {
     div()
         .id(id)
         .debug_selector(move || id.into())
@@ -530,8 +697,13 @@ fn button_frame(row: ConfirmRow, id: &'static str, cx: &mut Context<HerdrWindow>
         .py(px(6.))
         .rounded(px(crate::config::corners::CONTROL))
         .border_1()
-        .on_click(cx.listener(move |this, _, window, cx| {
-            cx.stop_propagation();
-            this.click_confirm_row(row, window, cx);
-        }))
+}
+
+/// The frame every confirm-page button shares, the turning `start` button
+/// included, with the click that acts on `row`.
+fn button_frame(row: ConfirmRow, id: &'static str, cx: &mut Context<HerdrWindow>) -> Stateful<Div> {
+    framed_button(id).on_click(cx.listener(move |this, _, window, cx| {
+        cx.stop_propagation();
+        this.click_confirm_row(row, window, cx);
+    }))
 }

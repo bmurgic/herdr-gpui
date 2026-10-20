@@ -6,7 +6,7 @@
 //! parked in `Confirm` until it gains the focus. A checkbox or button row has
 //! no field, so `MenuState::input` is `None` there.
 
-use super::{Step, start::StartProgress, summary::summary};
+use super::{start::StartProgress, summary::summary};
 use crate::{HerdrWindow, dialog_input::DialogInput};
 use gpui::{Context, KeyDownEvent, Pixels, Window};
 use herdr_client::Method;
@@ -179,12 +179,6 @@ impl HerdrWindow {
         if dialog.confirm.take().is_none() {
             return;
         }
-        // The first list of a start is not locked, so Esc can reach here with
-        // it out. Its answer must not find the page gone.
-        if dialog.step == Step::Waiting {
-            dialog.step = Step::Idle;
-            dialog.pending = None;
-        }
         self.menu.input = dialog.filter.take();
         self.discard_composition(cx);
         cx.notify();
@@ -192,7 +186,7 @@ impl HerdrWindow {
 
     /// Moves the focus to `row`: the field that loses it is parked, and the
     /// one that gains it comes out into `MenuState::input`.
-    fn focus_confirm_row(&mut self, row: ConfirmRow, cx: &mut Context<Self>) {
+    pub(super) fn focus_confirm_row(&mut self, row: ConfirmRow, cx: &mut Context<Self>) {
         let Some(confirm) = self
             .menu
             .new_session
@@ -262,6 +256,10 @@ impl HerdrWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // While the setup wait holds the dialog, only the way out works.
+        if self.is_new_session_waiting() {
+            return;
+        }
         match row {
             ConfirmRow::Worktree | ConfirmRow::CommandToggle => {
                 self.flip_confirm_checkbox(row, cx);
@@ -280,7 +278,7 @@ impl HerdrWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.new_session_locked() {
+        if self.new_session_locked() || self.is_new_session_waiting() {
             return;
         }
         let is_reachable = self
@@ -311,6 +309,10 @@ impl HerdrWindow {
             return false;
         };
         match event.keystroke.key.as_str() {
+            // While the first setup list is out the rows are frozen: Up and
+            // Down are used and do nothing, and Enter and Space reach
+            // `activate_confirm_row`, which refuses.
+            "up" | "down" if self.is_new_session_waiting() => {}
             "up" => self.move_confirm_focus(-1, cx),
             "down" => self.move_confirm_focus(1, cx),
             "escape" => self.leave_new_session_confirm(window, cx),

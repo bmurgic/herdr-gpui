@@ -12,7 +12,7 @@ use crate::{
 
 /// Presses and releases the right button at a point the dialog does not
 /// cover.
-fn right_click_outside(cx: &mut VisualTestContext) {
+pub(super) fn right_click_outside(cx: &mut VisualTestContext) {
     let outside = outside_the_dialog();
     cx.simulate_mouse_down(outside, gpui::MouseButton::Right, Modifiers::default());
     cx.simulate_mouse_up(outside, gpui::MouseButton::Right, Modifiers::default());

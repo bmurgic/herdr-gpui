@@ -66,8 +66,9 @@ pub(crate) struct NewSession {
     confirm: Option<confirm::Confirm>,
     /// Which request, if any, the dialog waits for.
     step: Step,
-    /// The request the dialog waits for, set exactly while `step` is not
-    /// `Idle`.
+    /// The request the dialog waits for. Set while `step` is `Checking`,
+    /// `Creating`, `Typing`, or `Focusing`. `Waiting` has it set only while a
+    /// list is out, and not between two lists.
     pending: Option<Pending>,
     /// Why the last folder check or refusal failed, shown in red under the
     /// field or the rows. The next check clears it.
@@ -87,7 +88,8 @@ enum Step {
     Checking,
     /// A `worktree.create` or `workspace.create` is out.
     Creating,
-    /// The first `plugin.log.list` of the setup wait is out.
+    /// The setup wait: a `plugin.log.list` is out, or the next one is due
+    /// 500 ms after the last answer. The confirm page or the checklist shows.
     Waiting,
     /// The `pane.send_text` that types the command is out.
     Typing,
@@ -255,6 +257,7 @@ impl HerdrWindow {
             return;
         }
         self.apply_pending_answer(window, cx);
+        self.poll_setup_list(cx);
         self.advance_spinner(cx);
     }
 
@@ -272,14 +275,14 @@ impl HerdrWindow {
 
     /// Called first by the overlay's outside-click handlers, for a click of
     /// either button. Returns whether the dialog handles the click: it
-    /// swallows it while it is locked, and after a create it leaves for the
-    /// created tab.
+    /// swallows it while it is locked or waits for setup hooks, and after a
+    /// create it leaves for the created tab.
     pub(crate) fn new_session_outside_click(
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        if self.new_session_locked() {
+        if self.new_session_locked() || self.is_new_session_waiting() {
             cx.stop_propagation();
             return true;
         }
@@ -300,6 +303,9 @@ impl HerdrWindow {
             cx.stop_propagation();
             window.prevent_default();
             return true;
+        }
+        if self.new_session_checklist().is_some() {
+            return self.setup_key(event, window, cx);
         }
         let composing = self
             .menu

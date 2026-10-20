@@ -11,13 +11,6 @@ const FAILED_INDENT: usize = 2;
 const SECONDS_PER_MINUTE: u64 = 60;
 
 /// `elapsed` as `{minutes}:{seconds:02}`, with the minutes unbounded.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the checklist reads it in this slice's next commit"
-    )
-)]
 pub(super) fn elapsed_text(elapsed: Duration) -> String {
     let seconds = elapsed.as_secs();
     format!(
@@ -30,13 +23,6 @@ pub(super) fn elapsed_text(elapsed: Duration) -> String {
 /// A failed hook's row, a port of myherdr's `failed_text`: the exit code, or
 /// else the error, in a parenthesis, then the log file. Both parts are left
 /// out when the record has nothing for them.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the checklist reads it in this slice's next commit"
-    )
-)]
 pub(super) fn failed_row(
     exit_code: Option<i32>,
     error: Option<&str>,
@@ -61,13 +47,6 @@ pub(super) fn failed_row(
 /// `text` on at most two lines of at most `columns` columns. Both lines wrap
 /// at `columns` less the indent, and the second is indented under the text
 /// after `✗ `, as myherdr's `push_failed_row` does.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the checklist reads it in this slice's next commit"
-    )
-)]
 pub(super) fn failed_row_lines(text: &str, columns: usize) -> Vec<String> {
     let (first, rest) = wrap_two_lines(text, columns.saturating_sub(FAILED_INDENT));
     let mut lines = vec![first];

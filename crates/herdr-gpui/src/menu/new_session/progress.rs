@@ -42,6 +42,14 @@ pub(super) fn spinner_turn(frame: u8) -> f32 {
 }
 
 impl HerdrWindow {
+    /// Which frame of the loading icon shows, 0 to 9.
+    pub(super) fn new_session_spinner_frame(&self) -> u8 {
+        self.menu
+            .new_session
+            .as_ref()
+            .map_or(0, |dialog| dialog.spinner_frame)
+    }
+
     /// Starts the icon's clock at its first frame when a spinning step has
     /// just begun, so the first frame lasts a whole interval.
     pub(super) fn restart_spinner(&mut self, cx: &mut Context<Self>) {
@@ -60,7 +68,14 @@ impl HerdrWindow {
         let Some(dialog) = self.menu.new_session.as_mut() else {
             return;
         };
-        if !dialog.step.is_spinning() {
+        // The checklist's icons turn while a setup hook runs.
+        let is_hook_running = dialog.step == Step::Waiting
+            && dialog
+                .confirm
+                .as_ref()
+                .and_then(|confirm| confirm.started.setup.as_ref())
+                .is_some_and(|wait| wait.has_running_row());
+        if !dialog.step.is_spinning() && !is_hook_running {
             dialog.spinner_frame = 0;
             dialog.last_frame_at = None;
             return;
