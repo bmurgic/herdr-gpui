@@ -41,7 +41,7 @@ pub(super) fn parse_worktree_list_source(result: &Value) -> Option<WorktreeListS
 
 /// The daemon's `result`, or the text the page shows in red: a daemon error's
 /// message alone, without its code, or a client-side error's display text.
-fn reply_message(result: &DialogResponse) -> Result<Value, String> {
+pub(super) fn reply_message(result: &DialogResponse) -> Result<Value, String> {
     let response = result.as_ref().map_err(|error| error.to_string())?;
     match response.get("error") {
         Some(error) => Err(endpoint_error(error).1.to_owned()),
