@@ -344,3 +344,38 @@ pub(super) fn expect_request(peer: &mut MockPeer, method: &str) -> Value {
 pub(super) fn error_line(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Option<String> {
     view.read_with(cx, |view, _| view.new_session_error_line())
 }
+
+/// The label the lost-connection tests give the selected host.
+pub(super) const HOST_LABEL: &str = "devbox";
+
+/// Names the selected host `HOST_LABEL`, so the lost-connection line has a
+/// label the test fixes itself.
+pub(super) fn name_the_host(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
+    update(view, cx, |view, _, _| {
+        let selected = view.selected_endpoint;
+        view.endpoints[selected].label = HOST_LABEL.into();
+    });
+}
+
+/// Applies what herdr-client reports when the connection ends, after
+/// reporting that the request `timed_out` timed out when one is named, then
+/// lets the window update. The peer's connection stays open, so a request
+/// the window sent before stays unanswered there.
+pub(super) fn lose_connection(
+    view: &Entity<HerdrWindow>,
+    cx: &mut VisualTestContext,
+    timed_out: Option<&str>,
+) {
+    update(view, cx, |view, window, cx| {
+        if let Some(request_id) = timed_out {
+            view.live.apply(herdr_client::ClientEvent::RequestTimedOut {
+                request_id: request_id.to_owned(),
+            });
+        }
+        view.live.apply(herdr_client::ClientEvent::Disconnected {
+            reason: "connection closed".into(),
+            ssh: None,
+        });
+        view.update_workspace_dialog(window, cx);
+    });
+}

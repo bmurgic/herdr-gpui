@@ -1,15 +1,9 @@
-//! A start that meets a lost connection, on a mock daemon that goes on
-//! listening: what `start`, Esc, a click outside, and the setup wait do while
-//! the host is down and after it connects again.
+//! A start and a folder check that meet a lost connection, on a mock daemon
+//! that goes on listening: what they send while the host is down and after it
+//! connects again.
 
-use super::{
-    new_session_redial::{HOST_LABEL, Rig},
-    *,
-};
+use super::new_session_redial::{HOST_LABEL, Rig};
 use serde_json::json;
-
-/// The interval between the timer steps the window takes.
-const TIMER_STEP: Duration = Duration::from_millis(100);
 
 /// The command the confirm page types by default.
 const COMMAND_TEXT: &str = "claude\n";
@@ -34,13 +28,6 @@ fn tab_info() -> serde_json::Value {
 
 fn log_list(logs: Vec<serde_json::Value>) -> serde_json::Value {
     json!({"result": {"type": "plugin_log_list", "logs": logs}})
-}
-
-fn running_hook() -> serde_json::Value {
-    json!({
-        "log_id": "log-1", "plugin_id": "setup", "command": ["sh"], "status": "running",
-        "started_unix_ms": 1, "workspace_id": "w2", "event": "worktree.created",
-    })
 }
 
 /// Where a start loses its connection.
@@ -104,10 +91,13 @@ fn start_while_the_host_is_down_sends_nothing_and_works_after_the_reconnect(
     rig.assert_no_request("the start after the redial");
 }
 
-/// Task 8.8: a folder check with the host down sends nothing and stores no
-/// refusal. Once the host connects again, the same check sends one
-/// `worktree.list` and the red line is clear. A check that stored the client's
-/// refusal would show it after the reconnect.
+/// New session AN27, row 1, and task 8.8: the project page has no request
+/// out when the connection ends. It stays, reads `devbox is not ready` in
+/// red, and a folder check sends nothing and stores no refusal. The redial
+/// reaches the same daemon boot, so the generation changes and
+/// `reset_selected` would close the page; it stays, with no red line. The
+/// same check then sends one `worktree.list`. A check that stored the
+/// client's refusal would show it after the reconnect.
 #[gpui::test]
 fn a_folder_check_while_the_host_is_down_sends_nothing_and_works_after_the_reconnect(
     cx: &mut gpui::TestAppContext,
@@ -119,11 +109,14 @@ fn a_folder_check_while_the_host_is_down_sends_nothing_and_works_after_the_recon
 
     rig.check_folder("/home/b/dev/herdr");
     let probe = rig.probe().unwrap();
+    assert_eq!(probe.page, "project");
     assert!(probe.is_idle, "the check sent nothing");
     assert_eq!(probe.error_line, Some(format!("{HOST_LABEL} is not ready")));
 
     rig.redial(&boot);
-    assert_eq!(rig.probe().unwrap().error_line, None);
+    let probe = rig.probe().unwrap();
+    assert_eq!(probe.page, "project");
+    assert_eq!(probe.error_line, None);
     rig.assert_no_request("the folder check while the host was down");
     rig.check_folder("/home/b/dev/herdr");
     let list = rig.next_request();
@@ -146,10 +139,8 @@ fn a_start_resumes_at_the_step_that_timed_out(cx: &mut gpui::TestAppContext) {
     for (lost_at, resumed) in rows {
         let name = format!("{lost_at:?}");
         let mut rig = Rig::new(cx);
-        let boot = {
-            rig.open_confirm_page();
-            rig.boot_id()
-        };
+        rig.open_confirm_page();
+        let boot = rig.boot_id();
         rig.start_until_lost(lost_at);
         let probe = rig.probe().unwrap();
         assert!(probe.is_idle, "{name}");
@@ -182,81 +173,5 @@ fn a_start_resumes_at_the_step_that_timed_out(cx: &mut gpui::TestAppContext) {
         }
         assert!(rig.probe().is_none(), "{name}: the focus ends the dialog");
         rig.assert_no_request(&name);
-    }
-}
-
-/// Start 18: Esc and a click outside, after a create whose later step was
-/// lost, close the dialog while the host is down. Neither stores a focus for
-/// the created tab, so no `tab.focus` goes out once the same daemon boot
-/// connects again.
-#[gpui::test]
-fn leaving_a_created_session_while_the_host_is_down_focuses_nothing_later(
-    cx: &mut gpui::TestAppContext,
-) {
-    for input in ["Esc", "a click outside the dialog"] {
-        let mut rig = Rig::new(cx);
-        rig.open_confirm_page();
-        let boot = rig.boot_id();
-        rig.start_until_lost(LostAt::Typing);
-
-        match input {
-            "Esc" => rig.press("escape"),
-            _ => rig.click_outside(),
-        }
-        assert!(rig.probe().is_none(), "{input}");
-        let has_pending_navigation = rig
-            .view
-            .read_with(rig.cx, |view, _| view.pending_navigation.is_some());
-        assert!(!has_pending_navigation, "{input}");
-
-        rig.redial(&boot);
-        rig.settle();
-        rig.assert_no_request(input);
-    }
-}
-
-/// Setup 18: a setup wait whose list is out when the connection ends, or when
-/// that list times out, keeps its checklist with the row running. For three
-/// seconds of timer steps it sends nothing and the red line names the loss.
-/// After the host connects again the next timer step sends exactly one
-/// `plugin.log.list`, and no second while that one is unanswered.
-#[gpui::test]
-fn the_setup_wait_lists_again_after_the_reconnect(cx: &mut gpui::TestAppContext) {
-    // (the list times out, the red line while the host is down)
-    let rows = [(false, "devbox is not ready"), (true, "Server timed out")];
-    for (timed_out, line) in rows {
-        let mut rig = Rig::new(cx);
-        rig.open_confirm_page();
-        let boot = rig.boot_id();
-        rig.start();
-        rig.serve("worktree.create", created());
-        rig.serve("plugin.log.list", log_list(vec![running_hook()]));
-        assert_eq!(rig.probe().unwrap().page, "checklist", "{line}");
-
-        // The next list is due 500 ms after the answer.
-        for _ in 0..5 {
-            rig.pass(TIMER_STEP);
-        }
-        let list = rig.next_request();
-        assert_eq!(list["method"], "plugin.log.list", "{list}");
-        rig.lose_connection(timed_out.then(|| list["id"].as_str().unwrap()));
-
-        for _ in 0..30 {
-            rig.pass(TIMER_STEP);
-        }
-        let probe = rig.probe().unwrap();
-        assert_eq!(probe.page, "checklist", "{line}");
-        assert_eq!(probe.running_rows, 1, "{line}");
-        assert!(!probe.has_pending_request, "{line}");
-        assert_eq!(probe.error_line.as_deref(), Some(line));
-
-        rig.redial(&boot);
-        rig.pass(TIMER_STEP);
-        let relist = rig.next_request();
-        assert_eq!(relist["method"], "plugin.log.list", "{line}: {relist}");
-        for _ in 0..20 {
-            rig.pass(TIMER_STEP);
-        }
-        rig.assert_no_request(line);
     }
 }

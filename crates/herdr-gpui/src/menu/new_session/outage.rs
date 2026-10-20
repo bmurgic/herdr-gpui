@@ -1,7 +1,7 @@
 //! What the dialog shows when the host's connection is lost or a request to
 //! it times out, and how the dialog survives a redial.
 
-use super::{Step, setup::SetupWait};
+use super::Step;
 use crate::{HerdrWindow, menu::Page};
 use gpui::Context;
 use std::time::Instant;
@@ -76,11 +76,8 @@ impl HerdrWindow {
         dialog.error = is_timed_out.then_some(DialogError::TimedOut);
         let started = dialog.confirm.as_mut().map(|confirm| &mut confirm.started);
         if dialog.step == Step::Waiting {
-            if let Some(started) = started {
-                started
-                    .setup
-                    .get_or_insert_with(SetupWait::default)
-                    .list_again_at(now);
+            if let Some(wait) = started.and_then(|started| started.setup.as_mut()) {
+                wait.list_again_at(now);
             }
             return true;
         }

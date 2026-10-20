@@ -585,33 +585,15 @@ fn a_retry_after_the_wait_does_not_list_again(cx: &mut TestAppContext) {
 #[gpui::test]
 fn no_list_goes_out_while_the_host_is_not_connected(cx: &mut TestAppContext) {
     use crate::state::ConnectionStatus;
-    use herdr_client::ClientEvent;
-    let lose =
-        |view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, id: &str, timed_out: bool| {
-            update(view, cx, |view, _, _| {
-                if timed_out {
-                    view.live.apply(ClientEvent::RequestTimedOut {
-                        request_id: id.to_owned(),
-                    });
-                }
-                view.live.apply(ClientEvent::Disconnected {
-                    reason: "connection closed".into(),
-                    ssh: None,
-                });
-            });
-        };
     // (the list times out, the red line while the host is not connected)
     let rows = [(false, "devbox is not ready"), (true, "Server timed out")];
     for (timed_out, line) in rows {
         let (view, test_cx, mut peer) = running_checklist(cx);
-        update(&view, test_cx, |view, _, _| {
-            let selected = view.selected_endpoint;
-            view.endpoints[selected].label = "devbox".into();
-        });
+        name_the_host(&view, test_cx);
         next_list(&mut peer, &view, test_cx);
         let list_id = view.read_with(test_cx, |view, _| pending_id(view));
         let methods = view.read_with(test_cx, |view, _| view.live.methods.clone());
-        lose(&view, test_cx, &list_id, timed_out);
+        lose_connection(&view, test_cx, timed_out.then_some(list_id.as_str()));
 
         pass_in_steps(&view, test_cx, Duration::from_secs(3));
         assert!(has_checklist(&view, test_cx), "{line}");

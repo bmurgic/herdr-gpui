@@ -141,15 +141,6 @@ impl SetupWait {
             .any(|row| row.status == HookStatus::Running)
     }
 
-    /// How many rows still read running.
-    #[cfg(all(test, unix))]
-    pub(super) fn running_row_count(&self) -> usize {
-        self.rows
-            .iter()
-            .filter(|row| row.status == HookStatus::Running)
-            .count()
-    }
-
     pub(super) fn has_failed_row(&self) -> bool {
         self.rows.iter().any(|row| row.status == HookStatus::Failed)
     }

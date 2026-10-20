@@ -12,14 +12,10 @@ pub(crate) struct DialogProbe {
     pub(crate) page: &'static str,
     /// No request is out, so `start` and the other buttons act.
     pub(crate) is_idle: bool,
-    pub(crate) is_waiting: bool,
-    pub(crate) has_pending_request: bool,
     /// The id of the request the dialog waits on.
     pub(crate) pending_request_id: Option<String>,
     /// The red line the dialog draws.
     pub(crate) error_line: Option<String>,
-    /// The checklist's rows that still read running.
-    pub(crate) running_rows: usize,
 }
 
 impl HerdrWindow {
@@ -35,17 +31,11 @@ impl HerdrWindow {
         } else {
             "project"
         };
-        let running_rows = self
-            .new_session_checklist()
-            .map_or(0, |wait| wait.running_row_count());
         Some(DialogProbe {
             page,
             is_idle: dialog.step == Step::Idle && dialog.pending.is_none(),
-            is_waiting: dialog.step == Step::Waiting,
-            has_pending_request: dialog.pending.is_some(),
             pending_request_id: dialog.pending.as_ref().map(|pending| pending.id.clone()),
             error_line: self.new_session_error_line(),
-            running_rows,
         })
     }
 

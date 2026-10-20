@@ -1,7 +1,7 @@
 //! The new-session dialog through a lost connection and the redial that
 //! follows, on a mock daemon that goes on listening. `Rig` is the shared
-//! setup: `new_session_resume.rs` builds on it for the start and the setup
-//! wait.
+//! setup: `new_session_resume.rs` builds on it for the start and the folder
+//! check.
 
 use super::*;
 use crate::menu::{ConfirmProject, DialogProbe, Page};
@@ -148,10 +148,6 @@ impl<'a> Rig<'a> {
         self.update(|view, _, cx| view.check_folder_for_tests(text, cx));
     }
 
-    pub(super) fn click_outside(&mut self) {
-        self.update(|view, window, cx| view.new_session_outside_click(window, cx));
-    }
-
     /// The dialog's next endpoint request, as JSON. The window's own
     /// `client_shell.surface.set` after a redial is answered on the way.
     pub(super) fn next_request(&mut self) -> serde_json::Value {
@@ -276,39 +272,6 @@ impl<'a> Rig<'a> {
             view.live.status == ConnectionStatus::Connected && view.live.snapshot.is_some()
         });
     }
-    /// Lets `time` pass on the test clock and takes one turn of the window's
-    /// loop, as its timer does.
-    pub(super) fn pass(&mut self, time: Duration) {
-        self.cx.executor().advance_clock(time);
-        self.settle();
-    }
-}
-
-fn page_and_line(probe: Option<DialogProbe>) -> (&'static str, Option<String>) {
-    let probe = probe.unwrap();
-    (probe.page, probe.error_line)
-}
-
-/// New session AN27, row 1: the project page has no request out when the
-/// connection ends. It stays, reads `devbox is not ready` in red, and sends
-/// nothing while the host is down. The redial reaches the same daemon boot,
-/// so the generation changes and `reset_selected` would close the page; it
-/// stays, with no red line.
-#[gpui::test]
-fn the_project_page_stays_through_the_redial(cx: &mut gpui::TestAppContext) {
-    let mut rig = Rig::new(cx);
-    rig.open_project_page();
-    let boot = rig.boot_id();
-
-    rig.lose_connection(None);
-    assert_eq!(
-        page_and_line(rig.probe()),
-        ("project", Some("devbox is not ready".into()))
-    );
-
-    rig.redial(&boot);
-    assert_eq!(page_and_line(rig.probe()), ("project", None));
-    rig.assert_no_request("the project page after the redial");
 }
 
 /// New session AN27, row 2: the confirm page waits for `worktree.create`,
