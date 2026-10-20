@@ -1,17 +1,17 @@
 //! The setup checklist: its rows and timers, the answers that end the wait,
-//! the buttons and keys, the ways out, and what a failure after the wait
-//! returns to.
+//! the buttons and keys, and the ways out.
 
 use super::progress::pass;
 use super::retry::right_click_outside;
 use super::setup_poll::{
-    BRANCH, checklist_with, failed_hook, first_list_out, has_checklist, hook, late_answer,
-    next_list, pass_in_steps, row_statuses, running_checklist, shows_confirm_page,
+    BRANCH, assert_created_rows_read_only, checklist_with, expect_new_tab_focus,
+    expect_typed_command, failed_hook, first_list_out, has_checklist, hook, late_answer, next_list,
+    row_statuses, running_checklist, shows_confirm_page,
 };
 use super::start::{exchange, is_closed, step};
 use super::*;
 use crate::{
-    menu::new_session::{Step, confirm::ConfirmRow, replies::HookStatus},
+    menu::new_session::{Step, replies::HookStatus},
     sidebar::layout_tests::{painted, redraw, text_bounds},
 };
 use std::time::Duration;
@@ -49,15 +49,9 @@ fn top_of(cx: &mut VisualTestContext, text: &str) -> gpui::Pixels {
 /// Answers the typing and the focus that end a start, and checks the dialog
 /// closed with them.
 fn finish_typed_start(peer: &mut MockPeer, view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
-    assert_eq!(
-        expect_request(peer, "pane.send_text"),
-        json!({"pane_id": "w2:p1", "text": "claude\n"})
-    );
+    expect_typed_command(peer);
     answer(peer, view, cx, ok());
-    assert_eq!(
-        expect_request(peer, "tab.focus"),
-        json!({"tab_id": "w2:t1"})
-    );
+    expect_new_tab_focus(peer);
     answer(peer, view, cx, tab_info());
     assert!(is_closed(view, cx));
     assert_no_request(peer, view, cx);
@@ -70,14 +64,20 @@ fn finish_typed_start(peer: &mut MockPeer, view: &Entity<HerdrWindow>, cx: &mut 
 fn a_running_hook_shows_its_row_and_timer(cx: &mut TestAppContext) {
     for (seconds, elapsed) in [(0, "0:00"), (12, "0:12"), (75, "1:15")] {
         let (view, test_cx, mut peer) = running_checklist(cx);
-        next_list(&mut peer, &view, test_cx);
+        // The time passes before the second answer, so a timer that restarts
+        // when an answer is applied reads `0:00`.
+        if seconds == 0 {
+            next_list(&mut peer, &view, test_cx);
+        } else {
+            pass(&view, test_cx, Duration::from_secs(seconds));
+            expect_request(&mut peer, "plugin.log.list");
+        }
         answer(
             &mut peer,
             &view,
             test_cx,
             log_list(vec![hook("log-1", "tdi.worktree-setup", "running")]),
         );
-        pass(&view, test_cx, Duration::from_secs(seconds));
         redraw(test_cx);
         let created = top_of(test_cx, "✓ Create worktree worktree/brave-river-0a1b");
         let row = top_of(
@@ -213,10 +213,7 @@ fn with_the_command_off_the_dialog_still_waits_for_setup_hooks(cx: &mut TestAppC
         test_cx,
         log_list(vec![hook("log-1", "tdi.worktree-setup", "succeeded")]),
     );
-    assert_eq!(
-        expect_request(&mut peer, "tab.focus"),
-        json!({"tab_id": "w2:t1"})
-    );
+    expect_new_tab_focus(&mut peer);
     answer(&mut peer, &view, test_cx, tab_info());
     assert!(is_closed(&view, test_cx));
     assert_no_request(&mut peer, &view, test_cx);
@@ -240,34 +237,11 @@ fn with_the_command_off_the_dialog_still_waits_for_setup_hooks(cx: &mut TestAppC
     assert_no_request(&mut peer, &view, test_cx);
 }
 
-/// A first answer whose only kept record failed opens the checklist with the
-/// failed row, and types nothing.
-#[gpui::test]
-fn a_first_answer_with_a_failed_hook_shows_the_failed_row(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = first_list_out(cx, true, Some(BRANCH));
-    answer(
-        &mut peer,
-        &view,
-        test_cx,
-        log_list(vec![failed_hook("log-1", 1, LOG_PATH)]),
-    );
-    assert!(has_checklist(&view, test_cx));
-    assert_eq!(step(&view, test_cx), Step::Waiting);
-    redraw(test_cx);
-    for line in FAILED_ROW_LINES {
-        assert!(painted(test_cx, line), "{line:?}");
-    }
-    assert!(painted(test_cx, "start anyway"));
-    assert!(painted(test_cx, "· Start claude"));
-    assert_no_request(&mut peer, &view, test_cx);
-    // Nothing is running, so nothing is listed again.
-    pass_in_steps(&view, test_cx, Duration::from_secs(2));
-    assert_no_request(&mut peer, &view, test_cx);
-}
-
 /// New session setup wait 10, one case per Examples row: the command is typed
 /// or not as the row says, the client focuses the new workspace, and the
-/// dialog closes.
+/// dialog closes. The failed rows start from a first answer whose only record
+/// failed, with the command on, which must open the checklist with the failed
+/// row and `start anyway` rather than type.
 #[gpui::test]
 fn each_way_out_of_the_wait_types_or_not_and_focuses(cx: &mut TestAppContext) {
     type Input = fn(&mut VisualTestContext);
@@ -307,6 +281,14 @@ fn each_way_out_of_the_wait_types_or_not_and_focuses(cx: &mut TestAppContext) {
         };
         let (view, test_cx, mut peer) = checklist_with(cx, true, Some(BRANCH), vec![record]);
         redraw(test_cx);
+        if is_failed {
+            for line in FAILED_ROW_LINES {
+                assert!(painted(test_cx, line), "{name}: {line:?}");
+            }
+            assert!(painted(test_cx, "start anyway"), "{name}");
+            assert!(painted(test_cx, "· Start claude"), "{name}");
+            assert_no_request(&mut peer, &view, test_cx);
+        }
         give(test_cx);
         if typed {
             let requests = exchange(&mut peer, &view, test_cx, vec![ok(), tab_info()]);
@@ -372,9 +354,9 @@ fn the_confirm_page_does_nothing_while_the_first_list_is_out(cx: &mut TestAppCon
     }
 }
 
-/// New session setup wait 13's Esc row, and the carried finding: Esc while the
-/// first list is out leaves with one `tab.focus` for the new workspace's tab,
-/// no `pane.send_text`, and no second create.
+/// New session setup wait 13's Esc row: Esc while the first list is out leaves
+/// with one `tab.focus` for the new workspace's tab, no `pane.send_text`, and
+/// no second create.
 #[gpui::test]
 fn esc_during_the_first_list_focuses_the_new_workspace(cx: &mut TestAppContext) {
     let (view, test_cx, mut peer) = first_list_out(cx, true, Some(BRANCH));
@@ -382,10 +364,7 @@ fn esc_during_the_first_list_focuses_the_new_workspace(cx: &mut TestAppContext) 
     press(test_cx, "escape");
     assert!(is_closed(&view, test_cx));
     late_answer(&mut peer, &view, test_cx, &list_id, log_list(vec![]));
-    assert_eq!(
-        expect_request(&mut peer, "tab.focus"),
-        json!({"tab_id": "w2:t1"})
-    );
+    expect_new_tab_focus(&mut peer);
     assert_no_request(&mut peer, &view, test_cx);
 }
 
@@ -450,44 +429,6 @@ fn the_checklist_follows_the_create_reply_and_later_records(cx: &mut TestAppCont
     }
 }
 
-/// New session start 13: a typing that fails after the wait returns to the
-/// confirm page with the created rows read-only and the daemon's message in
-/// red.
-#[gpui::test]
-fn a_failure_after_the_wait_returns_to_the_read_only_confirm_page(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = running_checklist(cx);
-    next_list(&mut peer, &view, test_cx);
-    answer(
-        &mut peer,
-        &view,
-        test_cx,
-        log_list(vec![hook("log-1", "tdi.worktree-setup", "succeeded")]),
-    );
-    expect_request(&mut peer, "pane.send_text");
-    answer(
-        &mut peer,
-        &view,
-        test_cx,
-        error_answer("pane_send_failed", "no available capacity"),
-    );
-    assert!(shows_confirm_page(&view, test_cx));
-    assert_eq!(step(&view, test_cx), Step::Idle);
-    assert_eq!(
-        error_line(&view, test_cx).as_deref(),
-        Some("no available capacity")
-    );
-    let rows = view.read_with(test_cx, |view, _| {
-        view.new_session_confirm().unwrap().rows()
-    });
-    assert_eq!(
-        rows,
-        [ConfirmRow::Command, ConfirmRow::Start, ConfirmRow::Back]
-    );
-    redraw(test_cx);
-    assert!(painted(test_cx, "no available capacity"));
-    assert!(test_cx.debug_bounds("new-session-start").is_some());
-}
-
 /// The checklist's buttons do nothing while the typing or the focus after
 /// `skip waiting` is unanswered: nothing further is recorded and the dialog
 /// stays open.
@@ -508,19 +449,13 @@ fn the_buttons_do_nothing_while_the_typing_or_the_focus_runs(cx: &mut TestAppCon
     press_everything(test_cx);
     assert!(!is_closed(&view, test_cx));
     assert_eq!(step(&view, test_cx), Step::Typing);
-    assert_eq!(
-        expect_request(&mut peer, "pane.send_text"),
-        json!({"pane_id": "w2:p1", "text": "claude\n"})
-    );
+    expect_typed_command(&mut peer);
     answer(&mut peer, &view, test_cx, ok());
     assert_eq!(step(&view, test_cx), Step::Focusing);
     press_everything(test_cx);
     assert!(!is_closed(&view, test_cx));
     assert_eq!(step(&view, test_cx), Step::Focusing);
-    assert_eq!(
-        expect_request(&mut peer, "tab.focus"),
-        json!({"tab_id": "w2:t1"})
-    );
+    expect_new_tab_focus(&mut peer);
     answer(&mut peer, &view, test_cx, tab_info());
     assert!(is_closed(&view, test_cx));
     // Any press that had left would have sent a second focus.
@@ -549,13 +484,7 @@ fn the_buttons_work_without_a_connection_by_sending_nothing(cx: &mut TestAppCont
     click(test_cx, "new-session-setup-proceed");
     assert!(shows_confirm_page(&view, test_cx));
     assert_eq!(step(&view, test_cx), Step::Idle);
-    let rows = view.read_with(test_cx, |view, _| {
-        view.new_session_confirm().unwrap().rows()
-    });
-    assert_eq!(
-        rows,
-        [ConfirmRow::Command, ConfirmRow::Start, ConfirmRow::Back]
-    );
+    assert_created_rows_read_only(&view, test_cx);
     redraw(test_cx);
     assert!(test_cx.debug_bounds("new-session-start").is_some());
     reconnect(&view, test_cx);

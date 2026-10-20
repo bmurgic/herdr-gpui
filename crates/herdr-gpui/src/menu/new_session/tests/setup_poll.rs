@@ -1,11 +1,16 @@
 //! The setup wait's list requests: when the next one goes out, what a failed
-//! or unexpected answer leaves, and what leaving the wait stops.
+//! or unexpected answer leaves, what leaving the wait stops, and what a
+//! failure after the wait returns to.
 
 use super::progress::pass;
 use super::start::{Boxes, configure, exchange, git_page, is_closed, make_input_ready, step};
 use super::*;
 use crate::{
-    menu::new_session::{Step, replies::UNEXPECTED_REPLY},
+    menu::new_session::{
+        Step,
+        confirm::ConfirmRow,
+        replies::{HookStatus, UNEXPECTED_REPLY},
+    },
     sidebar::layout_tests::{painted, redraw},
 };
 use std::{sync::Arc, time::Duration};
@@ -119,7 +124,7 @@ pub(super) fn has_checklist(view: &Entity<HerdrWindow>, cx: &mut VisualTestConte
 pub(super) fn row_statuses(
     view: &Entity<HerdrWindow>,
     cx: &mut VisualTestContext,
-) -> Vec<crate::menu::new_session::replies::HookStatus> {
+) -> Vec<HookStatus> {
     view.read_with(cx, |view, _| {
         let confirm = view.new_session_confirm().unwrap();
         let wait = confirm.started.setup.as_ref().unwrap();
@@ -173,6 +178,55 @@ pub(super) fn late_answer(
     });
 }
 
+/// Expects the typing of the command `claude` into the new workspace's pane.
+pub(super) fn expect_typed_command(peer: &mut MockPeer) {
+    assert_eq!(
+        expect_request(peer, "pane.send_text"),
+        json!({"pane_id": "w2:p1", "text": "claude\n"})
+    );
+}
+
+/// Expects the focus of the new workspace's tab.
+pub(super) fn expect_new_tab_focus(peer: &mut MockPeer) {
+    assert_eq!(
+        expect_request(peer, "tab.focus"),
+        json!({"tab_id": "w2:t1"})
+    );
+}
+
+/// Checks that the confirm page shows the created rows read-only: only the
+/// command, `start`, and `back` take the focus.
+pub(super) fn assert_created_rows_read_only(
+    view: &Entity<HerdrWindow>,
+    cx: &mut VisualTestContext,
+) {
+    let rows = view.read_with(cx, |view, _| view.new_session_confirm().unwrap().rows());
+    assert_eq!(
+        rows,
+        [ConfirmRow::Command, ConfirmRow::Start, ConfirmRow::Back]
+    );
+}
+
+/// The list answers that fail, by name, each with the message the dialog
+/// shows for it: the `bad filter` error, and the two unexpected ones.
+fn failed_list_answers() -> [(&'static str, Value, &'static str); 3] {
+    let mut paused = hook("log-1", "tdi.worktree-setup", "running");
+    paused["status"] = "paused".into();
+    [
+        (
+            "an invalid_request error",
+            error_answer("invalid_request", "bad filter"),
+            "bad filter",
+        ),
+        ("a result of type ok", ok(), UNEXPECTED_REPLY),
+        (
+            "a record with the status paused",
+            log_list(vec![paused]),
+            UNEXPECTED_REPLY,
+        ),
+    ]
+}
+
 /// Whether the dialog still shows the confirm page, not the checklist.
 pub(super) fn shows_confirm_page(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool {
     view.read_with(cx, |view, _| {
@@ -213,22 +267,7 @@ fn the_next_list_goes_out_500_ms_after_the_answer_and_never_twice(cx: &mut TestA
 /// at once.
 #[gpui::test]
 fn a_failed_list_during_the_wait_shows_in_red_and_lists_again(cx: &mut TestAppContext) {
-    let mut paused = hook("log-1", "tdi.worktree-setup", "running");
-    paused["status"] = "paused".into();
-    let rows = [
-        (
-            "an invalid_request error",
-            error_answer("invalid_request", "bad filter"),
-            "bad filter",
-        ),
-        ("a result of type ok", ok(), UNEXPECTED_REPLY),
-        (
-            "a record with the status paused",
-            log_list(vec![paused]),
-            UNEXPECTED_REPLY,
-        ),
-    ];
-    for (name, reply, message) in rows {
+    for (name, reply, message) in failed_list_answers() {
         let (view, test_cx, mut peer) = running_checklist(cx);
         next_list(&mut peer, &view, test_cx);
         answer(&mut peer, &view, test_cx, reply);
@@ -251,7 +290,7 @@ fn a_failed_list_during_the_wait_shows_in_red_and_lists_again(cx: &mut TestAppCo
         );
         assert_eq!(
             row_statuses(&view, test_cx),
-            [crate::menu::new_session::replies::HookStatus::Running],
+            [HookStatus::Running],
             "{name}"
         );
         next_list(&mut peer, &view, test_cx);
@@ -276,10 +315,7 @@ fn a_client_side_error_for_the_list_shows_its_text_and_lists_again(cx: &mut Test
         Some("Connection is busy. Try again.")
     );
     assert_eq!(step(&view, test_cx), Step::Waiting);
-    assert_eq!(
-        row_statuses(&view, test_cx),
-        [crate::menu::new_session::replies::HookStatus::Running]
-    );
+    assert_eq!(row_statuses(&view, test_cx), [HookStatus::Running]);
     next_list(&mut peer, &view, test_cx);
 }
 
@@ -289,22 +325,7 @@ fn a_client_side_error_for_the_list_shows_its_text_and_lists_again(cx: &mut Test
 /// out 500 ms later and not at once.
 #[gpui::test]
 fn a_failed_first_list_keeps_the_confirm_page_and_lists_again(cx: &mut TestAppContext) {
-    let mut paused = hook("log-1", "tdi.worktree-setup", "running");
-    paused["status"] = "paused".into();
-    let rows = [
-        (
-            "an invalid_request error",
-            error_answer("invalid_request", "bad filter"),
-            "bad filter",
-        ),
-        ("a result of type ok", ok(), UNEXPECTED_REPLY),
-        (
-            "a record with the status paused",
-            log_list(vec![paused]),
-            UNEXPECTED_REPLY,
-        ),
-    ];
-    for (name, reply, message) in rows {
+    for (name, reply, message) in failed_list_answers() {
         let (view, test_cx, mut peer) = first_list_out(cx, true, Some(BRANCH));
         answer(&mut peer, &view, test_cx, reply);
         assert!(shows_confirm_page(&view, test_cx), "{name}");
@@ -375,10 +396,7 @@ fn the_next_applied_answer_clears_the_red_line(cx: &mut TestAppContext) {
             .debug_bounds("new-session-setup-spinner-0")
             .is_some()
     );
-    assert_eq!(
-        row_statuses(&view, test_cx),
-        [crate::menu::new_session::replies::HookStatus::Running]
-    );
+    assert_eq!(row_statuses(&view, test_cx), [HookStatus::Running]);
 }
 
 /// New session setup wait 07's failed and running pair: a failed row does not
@@ -437,10 +455,7 @@ fn a_late_list_answer_after_skip_waiting_is_ignored(cx: &mut TestAppContext) {
         test_cx,
         "✗ Setup failed (exit 1). Log: /s/plugin-logs/qa/plugin-log-4.log"
     ));
-    assert_eq!(
-        row_statuses(&view, test_cx),
-        [crate::menu::new_session::replies::HookStatus::Running]
-    );
+    assert_eq!(row_statuses(&view, test_cx), [HookStatus::Running]);
     answer(&mut peer, &view, test_cx, ok());
     expect_request(&mut peer, "tab.focus");
     answer(&mut peer, &view, test_cx, tab_info());
@@ -457,16 +472,10 @@ fn leaving_the_wait_sends_only_its_own_requests(cx: &mut TestAppContext) {
     let (view, test_cx, mut peer) = running_checklist(cx);
     click(test_cx, "new-session-setup-proceed");
     pass_in_steps(&view, test_cx, Duration::from_secs(3));
-    assert_eq!(
-        expect_request(&mut peer, "pane.send_text"),
-        json!({"pane_id": "w2:p1", "text": "claude\n"})
-    );
+    expect_typed_command(&mut peer);
     answer(&mut peer, &view, test_cx, ok());
     pass_in_steps(&view, test_cx, Duration::from_secs(3));
-    assert_eq!(
-        expect_request(&mut peer, "tab.focus"),
-        json!({"tab_id": "w2:t1"})
-    );
+    expect_new_tab_focus(&mut peer);
     answer(&mut peer, &view, test_cx, tab_info());
     assert!(is_closed(&view, test_cx));
     assert_no_request(&mut peer, &view, test_cx);
@@ -475,10 +484,7 @@ fn leaving_the_wait_sends_only_its_own_requests(cx: &mut TestAppContext) {
     let (view, test_cx, mut peer) = running_checklist(cx);
     click(test_cx, "new-session-setup-close");
     pass_in_steps(&view, test_cx, Duration::from_secs(3));
-    assert_eq!(
-        expect_request(&mut peer, "tab.focus"),
-        json!({"tab_id": "w2:t1"})
-    );
+    expect_new_tab_focus(&mut peer);
     assert!(is_closed(&view, test_cx));
     assert_no_request(&mut peer, &view, test_cx);
 }
@@ -501,10 +507,7 @@ fn an_unsupported_list_during_the_wait_types_the_command(cx: &mut TestAppContext
         Some(UNSUPPORTED_NOTICE)
     );
     assert_eq!(step(&view, test_cx), Step::Typing);
-    assert_eq!(
-        expect_request(&mut peer, "pane.send_text"),
-        json!({"pane_id": "w2:p1", "text": "claude\n"})
-    );
+    expect_typed_command(&mut peer);
     answer(&mut peer, &view, test_cx, ok());
     expect_request(&mut peer, "tab.focus");
     answer(&mut peer, &view, test_cx, tab_info());
@@ -513,7 +516,9 @@ fn an_unsupported_list_during_the_wait_types_the_command(cx: &mut TestAppContext
     assert_no_request(&mut peer, &view, test_cx);
 }
 
-/// New session setup wait 17: a retry after the wait does not list again.
+/// New session start 13 and setup wait 17: a typing that fails after the wait
+/// returns to the confirm page with the created rows read-only and the
+/// daemon's message in red, and the retry from there does not list again.
 #[gpui::test]
 fn a_retry_after_the_wait_does_not_list_again(cx: &mut TestAppContext) {
     let (view, test_cx, mut peer) = running_checklist(cx);
@@ -531,7 +536,16 @@ fn a_retry_after_the_wait_does_not_list_again(cx: &mut TestAppContext) {
         test_cx,
         error_answer("pane_send_failed", "no available capacity"),
     );
+    assert!(shows_confirm_page(&view, test_cx));
     assert_eq!(step(&view, test_cx), Step::Idle);
+    assert_eq!(
+        error_line(&view, test_cx).as_deref(),
+        Some("no available capacity")
+    );
+    assert_created_rows_read_only(&view, test_cx);
+    redraw(test_cx);
+    assert!(painted(test_cx, "no available capacity"));
+    assert!(test_cx.debug_bounds("new-session-start").is_some());
     press(test_cx, "enter");
     let requests = exchange(&mut peer, &view, test_cx, vec![ok(), tab_info()]);
     let methods: Vec<&str> = requests.iter().map(|(method, _)| method.as_str()).collect();

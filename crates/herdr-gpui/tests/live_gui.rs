@@ -14,7 +14,7 @@ use std::{
     ffi::OsString,
     fs,
     path::Path,
-    process::{Child, Command},
+    process::{Child, Command, ExitStatus},
     thread,
     time::{Duration, Instant},
 };
@@ -23,6 +23,28 @@ struct Isolated {
     sandbox: Sandbox,
     daemon: Option<Child>,
     gui: Option<Child>,
+}
+
+impl Isolated {
+    /// Waits up to `timeout` for the GUI to exit, failing when the daemon dies
+    /// first, and returns the GUI's exit status.
+    fn wait_for_gui(&mut self, timeout: Duration) -> ExitStatus {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(status) = self.gui.as_mut().unwrap().try_wait().unwrap() {
+                return status;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "native GUI timeout (active desktop required)"
+            );
+            assert!(
+                self.daemon.as_mut().unwrap().try_wait().unwrap().is_none(),
+                "daemon died while GUI was running"
+            );
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
 }
 
 fn gui_command(sandbox: &Sandbox, mut env: impl FnMut(&str) -> Option<OsString>) -> Command {
@@ -329,27 +351,7 @@ fn native_gui_live() {
             .spawn()
             .unwrap(),
     );
-    let deadline = Instant::now() + Duration::from_secs(120);
-    let status = loop {
-        if let Some(status) = isolated.gui.as_mut().unwrap().try_wait().unwrap() {
-            break status;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "native GUI timeout (active desktop required)"
-        );
-        assert!(
-            isolated
-                .daemon
-                .as_mut()
-                .unwrap()
-                .try_wait()
-                .unwrap()
-                .is_none(),
-            "daemon died while GUI was running"
-        );
-        thread::sleep(Duration::from_millis(50));
-    };
+    let status = isolated.wait_for_gui(Duration::from_secs(120));
     assert!(status.success(), "GUI failed: {status}");
     let log = fs::read_to_string(isolated.sandbox.dir.join("gui.log")).unwrap();
     assert!(
@@ -468,27 +470,7 @@ fn native_new_session(walk: &str) {
             .spawn()
             .unwrap(),
     );
-    let deadline = Instant::now() + Duration::from_secs(90);
-    let status = loop {
-        if let Some(status) = isolated.gui.as_mut().unwrap().try_wait().unwrap() {
-            break status;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "native GUI timeout (active desktop required)"
-        );
-        assert!(
-            isolated
-                .daemon
-                .as_mut()
-                .unwrap()
-                .try_wait()
-                .unwrap()
-                .is_none(),
-            "daemon died while GUI was running"
-        );
-        thread::sleep(Duration::from_millis(50));
-    };
+    let status = isolated.wait_for_gui(Duration::from_secs(90));
     let log = fs::read_to_string(isolated.sandbox.dir.join("gui.log")).unwrap();
     eprintln!("{log}");
     assert!(status.success(), "native new session walk failed: {status}");

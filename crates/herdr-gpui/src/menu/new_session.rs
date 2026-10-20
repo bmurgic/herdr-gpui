@@ -308,8 +308,8 @@ impl HerdrWindow {
             window.prevent_default();
             return true;
         }
-        if self.new_session_checklist().is_some() {
-            return self.setup_key(event, window, cx);
+        if let Some(focused) = self.new_session_checklist().map(|wait| wait.focused_button) {
+            return self.setup_key(focused, event, window, cx);
         }
         let composing = self
             .menu

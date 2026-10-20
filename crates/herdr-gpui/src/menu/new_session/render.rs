@@ -375,15 +375,10 @@ impl HerdrWindow {
             )
             .children(self.step_line())
             .children(self.error_rows(viewport_width))
-            .child(
-                div()
-                    .flex()
-                    .justify_end()
-                    .gap(px(8.))
-                    .mt(px(8.))
-                    .child(self.start_button(confirm, cx))
-                    .child(self.button(confirm, ConfirmRow::Back, "new-session-back", "back", cx)),
-            )
+            .child(button_row([
+                self.start_button(confirm, cx),
+                self.button(confirm, ConfirmRow::Back, "new-session-back", "back", cx),
+            ]))
     }
 
     /// The setup checklist, which replaces the confirm page while a setup
@@ -439,33 +434,28 @@ impl HerdrWindow {
             }))
             .children(self.step_line())
             .children(self.error_rows(viewport_width))
-            .child(
-                div()
-                    .flex()
-                    .justify_end()
-                    .gap(px(8.))
-                    .mt(px(8.))
-                    .child(self.setup_button(
-                        SetupButton::Proceed,
-                        "new-session-setup-proceed",
-                        if wait.has_failed_row() {
-                            "start anyway"
-                        } else {
-                            "skip waiting"
-                        },
-                        wait,
-                        is_waiting,
-                        cx,
-                    ))
-                    .child(self.setup_button(
-                        SetupButton::Close,
-                        "new-session-setup-close",
-                        "close",
-                        wait,
-                        is_waiting,
-                        cx,
-                    )),
-            )
+            .child(button_row([
+                self.setup_button(
+                    SetupButton::Proceed,
+                    "new-session-setup-proceed",
+                    if wait.has_failed_row() {
+                        "start anyway"
+                    } else {
+                        "skip waiting"
+                    },
+                    wait,
+                    is_waiting,
+                    cx,
+                ),
+                self.setup_button(
+                    SetupButton::Close,
+                    "new-session-setup-close",
+                    "close",
+                    wait,
+                    is_waiting,
+                    cx,
+                ),
+            ]))
     }
 
     /// One hook of the checklist. Running shows the turning icon, succeeded a
@@ -527,7 +517,7 @@ impl HerdrWindow {
     ) -> Stateful<Div> {
         let theme = &self.theme;
         let is_focused = wait.focused_button == button;
-        framed_button(id)
+        plain_button_frame(id)
             .on_click(cx.listener(move |this, _, window, cx| {
                 cx.stop_propagation();
                 this.press_setup_button(button, window, cx);
@@ -687,9 +677,19 @@ impl HerdrWindow {
     }
 }
 
+/// The row of buttons at the foot of a page, kept to the right.
+fn button_row(buttons: [Stateful<Div>; 2]) -> Div {
+    div()
+        .flex()
+        .justify_end()
+        .gap(px(8.))
+        .mt(px(8.))
+        .children(buttons)
+}
+
 /// The frame every button of the dialog shares: its padding, corners, and
-/// border.
-fn framed_button(id: &'static str) -> Stateful<Div> {
+/// border, with no click. Each caller adds the click its button acts on.
+fn plain_button_frame(id: &'static str) -> Stateful<Div> {
     div()
         .id(id)
         .debug_selector(move || id.into())
@@ -702,7 +702,7 @@ fn framed_button(id: &'static str) -> Stateful<Div> {
 /// The frame every confirm-page button shares, the turning `start` button
 /// included, with the click that acts on `row`.
 fn button_frame(row: ConfirmRow, id: &'static str, cx: &mut Context<HerdrWindow>) -> Stateful<Div> {
-    framed_button(id).on_click(cx.listener(move |this, _, window, cx| {
+    plain_button_frame(id).on_click(cx.listener(move |this, _, window, cx| {
         cx.stop_propagation();
         this.click_confirm_row(row, window, cx);
     }))

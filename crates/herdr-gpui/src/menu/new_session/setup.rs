@@ -392,17 +392,15 @@ impl HerdrWindow {
 impl HerdrWindow {
     /// Keys on the checklist: Up and Down move between the buttons, Enter
     /// presses the focused one, and Esc leaves for the created tab. Every other
-    /// key is used and does nothing, as no field takes text here.
+    /// key is used and does nothing, as no field takes text here. `focused` is
+    /// the checklist's focused button.
     pub(super) fn setup_key(
         &mut self,
+        focused: SetupButton,
         event: &KeyDownEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        let focused = self
-            .new_session_checklist()
-            .map(|wait| wait.focused_button)
-            .unwrap_or_default();
         match event.keystroke.key.as_str() {
             "up" => self.focus_setup_button(SetupButton::Proceed, cx),
             "down" => self.focus_setup_button(SetupButton::Close, cx),
