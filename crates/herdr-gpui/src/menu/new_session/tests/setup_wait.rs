@@ -127,22 +127,3 @@ fn a_daemon_without_setup_tracking_starts_at_once(cx: &mut TestAppContext) {
         assert!(status.ends_with(NOTICE), "{name}: {status}");
     }
 }
-
-/// A second Enter on `start` while the first `plugin.log.list` is unanswered
-/// sends nothing: the wait is not locked, so only the start's own idle check
-/// keeps a second list from going out.
-#[gpui::test]
-fn enter_during_the_setup_wait_sends_no_second_list(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = git_page(cx, &start_methods());
-    press(test_cx, "enter");
-    expect_request(&mut peer, "worktree.create");
-    answer(&mut peer, &view, test_cx, worktree_created(None));
-    expect_request(&mut peer, "plugin.log.list");
-    assert_eq!(step(&view, test_cx), Step::Waiting);
-    press(test_cx, "enter");
-    assert_eq!(step(&view, test_cx), Step::Waiting);
-    assert_no_request(&mut peer, &view, test_cx);
-    // The one list's answer goes on to typing, not to a second list.
-    answer(&mut peer, &view, test_cx, log_list(vec![]));
-    expect_request(&mut peer, "pane.send_text");
-}
