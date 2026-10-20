@@ -159,6 +159,7 @@ const OFFERED: &[&str] = &[
 /// `src/api/schema.rs`). Herdr's `OFFERED` list does not hold them.
 const MYHERDR_OFFERED: &[&str] = &[
     "pane.mark_unread",
+    "pane.send_text",
     "workspace.focus.v2",
     "workspace.move.v2",
     "workspace.move_block.v2",
@@ -189,6 +190,7 @@ const ALL: &[Method] = &[
     Method::PaneResize,
     Method::PaneScroll,
     Method::PaneSelectionRead,
+    Method::PaneSendText,
     Method::PaneSplit,
     Method::PaneSwap,
     Method::PaneZoom,
@@ -267,6 +269,7 @@ fn every_method_is_offered_to_endpoint_clients() {
                 );
             }
             Method::PaneMarkUnread
+            | Method::PaneSendText
             | Method::WorkspaceFocusV2
             | Method::WorkspaceMoveBlockV2
             | Method::WorkspaceMoveV2
