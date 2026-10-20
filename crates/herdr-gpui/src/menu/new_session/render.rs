@@ -1,7 +1,7 @@
 //! Painting the project page: the title, the filter field, and the visible
 //! entries, each with its folder dimmed beside it.
 
-use super::projects::{ProjectEntry, filtered_entries, visible_entries};
+use super::projects::visible_entries;
 use crate::HerdrWindow;
 use gpui::{prelude::*, *};
 
@@ -60,21 +60,19 @@ impl HerdrWindow {
                     .debug_selector(|| "new-session-rows".into())
                     .flex()
                     .flex_col()
-                    .children(self.menu.new_session.as_ref().map(|dialog| {
-                        let filter = self.menu.input.as_ref().map_or("", |input| &input.text);
-                        self.project_rows(&dialog.entries, filter, dialog.highlighted)
-                    })),
+                    .children(self.project_rows()),
             );
         div().flex().flex_col().child(header).child(body)
     }
 
-    /// The rows in the visible window of the entries that pass `filter`.
-    fn project_rows(&self, entries: &[ProjectEntry], filter: &str, highlighted: usize) -> Div {
+    /// The rows in the visible window of the entries that pass the filter.
+    fn project_rows(&self) -> Option<Div> {
         let theme = &self.theme;
-        let kept = filtered_entries(entries, filter);
-        let rows = visible_entries(highlighted, kept.len());
-        div().flex().flex_col().children(rows.map(|position| {
-            let entry = &entries[kept[position]];
+        let shown = self.shown_projects()?;
+        let highlighted = shown.highlighted;
+        let window = visible_entries(highlighted, shown.rows.len());
+        Some(div().flex().flex_col().children(window.map(|position| {
+            let entry = &shown.rows[position];
             div()
                 .debug_selector(move || format!("new-session-row-{position}"))
                 .flex()
@@ -91,6 +89,6 @@ impl HerdrWindow {
                         .text_color(rgb(theme.subtext()))
                         .child(entry.shown_path.clone()),
                 )
-        }))
+        })))
     }
 }

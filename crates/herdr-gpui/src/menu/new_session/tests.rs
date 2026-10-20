@@ -137,25 +137,19 @@ pub(super) fn press(cx: &mut VisualTestContext, keys: &str) {
     cx.simulate_keystrokes(keys);
 }
 
-/// The labels of the entries that pass the filter, top to bottom.
+/// The labels of the entries the page shows, top to bottom.
 pub(super) fn shown(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Vec<String> {
     view.read_with(cx, |view, _| {
-        let dialog = view.menu.new_session.as_ref().unwrap();
-        let filter = &view.menu.input.as_ref().unwrap().text;
-        super::filtered_entries(&dialog.entries, filter)
-            .into_iter()
-            .map(|index| dialog.entries[index].label.clone())
-            .collect()
+        let shown = view.shown_projects().unwrap();
+        shown.rows.into_iter().map(|entry| entry.label).collect()
     })
 }
 
-/// The label of the highlighted entry.
+/// The label of the entry the page highlights.
 pub(super) fn highlighted(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> String {
     view.read_with(cx, |view, _| {
-        let dialog = view.menu.new_session.as_ref().unwrap();
-        let filter = &view.menu.input.as_ref().unwrap().text;
-        let kept = super::filtered_entries(&dialog.entries, filter);
-        dialog.entries[kept[dialog.highlighted]].label.clone()
+        let shown = view.shown_projects().unwrap();
+        shown.rows[shown.highlighted].label.clone()
     })
 }
 

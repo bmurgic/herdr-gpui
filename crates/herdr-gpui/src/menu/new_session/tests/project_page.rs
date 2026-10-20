@@ -105,3 +105,46 @@ fn escape_closes_the_page_without_a_request(cx: &mut TestAppContext) {
     });
     assert_no_request(&mut peer, &view, test_cx);
 }
+
+/// The page lists what the snapshot says now, not what it said at open: a
+/// workspace closed elsewhere leaves it, and the highlight stays on a row that
+/// exists.
+#[gpui::test]
+fn a_workspace_closed_after_open_leaves_the_page(cx: &mut TestAppContext) {
+    let (view, test_cx, _peer) = opened(cx, herdr_and_docs());
+    press(test_cx, "down");
+    assert_eq!(highlighted(&view, test_cx), "docs");
+    set_workspaces(
+        &view,
+        test_cx,
+        json!([main_checkout("w1", "herdr", "/home/b/dev/herdr")]),
+    );
+    assert_eq!(shown(&view, test_cx), ["herdr", "Other folder…"]);
+    assert_eq!(highlighted(&view, test_cx), "Other folder…");
+}
+
+/// A worktree whose `repository` record arrives after the page opened leaves
+/// the list, because a linked worktree is never a project.
+#[gpui::test]
+fn a_worktree_found_after_open_leaves_the_page(cx: &mut TestAppContext) {
+    let (view, test_cx, _peer) = opened(
+        cx,
+        json!([
+            main_checkout("w1", "herdr", "/home/b/dev/herdr"),
+            plain_workspace("w2", "herdr-feature", "/home/b/dev/herdr-feature"),
+        ]),
+    );
+    assert_eq!(
+        shown(&view, test_cx),
+        ["herdr", "herdr-feature", "Other folder…"]
+    );
+    set_workspaces(
+        &view,
+        test_cx,
+        json!([
+            main_checkout("w1", "herdr", "/home/b/dev/herdr"),
+            linked_by_repository("w2", "herdr-feature", "/home/b/dev/herdr-feature"),
+        ]),
+    );
+    assert_eq!(shown(&view, test_cx), ["herdr", "Other folder…"]);
+}

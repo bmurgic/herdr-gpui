@@ -34,10 +34,19 @@ pub(crate) struct NewSession {
     boot_id: String,
     /// The `(selection_epoch, generation)` pair of the host the dialog opened on.
     endpoint_target: (u64, u64),
-    /// The workspaces listed when the dialog opened, then `Other folder…`.
-    entries: Vec<ProjectEntry>,
-    /// The highlighted position among the entries that pass the filter.
+    /// What `~` stands for when the folders are shown.
+    home: PathBuf,
+    /// The highlighted position among the entries that pass the filter. The
+    /// page shows it clamped, because a filter or a new snapshot can shrink
+    /// the list under it.
     highlighted: usize,
+}
+
+/// The rows the project page shows now, and the highlight among them.
+pub(super) struct ShownProjects {
+    /// The entries that pass the filter, top to bottom.
+    pub(super) rows: Vec<ProjectEntry>,
+    pub(super) highlighted: usize,
 }
 
 impl HerdrWindow {
@@ -71,7 +80,7 @@ impl HerdrWindow {
         let Some(snapshot) = self.live.snapshot.as_ref() else {
             return false;
         };
-        let (boot_id, entries) = (snapshot.boot_id.clone(), project_entries(snapshot, &home));
+        let boot_id = snapshot.boot_id.clone();
         self.hover = None;
         self.hover_menu = None;
         self.menu.reset();
@@ -79,7 +88,7 @@ impl HerdrWindow {
         self.menu.new_session = Some(NewSession {
             boot_id,
             endpoint_target: self.current_endpoint_target(),
-            entries,
+            home,
             highlighted: 0,
         });
         self.menu.page = Some(Page::NewSession);
@@ -87,6 +96,22 @@ impl HerdrWindow {
         window.focus(&self.menu.focus, cx);
         cx.notify();
         true
+    }
+
+    /// The page's rows, read from the current snapshot every time so a
+    /// workspace that closed, or a `repository` record that arrived, shows.
+    /// `None` when the page is not open or has no snapshot.
+    pub(super) fn shown_projects(&self) -> Option<ShownProjects> {
+        let dialog = self.menu.new_session.as_ref()?;
+        let snapshot = self.live.snapshot.as_ref()?;
+        let filter = &self.menu.input.as_ref()?.text;
+        let entries = project_entries(snapshot, &dialog.home);
+        let rows: Vec<ProjectEntry> = filtered_entries(&entries, filter)
+            .into_iter()
+            .map(|position| entries[position].clone())
+            .collect();
+        let highlighted = dialog.highlighted.min(rows.len().saturating_sub(1));
+        Some(ShownProjects { rows, highlighted })
     }
 
     /// The `(selection_epoch, generation)` pair that names the selected host's
@@ -163,20 +188,19 @@ impl HerdrWindow {
             .input
             .as_ref()
             .is_some_and(|input| input.marked.is_some());
-        let (Some(dialog), Some(input)) =
-            (self.menu.new_session.as_mut(), self.menu.input.as_ref())
-        else {
+        let Some(shown) = self.shown_projects() else {
             return false;
         };
         if composing {
             return false;
         }
-        let last = filtered_entries(&dialog.entries, &input.text)
-            .len()
-            .saturating_sub(1);
+        let Some(dialog) = self.menu.new_session.as_mut() else {
+            return false;
+        };
+        let last = shown.rows.len().saturating_sub(1);
         match event.keystroke.key.as_str() {
-            "up" => dialog.highlighted = dialog.highlighted.saturating_sub(1),
-            "down" => dialog.highlighted = (dialog.highlighted + 1).min(last),
+            "up" => dialog.highlighted = shown.highlighted.saturating_sub(1),
+            "down" => dialog.highlighted = (shown.highlighted + 1).min(last),
             "enter" => {}
             _ => return false,
         }
