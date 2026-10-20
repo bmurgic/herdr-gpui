@@ -50,6 +50,29 @@ fn each_filter_edit_highlights_the_first_entry_that_stays(cx: &mut TestAppContex
     assert_eq!(highlighted(&view, test_cx), "herdr", "pasted");
 }
 
+/// The two edit sites the test above does not reach each refilter too:
+/// Backspace through the menu's key handler, and an input method's marked
+/// text. Each leaves the highlight on the first entry that stays.
+#[gpui::test]
+fn deleting_and_composing_highlight_the_first_entry_that_stays(cx: &mut TestAppContext) {
+    let (view, test_cx, _peer) = opened(cx, herdr_and_docs());
+    test_cx.simulate_input("doc");
+    press(test_cx, "down");
+    assert_eq!(highlighted(&view, test_cx), "Other folder…");
+    press(test_cx, "backspace backspace backspace");
+    assert_eq!(shown(&view, test_cx), ["herdr", "docs", "Other folder…"]);
+    assert_eq!(highlighted(&view, test_cx), "herdr", "deleted");
+
+    test_cx.simulate_input("doc");
+    press(test_cx, "down");
+    select_filter(&view, test_cx);
+    update(&view, test_cx, |view, window, cx| {
+        view.replace_and_mark_text_in_range(None, "her", None, window, cx);
+    });
+    assert_eq!(shown(&view, test_cx), ["herdr", "Other folder…"]);
+    assert_eq!(highlighted(&view, test_cx), "herdr", "composed");
+}
+
 /// Agent new session 09, one case per Examples row.
 #[gpui::test]
 fn the_highlight_stops_at_the_first_and_last_entry(cx: &mut TestAppContext) {
