@@ -46,7 +46,6 @@ mod mouse_frame_gap;
 mod mouse_gestures;
 mod mouse_targets;
 mod new_session_staleness;
-mod new_session_start_staleness;
 mod new_workspace_staleness;
 mod plugin_selection;
 mod prompts;

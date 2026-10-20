@@ -9,10 +9,10 @@ use super::{
 use crate::{HerdrWindow, state::DialogResponse};
 use gpui::Context;
 use herdr_client::Method;
-use serde_json::{Value, json};
+use serde_json::json;
 
 /// The notice for a daemon that cannot list setup hooks.
-pub(super) const SETUP_TRACKING_UNSUPPORTED: &str = "Setup tracking not supported on this server";
+const SETUP_TRACKING_UNSUPPORTED: &str = "Setup tracking not supported on this server";
 
 /// The most records a list asks for.
 const LIST_LIMIT: u32 = 200;
@@ -22,24 +22,22 @@ const UNSUPPORTED_CODES: [&str; 2] = ["unsupported_method", "unsupported_endpoin
 
 impl HerdrWindow {
     /// D13's first list, for the workspace the worktree made. Steps in
-    /// `Waiting`. A list that cannot be queued goes on, as an answer would.
+    /// `Waiting`. A daemon that does not advertise the list gets the notice
+    /// and no wait.
     pub(super) fn send_setup_list(&mut self, workspace_id: String, cx: &mut Context<Self>) {
+        if !Method::PluginLogList.advertised_in(&self.live.methods) {
+            self.skip_setup_wait(cx);
+            return;
+        }
         let params = json!({
             "workspace_id": workspace_id, "event": WORKTREE_CREATED_EVENT, "limit": LIST_LIMIT,
         });
-        if self
-            .try_queue_start_request(Step::Waiting, Method::PluginLogList, params)
-            .is_err()
-        {
-            self.finish_start_step(cx, |progress| progress.setup_pending = false);
-            return;
-        }
-        cx.notify();
+        self.queue_start_request(Step::Waiting, Method::PluginLogList, params, cx);
     }
 
     /// The first list's result. The checklist for a running hook is not
     /// built yet, so every result goes on to typing.
-    pub(super) fn apply_setup_list_answer(&mut self, _reply: &Value, cx: &mut Context<Self>) {
+    pub(super) fn apply_setup_list_answer(&mut self, cx: &mut Context<Self>) {
         self.finish_start_step(cx, |progress| progress.setup_pending = false);
     }
 
@@ -48,12 +46,19 @@ impl HerdrWindow {
     pub(super) fn apply_setup_list_failure(
         &mut self,
         result: &DialogResponse,
-        _message: String,
         cx: &mut Context<Self>,
     ) {
         if error_code(result).is_some_and(|code| UNSUPPORTED_CODES.contains(&code)) {
-            self.local_error = Some(SETUP_TRACKING_UNSUPPORTED.to_owned());
+            self.skip_setup_wait(cx);
+            return;
         }
+        self.finish_start_step(cx, |progress| progress.setup_pending = false);
+    }
+
+    /// Sets the status line notice for a daemon without setup tracking and
+    /// goes on without waiting.
+    fn skip_setup_wait(&mut self, cx: &mut Context<Self>) {
+        self.local_error = Some(SETUP_TRACKING_UNSUPPORTED.to_owned());
         self.finish_start_step(cx, |progress| progress.setup_pending = false);
     }
 }

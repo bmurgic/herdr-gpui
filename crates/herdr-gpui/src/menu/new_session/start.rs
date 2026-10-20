@@ -8,7 +8,6 @@ use super::{
     Pending, PendingKind, Step,
     confirm::ConfirmRow,
     replies::{UNEXPECTED_REPLY, reply_message},
-    setup::SETUP_TRACKING_UNSUPPORTED,
 };
 use crate::{
     HerdrWindow,
@@ -89,24 +88,18 @@ impl HerdrWindow {
         }
     }
 
-    fn next_start_step(&mut self) -> Option<NextStep> {
-        let command = self.command_to_type();
-        let can_list = Method::PluginLogList.advertised_in(&self.live.methods);
-        let progress = &mut self.menu.new_session.as_mut()?.confirm.as_mut()?.started;
+    fn next_start_step(&self) -> Option<NextStep> {
+        let progress = &self.new_session_confirm()?.started;
         let Some(created) = progress.created.clone() else {
             return Some(NextStep::Create);
         };
         if progress.setup_pending {
-            if can_list {
-                return Some(NextStep::SetupList {
-                    workspace_id: created.workspace_id,
-                });
-            }
-            progress.setup_pending = false;
-            self.local_error = Some(SETUP_TRACKING_UNSUPPORTED.to_owned());
-            return self.next_start_step();
+            return Some(NextStep::SetupList {
+                workspace_id: created.workspace_id,
+            });
         }
-        if let Some(command) = command.filter(|_| !progress.typed) {
+        let command = self.command_to_type().filter(|_| !progress.typed);
+        if let Some(command) = command {
             return Some(NextStep::Type {
                 pane_id: created.pane_id,
                 command,
@@ -175,7 +168,7 @@ impl HerdrWindow {
         cx.notify();
     }
 
-    pub(super) fn try_queue_start_request(
+    fn try_queue_start_request(
         &mut self,
         step: Step,
         method: Method,
@@ -225,8 +218,8 @@ impl HerdrWindow {
         };
         let reply = match reply_message(result) {
             Ok(reply) => reply,
-            Err(message) if step == Step::Waiting => {
-                self.apply_setup_list_failure(result, message, cx);
+            Err(_) if step == Step::Waiting => {
+                self.apply_setup_list_failure(result, cx);
                 return;
             }
             Err(message) => {
@@ -236,7 +229,7 @@ impl HerdrWindow {
         };
         match step {
             Step::Creating => self.apply_create_answer(&reply, cx),
-            Step::Waiting => self.apply_setup_list_answer(&reply, cx),
+            Step::Waiting => self.apply_setup_list_answer(cx),
             Step::Typing if reply["type"] == "ok" => {
                 self.finish_start_step(cx, |progress| progress.typed = true);
             }

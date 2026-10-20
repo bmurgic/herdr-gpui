@@ -107,7 +107,9 @@ fn step(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Step {
     view.read_with(cx, |view, _| view.menu.new_session.as_ref().unwrap().step)
 }
 
-/// New session start 01, one case per Examples row.
+/// New session start 01, one case per Examples row, then New session setup
+/// wait 06's row with the command off: without a worktree no
+/// `plugin.log.list` goes out. Start 01's third row is Setup 06's other row.
 #[gpui::test]
 fn start_sends_the_requests_for_each_box_combination(cx: &mut TestAppContext) {
     let create = |branch: &str| {
@@ -176,6 +178,14 @@ fn start_sends_the_requests_for_each_box_combination(cx: &mut TestAppContext) {
             true,
             "  ",
             vec![plain_create("/home/b/notes/docs"), focus.clone()],
+        ),
+        (
+            true,
+            false,
+            "feature/x",
+            false,
+            "claude",
+            vec![plain_create("/home/b/dev/herdr"), focus.clone()],
         ),
     ];
     for (git, worktree_on, branch, command_on, command, expected) in rows {
@@ -284,23 +294,29 @@ fn a_workspace_answer_without_its_tab_or_pane_types_nothing(cx: &mut TestAppCont
     }
 }
 
-/// New session start 04: after the focus answer the dialog is gone, and the
-/// typed keys wait for the new tab's surface.
-#[gpui::test]
-fn keys_after_the_dialog_closes_wait_for_the_new_tab(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = plain_page(cx, &start_methods());
-    press(test_cx, "enter");
-    expect_request(&mut peer, "workspace.create");
-    answer(&mut peer, &view, test_cx, workspace_created());
-    expect_request(&mut peer, "pane.send_text");
-    answer(&mut peer, &view, test_cx, ok());
-    expect_request(&mut peer, "tab.focus");
-    answer(&mut peer, &view, test_cx, tab_info());
-    assert!(is_closed(&view, test_cx));
-    assert!(!view.read_with(test_cx, |view, _| view.input_ready()));
-    press(test_cx, "l s");
-    // A marker queued after the keys orders after any input they sent.
-    view.read_with(test_cx, |view, _| {
+/// Lets the window send keys to the focused pane: the daemon's surface is the
+/// size the window asked for, and the window draws surfaces.
+fn make_input_ready(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
+    update(view, cx, |view, _, _| {
+        view.live.supports_surface = true;
+        let size = view.options.surface_size;
+        let surface = std::sync::Arc::make_mut(view.live.surface.as_mut().unwrap());
+        surface.frame.width = size.cols;
+        surface.frame.height = size.rows;
+    });
+    assert!(view.read_with(cx, |view, _| view.input_ready()));
+}
+
+/// Types `keys`, then returns whether any of them reached a pane before a
+/// marker queued after them.
+fn keys_reach_a_pane(
+    peer: &mut MockPeer,
+    view: &Entity<HerdrWindow>,
+    cx: &mut VisualTestContext,
+    keys: &str,
+) -> bool {
+    press(cx, keys);
+    view.read_with(cx, |view, _| {
         view.endpoints[0]
             .connection
             .handle
@@ -309,13 +325,33 @@ fn keys_after_the_dialog_closes_wait_for_the_new_tab(cx: &mut TestAppContext) {
             .set_focus("boot-v1", false)
             .unwrap();
     });
+    let mut reached = false;
     loop {
         match peer.receive() {
-            ClientMessage::Input { data } => panic!("typed keys reached a pane: {data:?}"),
-            ClientMessage::ClientShellFocus { focused: false } => break,
+            ClientMessage::ClientShellPaneInput { .. } => reached = true,
+            ClientMessage::ClientShellFocus { focused: false } => return reached,
             _ => {}
         }
     }
+}
+
+/// New session start 04: after the focus answer the dialog is gone, and the
+/// typed keys wait for the new tab's surface instead of reaching the pane
+/// that was focused before.
+#[gpui::test]
+fn keys_after_the_dialog_closes_wait_for_the_new_tab(cx: &mut TestAppContext) {
+    let (view, test_cx, mut peer) = plain_page(cx, &start_methods());
+    make_input_ready(&view, test_cx);
+    press(test_cx, "enter");
+    exchange(
+        &mut peer,
+        &view,
+        test_cx,
+        vec![workspace_created(), ok(), tab_info()],
+    );
+    assert!(is_closed(&view, test_cx));
+    assert!(!view.read_with(test_cx, |view, _| view.input_ready()));
+    assert!(!keys_reach_a_pane(&mut peer, &view, test_cx, "l s"));
 }
 
 /// New session start 15: a daemon that cannot type shows the command rows off

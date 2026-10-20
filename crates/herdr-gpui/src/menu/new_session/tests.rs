@@ -307,9 +307,9 @@ pub(super) fn error_answer(code: &str, message: &str) -> Value {
 }
 
 /// A hook run of the setup wait.
-pub(super) fn hook_record(status: &str, workspace_id: &str, event: &str) -> Value {
+pub(super) fn hook_record(log_id: &str, status: &str, workspace_id: &str, event: &str) -> Value {
     json!({
-        "log_id": "log-1", "plugin_id": "setup", "command": ["sh"], "status": status,
+        "log_id": log_id, "plugin_id": "setup", "command": ["sh"], "status": status,
         "started_unix_ms": 1, "workspace_id": workspace_id, "event": event,
     })
 }

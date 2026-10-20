@@ -28,15 +28,15 @@ fn a_worktree_with_no_setup_hooks_starts_at_once(cx: &mut TestAppContext) {
         ("no record", vec![]),
         (
             "a record for w1",
-            vec![hook_record("running", "w1", "worktree.created")],
+            vec![hook_record("log-1", "running", "w1", "worktree.created")],
         ),
         (
             "an event of another kind",
-            vec![hook_record("running", "w2", "workspace.created")],
+            vec![hook_record("log-1", "running", "w2", "workspace.created")],
         ),
         (
             "a succeeded record",
-            vec![hook_record("succeeded", "w2", "worktree.created")],
+            vec![hook_record("log-1", "succeeded", "w2", "worktree.created")],
         ),
     ] {
         let (view, test_cx, mut peer) = git_page(cx, &start_methods());
@@ -69,31 +69,6 @@ fn a_worktree_with_no_setup_hooks_starts_at_once(cx: &mut TestAppContext) {
             "{name}"
         );
         assert!(is_closed(&view, test_cx), "{name}");
-    }
-}
-
-/// New session setup wait 06, one case per Examples row: no list without a
-/// worktree.
-#[gpui::test]
-fn no_setup_wait_without_a_worktree(cx: &mut TestAppContext) {
-    for command_on in [true, false] {
-        let (view, test_cx, mut peer) = git_page(cx, &start_methods());
-        configure(&view, test_cx, &boxes(false, command_on));
-        press(test_cx, "enter");
-        let mut answers = vec![workspace_created()];
-        if command_on {
-            answers.push(ok());
-        }
-        answers.push(tab_info());
-        let requests = exchange(&mut peer, &view, test_cx, answers);
-        let expected: &[&str] = if command_on {
-            &["workspace.create", "pane.send_text", "tab.focus"]
-        } else {
-            &["workspace.create", "tab.focus"]
-        };
-        assert_eq!(methods_sent(&requests), expected, "{command_on}");
-        assert!(is_closed(&view, test_cx), "{command_on}");
-        assert_no_request(&mut peer, &view, test_cx);
     }
 }
 

@@ -65,7 +65,7 @@ pub(crate) struct NewSession {
     /// Which request, if any, the dialog waits for.
     step: Step,
     /// The request the dialog waits for, set exactly while `step` is not
-    /// `Idle`, except that a `Waiting` list that failed to queue sets none.
+    /// `Idle`.
     pending: Option<Pending>,
     /// Why the last folder check or refusal failed, shown in red under the
     /// field or the rows. The next check clears it.

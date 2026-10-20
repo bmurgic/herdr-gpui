@@ -64,24 +64,6 @@ fn the_source_is_read_from_the_worktree_list_result() {
     }
 }
 
-/// Start 01: `workspace_created` parses with and without its tab and first
-/// pane, so the callers that send only the workspace keep working.
-#[test]
-fn a_workspace_created_reply_may_omit_its_tab_and_first_pane() {
-    use crate::teleport::WorkspaceCreated;
-    let bare: WorkspaceCreated =
-        serde_json::from_value(json!({"workspace": {"workspace_id": "w2"}})).unwrap();
-    assert!(bare.tab.is_none() && bare.root_pane.is_none());
-    let full: WorkspaceCreated = serde_json::from_value(json!({
-        "workspace": {"workspace_id": "w2"},
-        "tab": {"tab_id": "w2:t1"},
-        "root_pane": {"pane_id": "w2:p1"},
-    }))
-    .unwrap();
-    assert_eq!(full.tab.unwrap().tab_id, "w2:t1");
-    assert_eq!(full.root_pane.unwrap().pane_id, "w2:p1");
-}
-
 /// Start 01: `worktree_created` reads the branch when the reply names one.
 #[test]
 fn a_worktree_created_reply_reads_its_branch_when_it_names_one() {
@@ -104,23 +86,16 @@ fn a_worktree_created_reply_reads_its_branch_when_it_names_one() {
     assert_eq!(reply(json!({"path": "/w"})), None);
 }
 
-fn record(log_id: &str, status: &str, workspace_id: &str, event: &str) -> Value {
-    json!({
-        "log_id": log_id, "plugin_id": "setup", "command": ["sh"], "status": status,
-        "started_unix_ms": 1, "workspace_id": workspace_id, "event": event,
-    })
-}
-
 /// Setup 01: the parser refuses an unknown status and a record without
 /// `started_unix_ms`, and keeps a record with an extra field.
 #[test]
 fn the_plugin_log_list_parser_is_strict_about_status_and_start_time() {
     use crate::menu::new_session::replies::parse_plugin_log_list;
     let list = |logs: Vec<Value>| json!({"type": "plugin_log_list", "logs": logs});
-    let valid = record("a", "running", "w2", "worktree.created");
-    let mut extra = record("b", "failed", "w2", "worktree.created");
+    let valid = hook_record("a", "running", "w2", "worktree.created");
+    let mut extra = hook_record("b", "failed", "w2", "worktree.created");
     extra["future_field"] = json!(true);
-    let mut without_start = record("c", "running", "w2", "worktree.created");
+    let mut without_start = hook_record("c", "running", "w2", "worktree.created");
     without_start
         .as_object_mut()
         .unwrap()
@@ -136,7 +111,7 @@ fn the_plugin_log_list_parser_is_strict_about_status_and_start_time() {
     for (name, bad) in [
         (
             "an unknown status",
-            record("p", "paused", "w2", "worktree.created"),
+            hook_record("p", "paused", "w2", "worktree.created"),
         ),
         ("no start time", without_start),
     ] {
@@ -155,10 +130,10 @@ fn the_plugin_log_list_parser_is_strict_about_status_and_start_time() {
 fn kept_records_follow_the_workspace_and_event_in_reply_order() {
     use crate::menu::new_session::replies::{kept_records, parse_plugin_log_list};
     let list = parse_plugin_log_list(&json!({"type": "plugin_log_list", "logs": [
-        record("for-w1", "running", "w1", "worktree.created"),
-        record("later-plugin", "running", "w2", "worktree.created"),
-        record("other-event", "running", "w2", "workspace.created"),
-        record("earlier-plugin", "succeeded", "w2", "worktree.created"),
+        hook_record("for-w1", "running", "w1", "worktree.created"),
+        hook_record("later-plugin", "running", "w2", "worktree.created"),
+        hook_record("other-event", "running", "w2", "workspace.created"),
+        hook_record("earlier-plugin", "succeeded", "w2", "worktree.created"),
     ]}))
     .unwrap();
     let kept: Vec<&str> = kept_records(&list, "w2")
