@@ -44,7 +44,8 @@ fn pick_other_folder(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
     assert!(on_folder_page(view, cx));
 }
 
-/// The folder page with `home` as `~`, on a host that is this computer.
+/// The folder page with `home` as `~`, on this computer when `local` says so,
+/// and on a session with the v2 codec when `snapshot_v2` says so.
 fn folder_page<'a>(
     cx: &'a mut TestAppContext,
     local: bool,
@@ -63,15 +64,6 @@ fn on_folder_page(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> boo
             .as_ref()
             .is_some_and(|dialog| dialog.folder.is_some())
     })
-}
-
-/// Replaces the field's text, as pasting over a selection would.
-fn set_field(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, text: &str) {
-    update(view, cx, |view, _, _| {
-        let input = view.menu.input.as_mut().unwrap();
-        input.selection = 0..input.text.len();
-    });
-    type_text(view, cx, text);
 }
 
 fn field(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> String {
@@ -109,12 +101,6 @@ fn worktree_rows_shown(cx: &mut VisualTestContext) -> bool {
         && cx.debug_bounds("new-session-branch").is_some()
 }
 
-fn click(cx: &mut VisualTestContext, selector: &'static str) {
-    draw(cx);
-    let center = cx.debug_bounds(selector).unwrap().center();
-    cx.simulate_click(center, Modifiers::default());
-}
-
 /// A `worktree_list` answer whose source is `workspace_id`'s main checkout.
 fn listed(workspace_id: &str, checkout: &str) -> Value {
     json!({"result": {
@@ -133,19 +119,25 @@ fn unreported(id: &str, label: &str, cwd: &str) -> Value {
     json!([plain_workspace(id, label, cwd)])
 }
 
+/// The project page of a v2 session on another host, listing the entry
+/// `herdr` at `/home/b/dev/herdr` without a repository record, so a pick asks.
+fn herdr_page(cx: &mut TestAppContext) -> (Entity<HerdrWindow>, &mut VisualTestContext, MockPeer) {
+    project_page(
+        cx,
+        false,
+        true,
+        Path::new("/home/b"),
+        unreported("w1", "herdr", "/home/b/dev/herdr"),
+    )
+}
+
 /// Agent new session 12, rows 2 to 4. Each answer opens the confirm page for
 /// the path the design table gives, with the worktree rows shown or hidden.
 /// The entry `herdr` is picked for its folder, not its label.
 #[gpui::test]
 fn each_answer_opens_the_confirm_page_for_its_path(cx: &mut TestAppContext) {
     // Row 2: the entry's folder is sent, and the reply's main checkout wins.
-    let (view, test_cx, mut peer) = project_page(
-        cx,
-        false,
-        true,
-        Path::new("/home/b"),
-        unreported("w1", "herdr", "/home/b/dev/herdr"),
-    );
+    let (view, test_cx, mut peer) = herdr_page(cx);
     press(test_cx, "enter");
     let request = sent(&mut peer);
     assert_eq!(request["params"]["cwd"], "/home/b/dev/herdr");
@@ -160,7 +152,7 @@ fn each_answer_opens_the_confirm_page_for_its_path(cx: &mut TestAppContext) {
     let home = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(home.path().join("dev/herdr/src")).unwrap();
     let (view, test_cx, mut peer) = folder_page(cx, true, true, home.path());
-    set_field(&view, test_cx, "~/dev/herdr/src");
+    set_focused_text(&view, test_cx, "~/dev/herdr/src");
     press(test_cx, "enter");
     test_cx.run_until_parked();
     let request = sent(&mut peer);
@@ -175,7 +167,7 @@ fn each_answer_opens_the_confirm_page_for_its_path(cx: &mut TestAppContext) {
     // Row 4: `not_git_worktree` is not an error, and its message never shows.
     let (view, test_cx, mut peer) = folder_page(cx, true, true, home.path());
     std::fs::create_dir(home.path().join("notes")).unwrap();
-    set_field(&view, test_cx, "~/notes");
+    set_focused_text(&view, test_cx, "~/notes");
     press(test_cx, "enter");
     test_cx.run_until_parked();
     sent(&mut peer);
@@ -216,7 +208,7 @@ fn the_check_sends_the_folder_in_the_form_the_daemon_reads(cx: &mut TestAppConte
 
     // A v2 session sends the trimmed text, which its daemon expands.
     let (view, test_cx, mut peer) = folder_page(cx, true, true, home.path());
-    set_field(&view, test_cx, " ~/notes ");
+    set_focused_text(&view, test_cx, " ~/notes ");
     press(test_cx, "enter");
     test_cx.run_until_parked();
     let request = sent(&mut peer);
@@ -230,7 +222,7 @@ fn the_check_sends_the_folder_in_the_form_the_daemon_reads(cx: &mut TestAppConte
 
     // A v1 session sends the path expanded here.
     let (view, test_cx, mut peer) = folder_page(cx, true, false, home.path());
-    set_field(&view, test_cx, "~/notes");
+    set_focused_text(&view, test_cx, "~/notes");
     press(test_cx, "enter");
     test_cx.run_until_parked();
     let request = sent(&mut peer);
@@ -285,7 +277,7 @@ fn an_unusable_folder_is_refused_without_a_request(cx: &mut TestAppContext) {
         ),
     ] {
         let (view, test_cx, mut peer) = folder_page(cx, local, false, home.path());
-        set_field(&view, test_cx, typed);
+        set_focused_text(&view, test_cx, typed);
         press(test_cx, "enter");
         test_cx.run_until_parked();
         assert!(on_folder_page(&view, test_cx), "{name}");
@@ -298,44 +290,6 @@ fn an_unusable_folder_is_refused_without_a_request(cx: &mut TestAppContext) {
         redraw(test_cx);
         assert!(painted(test_cx, message), "{name}");
         assert_no_request(&mut peer, &view, test_cx);
-    }
-}
-
-/// Agent new session 15, one case per Examples answer: a failed check keeps
-/// the field open on an existing folder, with the message in red.
-#[gpui::test]
-fn a_failed_check_keeps_the_folder_field_open(cx: &mut TestAppContext) {
-    let home = tempfile::tempdir().unwrap();
-    let linked = "New and open worktree actions start from the repo parent workspace.";
-    for (answer_json, message) in [
-        (
-            json!({"error": {"code": "worktree_list_failed", "message": "git failed"}}),
-            "git failed",
-        ),
-        (
-            json!({"error": {"code": "linked_worktree_source", "message": linked}}),
-            linked,
-        ),
-        (
-            json!({"result": {"type": "ok"}}),
-            "Unexpected reply from the server",
-        ),
-    ] {
-        let (view, test_cx, mut peer) = folder_page(cx, true, true, home.path());
-        press(test_cx, "enter");
-        test_cx.run_until_parked();
-        sent(&mut peer);
-        answer(&mut peer, &view, test_cx, answer_json);
-        assert!(on_folder_page(&view, test_cx), "{message}");
-        assert_eq!(field(&view, test_cx), "~/", "{message}");
-        assert_eq!(
-            status(&view, test_cx),
-            (Step::Idle, Some(message.to_owned())),
-            "{message}"
-        );
-        assert_eq!(confirmed(&view, test_cx), None, "{message}");
-        redraw(test_cx);
-        assert!(painted(test_cx, message), "{message}");
     }
 }
 
@@ -356,14 +310,14 @@ fn home_with_projects() -> tempfile::TempDir {
 fn a_click_on_a_suggestion_fills_the_field_only_while_nothing_is_pending(cx: &mut TestAppContext) {
     let home = home_with_projects();
     let (view, test_cx, mut peer) = folder_page(cx, true, true, home.path());
-    set_field(&view, test_cx, "~/p");
+    set_focused_text(&view, test_cx, "~/p");
     test_cx.run_until_parked();
     click(test_cx, "new-session-folder-row-1");
     assert_eq!(field(&view, test_cx), "~/Projects");
     assert_no_request(&mut peer, &view, test_cx);
 
     let (view, test_cx, mut peer) = folder_page(cx, true, true, home.path());
-    set_field(&view, test_cx, "~/p");
+    set_focused_text(&view, test_cx, "~/p");
     test_cx.run_until_parked();
     update(&view, test_cx, |view, _, cx| {
         view.check_folder("~/p", None, cx)
@@ -399,7 +353,7 @@ fn esc_on_the_folder_field_returns_to_the_project_page_as_it_was(cx: &mut TestAp
     assert_eq!(highlighted(&view, test_cx), "Other folder…");
     press(test_cx, "enter");
     assert!(on_folder_page(&view, test_cx));
-    set_field(&view, test_cx, "~/dev");
+    set_focused_text(&view, test_cx, "~/dev");
     press(test_cx, "escape");
     assert_eq!(
         view.read_with(test_cx, |view, _| view.menu.page),
@@ -414,13 +368,7 @@ fn esc_on_the_folder_field_returns_to_the_project_page_as_it_was(cx: &mut TestAp
 /// An answer in the slot under another id is not this check's.
 #[gpui::test]
 fn an_answer_under_another_id_leaves_the_step_at_checking(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = project_page(
-        cx,
-        false,
-        true,
-        Path::new("/home/b"),
-        unreported("w1", "herdr", "/home/b/dev/herdr"),
-    );
+    let (view, test_cx, mut peer) = herdr_page(cx);
     press(test_cx, "enter");
     sent(&mut peer);
     update(&view, test_cx, |view, window, cx| {
@@ -434,54 +382,65 @@ fn an_answer_under_another_id_leaves_the_step_at_checking(cx: &mut TestAppContex
     assert_eq!(confirmed(&view, test_cx), None);
 }
 
-/// A client-side error in the slot for the pending id ends the check with its
-/// display text in red, not the daemon's error shape.
+/// Agent new session 15, one row per Examples answer, and a client-side
+/// error in the slot for the pending id: the check ends, the field stays open
+/// on an existing folder with the same text, the message shows in red, and
+/// the confirm page does not open. A daemon error shows its message alone,
+/// and a client-side error its display text.
 #[gpui::test]
-fn a_client_side_error_for_the_pending_id_shows_its_text(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = project_page(
-        cx,
-        false,
-        true,
-        Path::new("/home/b"),
-        unreported("w1", "herdr", "/home/b/dev/herdr"),
-    );
-    press(test_cx, "enter");
-    sent(&mut peer);
-    update(&view, test_cx, |view, window, cx| {
-        let id = view
-            .menu
-            .new_session
-            .as_ref()
-            .unwrap()
-            .pending
-            .as_ref()
-            .unwrap()
-            .id
-            .clone();
-        let rejected = crate::Error::Client(herdr_client::Error::UnsupportedMethod);
-        view.live.dialog_response = Some((id, Some(Err(Arc::new(rejected)))));
-        view.update_workspace_dialog(window, cx);
-    });
-    let message = "method not advertised by endpoint";
-    assert_eq!(
-        status(&view, test_cx),
-        (Step::Idle, Some(message.to_owned()))
-    );
-    redraw(test_cx);
-    assert!(painted(test_cx, message));
+fn a_failed_check_keeps_the_folder_field_open_with_its_message(cx: &mut TestAppContext) {
+    let home = tempfile::tempdir().unwrap();
+    let linked = "New and open worktree actions start from the repo parent workspace.";
+    let rejected = || {
+        Err(Arc::new(crate::Error::Client(
+            herdr_client::Error::UnsupportedMethod,
+        )))
+    };
+    for (answer_json, message) in [
+        (
+            Ok(json!({"error": {"code": "worktree_list_failed", "message": "git failed"}})),
+            "git failed",
+        ),
+        (
+            Ok(json!({"error": {"code": "linked_worktree_source", "message": linked}})),
+            linked,
+        ),
+        (
+            Ok(json!({"result": {"type": "ok"}})),
+            "Unexpected reply from the server",
+        ),
+        (rejected(), "method not advertised by endpoint"),
+    ] {
+        let (view, test_cx, mut peer) = folder_page(cx, true, true, home.path());
+        press(test_cx, "enter");
+        test_cx.run_until_parked();
+        sent(&mut peer);
+        match answer_json {
+            Ok(answer_json) => answer(&mut peer, &view, test_cx, answer_json),
+            Err(error) => update(&view, test_cx, |view, window, cx| {
+                let id = pending_id(view);
+                view.live.dialog_response = Some((id, Some(Err(error))));
+                view.update_workspace_dialog(window, cx);
+            }),
+        }
+        assert!(on_folder_page(&view, test_cx), "{message}");
+        assert_eq!(field(&view, test_cx), "~/", "{message}");
+        assert_eq!(
+            status(&view, test_cx),
+            (Step::Idle, Some(message.to_owned())),
+            "{message}"
+        );
+        assert_eq!(confirmed(&view, test_cx), None, "{message}");
+        redraw(test_cx);
+        assert!(painted(test_cx, message), "{message}");
+    }
 }
 
 /// A check that cannot be queued shows why, sends nothing, and leaves the
 /// dialog usable.
 #[gpui::test]
 fn a_check_without_a_connection_handle_shows_not_connected(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = project_page(
-        cx,
-        false,
-        true,
-        Path::new("/home/b"),
-        unreported("w1", "herdr", "/home/b/dev/herdr"),
-    );
+    let (view, test_cx, mut peer) = herdr_page(cx);
     let handle = update(&view, test_cx, |view, _, _| {
         view.endpoints[view.selected_endpoint]
             .connection
@@ -505,13 +464,7 @@ fn a_check_without_a_connection_handle_shows_not_connected(cx: &mut TestAppConte
 /// row click, and an outside click all do nothing.
 #[gpui::test]
 fn the_dialog_is_locked_while_the_check_is_unanswered(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = project_page(
-        cx,
-        false,
-        true,
-        Path::new("/home/b"),
-        unreported("w1", "herdr", "/home/b/dev/herdr"),
-    );
+    let (view, test_cx, mut peer) = herdr_page(cx);
     press(test_cx, "enter");
     sent(&mut peer);
     press(test_cx, "enter");

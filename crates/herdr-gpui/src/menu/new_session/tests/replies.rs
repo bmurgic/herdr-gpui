@@ -1,8 +1,5 @@
-use crate::menu::new_session::replies::{
-    WorktreeListSource, parse_worktree_list_source, reply_message,
-};
+use crate::menu::new_session::replies::{WorktreeListSource, parse_worktree_list_source};
 use serde_json::{Value, json};
-use std::sync::Arc;
 
 fn source(workspace_id: Option<&str>, path: &str) -> Option<WorktreeListSource> {
     Some(WorktreeListSource {
@@ -65,26 +62,4 @@ fn the_source_is_read_from_the_worktree_list_result() {
     ] {
         assert_eq!(parse_worktree_list_source(&result), expected, "{name}");
     }
-}
-
-/// The page shows a daemon error's message alone, without its code, and a
-/// client-side error as its own display text.
-#[test]
-fn a_reply_gives_its_result_or_the_text_the_page_shows() {
-    let result = json!({"type": "worktree_list"});
-    assert_eq!(
-        reply_message(&Ok(json!({"result": result.clone()}))),
-        Ok(result)
-    );
-    assert_eq!(
-        reply_message(&Ok(json!({
-            "error": {"code": "worktree_list_failed", "message": "git failed"}
-        }))),
-        Err("git failed".to_owned())
-    );
-    let rejected = crate::Error::Client(herdr_client::Error::UnsupportedMethod);
-    assert_eq!(
-        reply_message(&Err(Arc::new(rejected))),
-        Err("method not advertised by endpoint".to_owned())
-    );
 }

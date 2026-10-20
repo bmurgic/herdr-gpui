@@ -41,7 +41,7 @@ pub(super) fn parse_worktree_list_source(result: &Value) -> Option<WorktreeListS
 
 /// The daemon's `result`, or the text the page shows in red: a daemon error's
 /// message alone, without its code, or a client-side error's display text.
-pub(super) fn reply_message(result: &DialogResponse) -> Result<Value, String> {
+fn reply_message(result: &DialogResponse) -> Result<Value, String> {
     let response = result.as_ref().map_err(|error| error.to_string())?;
     match response.get("error") {
         Some(error) => Err(endpoint_error(error).1.to_owned()),
@@ -54,6 +54,22 @@ fn is_not_git_worktree(result: &DialogResponse) -> bool {
     result
         .as_ref()
         .is_ok_and(|response| response["error"]["code"].as_str() == Some(NOT_GIT_WORKTREE))
+}
+
+/// The project a check's answer opens the confirm page for, by the design's
+/// table (D6), or the text the page shows in red instead. A folder outside
+/// a git repository opens as `not_git_project`.
+fn checked_project(result: &DialogResponse, not_git_project: Project) -> Result<Project, String> {
+    if is_not_git_worktree(result) {
+        return Ok(not_git_project);
+    }
+    let source = parse_worktree_list_source(&reply_message(result)?)
+        .ok_or_else(|| UNEXPECTED_REPLY.to_owned())?;
+    Ok(Project {
+        source_workspace_id: source.source_workspace_id,
+        path: source.source_checkout_path,
+        is_git: true,
+    })
 }
 
 impl HerdrWindow {
@@ -129,35 +145,16 @@ impl HerdrWindow {
         if dialog.pending.as_ref().map(|pending| &pending.id) != Some(id) {
             return;
         }
-        let result = result.clone();
         let Some(pending) = dialog.pending.take() else {
             return;
         };
         dialog.step = Step::Idle;
-        let project = if is_not_git_worktree(&result) {
-            Some(pending.not_git_project)
-        } else {
-            match reply_message(&result) {
-                Ok(reply) => {
-                    let source = parse_worktree_list_source(&reply);
-                    if source.is_none() {
-                        dialog.error = Some(UNEXPECTED_REPLY.to_owned());
-                    }
-                    source.map(|source| Project {
-                        source_workspace_id: source.source_workspace_id,
-                        path: source.source_checkout_path,
-                        is_git: true,
-                    })
-                }
-                Err(message) => {
-                    dialog.error = Some(message);
-                    None
-                }
+        match checked_project(result, pending.not_git_project) {
+            Ok(project) => self.open_new_session_confirm(project, cx),
+            Err(message) => {
+                dialog.error = Some(message);
+                cx.notify();
             }
-        };
-        match project {
-            Some(project) => self.open_new_session_confirm(project, cx),
-            None => cx.notify(),
         }
     }
 }

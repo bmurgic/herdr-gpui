@@ -6,7 +6,8 @@
 
 use crate::{HerdrWindow, sidebar::layout_tests::fixture_window, window::MockPeer};
 use gpui::{
-    Context, Entity, EntityInputHandler, TestAppContext, VisualTestContext, Window, px, size,
+    Context, Entity, EntityInputHandler, Modifiers, TestAppContext, VisualTestContext, Window, px,
+    size,
 };
 use herdr_client::protocol::{ClientMessage, ClientShellWorkspaceV2};
 use serde_json::{Value, json};
@@ -168,12 +169,34 @@ pub(super) fn highlighted(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext
     })
 }
 
+/// Replaces the focused field's text, as a paste over a selection would.
+pub(super) fn set_focused_text(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, text: &str) {
+    update(view, cx, |view, _, _| {
+        let input = view.menu.input.as_mut().unwrap();
+        input.selection = 0..input.text.len();
+    });
+    type_text(view, cx, text);
+}
+
+/// Draws the window and clicks the middle of the element `selector` names.
+pub(super) fn click(cx: &mut VisualTestContext, selector: &'static str) {
+    draw(cx);
+    let center = cx.debug_bounds(selector).unwrap().center();
+    cx.simulate_click(center, Modifiers::default());
+}
+
 /// The next API request the peer was sent, as JSON. The connection holds
 /// back everything queued after a request until it is answered, so a test
 /// cannot ask what else was sent while one is pending: it answers first and
 /// then uses `assert_no_request`.
 pub(super) fn sent(peer: &mut MockPeer) -> Value {
     peer.request()
+}
+
+/// The id of the request the dialog waits for.
+pub(super) fn pending_id(view: &HerdrWindow) -> String {
+    let dialog = view.menu.new_session.as_ref().unwrap();
+    dialog.pending.as_ref().unwrap().id.clone()
 }
 
 /// Answers the dialog's pending request with `response`, an endpoint
@@ -185,17 +208,7 @@ pub(super) fn answer(
     cx: &mut VisualTestContext,
     response: Value,
 ) {
-    let id = view.read_with(cx, |view, _| {
-        view.menu
-            .new_session
-            .as_ref()
-            .unwrap()
-            .pending
-            .as_ref()
-            .unwrap()
-            .id
-            .clone()
-    });
+    let id = view.read_with(cx, |view, _| pending_id(view));
     let mut envelope = response;
     envelope["id"] = id.as_str().into();
     peer.respond("boot-v1", &id, &envelope);

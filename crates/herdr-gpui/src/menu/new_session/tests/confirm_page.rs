@@ -110,21 +110,6 @@ fn assert_summary(cx: &mut VisualTestContext, expected: &str) {
     );
 }
 
-/// Replaces the focused field's text, as a paste over a selection would.
-fn set_focused_text(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, text: &str) {
-    update(view, cx, |view, _, _| {
-        let input = view.menu.input.as_mut().unwrap();
-        input.selection = 0..input.text.len();
-    });
-    type_text(view, cx, text);
-}
-
-fn click(cx: &mut VisualTestContext, selector: &'static str) {
-    draw(cx);
-    let center = cx.debug_bounds(selector).unwrap().center();
-    cx.simulate_click(center, Modifiers::default());
-}
-
 /// `worktree/<word>-<word>-<4 hex digits>`, the form `proposed_branch` has.
 fn is_proposed_branch(branch: &str) -> bool {
     let Some(rest) = branch.strip_prefix("worktree/") else {
