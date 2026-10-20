@@ -204,10 +204,10 @@ Independent test: pick a workspace whose repository the daemon reported, see the
 
 Independent test: from `Other folder…`, a subfolder of a repository opens the confirm page for its main checkout, a plain folder opens it without the worktree rows, and a relative or missing folder is refused in red with no request.
 
-- [ ] 4.1 Tests in `crates/herdr-gpui/src/menu/new_session/tests/replies.rs`, declared in `menu/new_session/tests.rs`
+- [x] 4.1 Tests in `crates/herdr-gpui/src/menu/new_session/tests/replies.rs`, declared in `menu/new_session/tests.rs`
   - New test [unit]: AN12, `parse_worktree_list_source` reads each source shape and gives `None` for the type `ok` and an empty path. Catches: B4.12.
   - New test [unit]: `reply_message` gives a daemon error's message alone and a client-side error's display text. Catches: B4.13.
-- [ ] 4.2 Tests in `crates/herdr-gpui/src/menu/new_session/tests/other_folder.rs`
+- [x] 4.2 Tests in `crates/herdr-gpui/src/menu/new_session/tests/other_folder.rs`
   - New test [integration]: AN12 rows 2 to 4, each answer opens the confirm page for its path with the worktree rows shown or hidden; row 1 is slice 3's AN12 row 1 case. Catches: B4.14, B4.15, B4.16.
   - New test [integration]: AN13, each Examples row records `worktree.list` with its params and shows `Checking folder…`. Catches: B4.17, B4.18.
   - New test [integration]: AN14, each Examples row keeps the field open with its text and red message and records no request. Catches: B4.19. Seeded: the field is open, the host kind is the row's, and the folder exists except in the row that refuses it.
@@ -218,10 +218,10 @@ Independent test: from `Other folder…`, a subfolder of a repository opens the 
   - New test [integration]: AN16, the folder page opens with `~/`, and Down then Tab fill `~/Projects`. Catches: B4.26.
   - New test [integration]: a client-side error for the pending id shows its display text in red and returns the step to `Idle`. Catches: B4.27.
   - New test [integration]: a check without a connection handle shows `Not connected to a daemon.` in red and returns the step to `Idle`. Catches: B4.25.
-- [ ] 4.3 Move the folder suggestion state into `FolderSuggestions` in the new `menu/new_workspace/folder.rs` per D6, keep `NewWorkspaceForm`'s behavior, and widen `check_form`, `request_cwd`, `DirectoryRefusal`, `MAX_FOLDER_ENTRIES`, and `list_folders` to `pub(in crate::menu)` in `suggestions.rs`. The New Workspace test assertions stay as they are. Only their reads of the moved `matches`, `parent`, `selected`, and `visible` change to go through the form's `FolderSuggestions` field: the helper in the New Workspace `tests.rs` (`:109`), `name_prompt.rs:217`, and `directory_prompt.rs:171`, `:225`, `:305-306`.
-- [ ] 4.4 Build the folder page per D6 in `menu/new_session/folder.rs`: the `~/` field with six suggestions, Tab, a suggestion click, the refusal order, Esc back to the project page as it was, and the off-thread listing and existence check. The pick of an entry without a `repository` record per D5 runs the same check in `projects.rs`.
-- [ ] 4.5 Build the git check per D6 and D9: send `worktree.list` through `request_dialog`, set `step = Checking` and `pending`, apply the answer in `update_new_session` by D6's table only when its id is `pending`, and add `parse_worktree_list_source` and `reply_message` in `replies.rs`.
-- [ ] 4.6 Lock the `Checking` step per D11: `new_session_key`, paste, cut, and clicks on the dialog do nothing, and `new_session_outside_click`, called first by the overlay's outside-click handler (`menu/chrome.rs:779-812`), swallows the click.
+- [x] 4.3 Move the folder suggestion state into `FolderSuggestions` in the new `menu/new_workspace/folder.rs` per D6, keep `NewWorkspaceForm`'s behavior, and widen `check_form`, `request_cwd`, `DirectoryRefusal`, `MAX_FOLDER_ENTRIES`, and `list_folders` to `pub(in crate::menu)` in `suggestions.rs`. The New Workspace test assertions stay as they are. Only their reads of the moved `matches`, `parent`, `selected`, and `visible` change to go through the form's `FolderSuggestions` field: the helper in the New Workspace `tests.rs` (`:109`), `name_prompt.rs:217`, and `directory_prompt.rs:171`, `:225`, `:305-306`.
+- [x] 4.4 Build the folder page per D6 in `menu/new_session/folder.rs`: the `~/` field with six suggestions, Tab, a suggestion click, the refusal order, Esc back to the project page as it was, and the off-thread listing and existence check. The pick of an entry without a `repository` record per D5 runs the same check in `projects.rs`.
+- [x] 4.5 Build the git check per D6 and D9: send `worktree.list` through `request_dialog`, set `step = Checking` and `pending`, apply the answer in `update_new_session` by D6's table only when its id is `pending`, and add `parse_worktree_list_source` and `reply_message` in `replies.rs`.
+- [x] 4.6 Lock the `Checking` step per D11: `new_session_key`, paste, cut, and clicks on the dialog do nothing, and `new_session_outside_click`, called first by the overlay's outside-click handler (`menu/chrome.rs:779-812`), swallows the click.
 
 ## 5. Start a session
 **Depends on:** 3, 4
