@@ -486,7 +486,7 @@ impl Settings {
 
     /// `load_path` for tests outside this module that need settings read
     /// from a temporary file.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn load_path_for_tests(path: PathBuf) -> crate::Result<Self> {
         Self::load_path(path)
     }

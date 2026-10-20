@@ -7,7 +7,6 @@ use crate::herdr_settings::Settings;
 
 /// New session command setting 03, the file half: a start whose command field
 /// was edited to `codex` types it and leaves `config.toml` as it was.
-#[cfg(unix)]
 #[gpui::test]
 fn a_start_with_an_edited_command_leaves_config_toml_unchanged(cx: &mut TestAppContext) {
     let folder = tempfile::tempdir().unwrap();

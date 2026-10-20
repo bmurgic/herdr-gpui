@@ -28,6 +28,8 @@ mod setup_rows;
 mod setup_wait;
 mod start;
 mod start_replies;
+// Its one test writes a file under a Unix permission model.
+#[cfg(unix)]
 mod start_setting;
 mod summary;
 

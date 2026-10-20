@@ -56,7 +56,7 @@ enum NextStep {
 impl HerdrWindow {
     /// `start_new_session` for the endpoint lifecycle tests, which cannot
     /// name this module's private page keys.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn start_new_session_for_tests(&mut self, cx: &mut Context<Self>) {
         self.start_new_session(cx);
     }
