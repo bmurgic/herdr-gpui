@@ -14,10 +14,10 @@ use gpui::{Modifiers, point};
 use unicode_width::UnicodeWidthStr;
 
 /// The method the confirm page needs on top of the dialog's own.
-const SEND_TEXT: &str = "pane.send_text";
+pub(super) const SEND_TEXT: &str = "pane.send_text";
 
 /// Every method the dialog needs, and the one that types a command.
-fn methods_with_send_text() -> Vec<&'static str> {
+pub(super) fn methods_with_send_text() -> Vec<&'static str> {
     let mut methods = METHODS.to_vec();
     methods.push(SEND_TEXT);
     methods
@@ -25,7 +25,7 @@ fn methods_with_send_text() -> Vec<&'static str> {
 
 /// A window over `workspaces`, whose shared config says `config`, and a peer
 /// that advertises `methods`, with the project page open.
-fn project_page<'a>(
+pub(super) fn project_page<'a>(
     cx: &'a mut TestAppContext,
     methods: &[&str],
     config: &str,
@@ -41,14 +41,14 @@ fn project_page<'a>(
 }
 
 /// The confirm page for `herdr`, a git project, with the setting `claude`.
-fn confirm_page<'a>(
+pub(super) fn confirm_page<'a>(
     cx: &'a mut TestAppContext,
     methods: &[&str],
 ) -> (Entity<HerdrWindow>, &'a mut VisualTestContext, MockPeer) {
     confirm_page_with(cx, methods, "[ui]\nnew_session_command = \"claude\"\n")
 }
 
-fn confirm_page_with<'a>(
+pub(super) fn confirm_page_with<'a>(
     cx: &'a mut TestAppContext,
     methods: &[&str],
     config: &str,
@@ -59,7 +59,7 @@ fn confirm_page_with<'a>(
     (view, test_cx, peer)
 }
 
-fn is_confirming(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool {
+pub(super) fn is_confirming(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool {
     view.read_with(cx, |view, _| {
         view.menu
             .new_session
@@ -68,7 +68,7 @@ fn is_confirming(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool
     })
 }
 
-fn confirm_of<R>(
+pub(super) fn confirm_of<R>(
     view: &Entity<HerdrWindow>,
     cx: &mut VisualTestContext,
     read: impl FnOnce(&Confirm) -> R,
@@ -86,12 +86,16 @@ fn confirm_of<R>(
     })
 }
 
-fn focus(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> ConfirmRow {
+pub(super) fn focus(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> ConfirmRow {
     confirm_of(view, cx, |confirm| confirm.focus)
 }
 
 /// The text of the branch or command field, wherever it is held.
-fn field(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, row: ConfirmRow) -> String {
+pub(super) fn field(
+    view: &Entity<HerdrWindow>,
+    cx: &mut VisualTestContext,
+    row: ConfirmRow,
+) -> String {
     view.read_with(cx, |view, _| view.confirm_field_text(row).to_owned())
 }
 
@@ -111,7 +115,7 @@ fn assert_summary(cx: &mut VisualTestContext, expected: &str) {
 }
 
 /// `worktree/<word>-<word>-<4 hex digits>`, the form `proposed_branch` has.
-fn is_proposed_branch(branch: &str) -> bool {
+pub(super) fn is_proposed_branch(branch: &str) -> bool {
     let Some(rest) = branch.strip_prefix("worktree/") else {
         return false;
     };

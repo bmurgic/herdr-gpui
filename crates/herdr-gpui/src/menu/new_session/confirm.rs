@@ -6,7 +6,7 @@
 //! parked in `Confirm` until it gains the focus. A checkbox or button row has
 //! no field, so `MenuState::input` is `None` there.
 
-use super::summary::summary;
+use super::{Step, start::StartProgress, summary::summary};
 use crate::{HerdrWindow, dialog_input::DialogInput};
 use gpui::{Context, KeyDownEvent, Pixels, Window};
 use herdr_client::Method;
@@ -64,6 +64,8 @@ pub(super) struct Confirm {
     /// opens.
     pub(super) can_type: bool,
     pub(super) focus: ConfirmRow,
+    /// What a start from this page has done.
+    pub(super) started: StartProgress,
     /// The branch field while another row has the focus.
     branch: Option<DialogInput>,
     /// The command field while another row has the focus.
@@ -78,6 +80,7 @@ impl Confirm {
             command_on: true,
             can_type,
             focus: ConfirmRow::Start,
+            started: StartProgress::default(),
             branch: Some(field_at_end(branch)),
             command: Some(field_at_end(command)),
         }
@@ -91,6 +94,12 @@ impl Confirm {
             self.command_on,
             self.can_type,
         )
+    }
+
+    /// Whether start creates a worktree: the folder is a git repository and
+    /// the box is on.
+    pub(super) fn uses_worktree(&self) -> bool {
+        self.project.is_git && self.worktree_on
     }
 
     /// The parked field of `row`, which is `None` while that row has the focus.
@@ -160,6 +169,12 @@ impl HerdrWindow {
         };
         if dialog.confirm.take().is_none() {
             return;
+        }
+        // The first list of a start is not locked, so Esc can reach here with
+        // it out. Its answer must not find the page gone.
+        if dialog.step == Step::Waiting {
+            dialog.step = Step::Idle;
+            dialog.pending = None;
         }
         self.menu.input = dialog.filter.take();
         self.discard_composition(cx);
@@ -239,14 +254,16 @@ impl HerdrWindow {
             }
             ConfirmRow::Branch | ConfirmRow::Command => self.move_confirm_focus(1, cx),
             ConfirmRow::Back => self.leave_new_session_confirm(cx),
-            // Start sends nothing yet.
-            ConfirmRow::Start => {}
+            ConfirmRow::Start => self.start_new_session(cx),
         }
     }
 
     /// A left click on `row`: focus it, then, for a checkbox or a button, do
     /// what Enter does there. A skipped row ignores it.
     pub(super) fn click_confirm_row(&mut self, row: ConfirmRow, cx: &mut Context<Self>) {
+        if self.new_session_locked() {
+            return;
+        }
         let is_reachable = self
             .new_session_confirm()
             .is_some_and(|confirm| confirm.rows().contains(&row));

@@ -18,6 +18,8 @@ mod other_folder;
 mod project_entries;
 mod project_page;
 mod replies;
+mod setup_wait;
+mod start;
 mod summary;
 
 /// The methods the dialog needs.
@@ -254,4 +256,72 @@ pub(super) fn assert_no_request(
 ) {
     let requests = drain(peer, view, cx);
     assert!(requests.is_empty(), "unexpected requests: {requests:?}");
+}
+
+/// Every method a start needs: the dialog's own, the one that types the
+/// command, and the one that lists setup hooks.
+pub(super) fn start_methods() -> Vec<&'static str> {
+    let mut methods = METHODS.to_vec();
+    methods.extend([confirm_page::SEND_TEXT, "plugin.log.list"]);
+    methods
+}
+
+/// The daemon's answers to the start's requests, as endpoint envelopes.
+pub(super) fn worktree_created(branch: Option<&str>) -> Value {
+    let mut worktree = json!({"path": "/home/b/dev/herdr-wt"});
+    if let Some(branch) = branch {
+        worktree["branch"] = branch.into();
+    }
+    json!({"result": {
+        "type": "worktree_created",
+        "workspace": {"workspace_id": "w2"},
+        "tab": {"tab_id": "w2:t1"},
+        "root_pane": {"pane_id": "w2:p1"},
+        "worktree": worktree,
+    }})
+}
+
+pub(super) fn workspace_created() -> Value {
+    json!({"result": {
+        "type": "workspace_created",
+        "workspace": {"workspace_id": "w2"},
+        "tab": {"tab_id": "w2:t1"},
+        "root_pane": {"pane_id": "w2:p1"},
+    }})
+}
+
+pub(super) fn ok() -> Value {
+    json!({"result": {"type": "ok"}})
+}
+
+pub(super) fn tab_info() -> Value {
+    json!({"result": {"type": "tab_info", "tab": {"tab_id": "w2:t1"}}})
+}
+
+pub(super) fn log_list(logs: Vec<Value>) -> Value {
+    json!({"result": {"type": "plugin_log_list", "logs": logs}})
+}
+
+pub(super) fn error_answer(code: &str, message: &str) -> Value {
+    json!({"error": {"code": code, "message": message}})
+}
+
+/// A hook run of the setup wait.
+pub(super) fn hook_record(status: &str, workspace_id: &str, event: &str) -> Value {
+    json!({
+        "log_id": "log-1", "plugin_id": "setup", "command": ["sh"], "status": status,
+        "started_unix_ms": 1, "workspace_id": workspace_id, "event": event,
+    })
+}
+
+/// Reads the next request, checks its method, and returns its params.
+pub(super) fn expect_request(peer: &mut MockPeer, method: &str) -> Value {
+    let request = sent(peer);
+    assert_eq!(request["method"], method, "{request}");
+    request["params"].clone()
+}
+
+/// The dialog's red line, which the page shows above its buttons.
+pub(super) fn error_line(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Option<String> {
+    view.read_with(cx, |view, _| view.menu.new_session.as_ref()?.error.clone())
 }

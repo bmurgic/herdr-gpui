@@ -4,19 +4,19 @@
 //! applied by the table in the change's design (D6), and only when it comes
 //! under the id of the pending request.
 
-use super::{PendingCheck, Step, confirm::Project};
+use super::{Pending, PendingKind, Step, confirm::Project};
 use crate::{
     HerdrWindow,
     menu::{endpoint_error, new_workspace::DirectoryRefusal},
     state::DialogResponse,
 };
-use gpui::Context;
+use gpui::{Context, Window};
 use herdr_client::Method;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
 /// What the page shows for an answer of a shape the dialog does not know.
-const UNEXPECTED_REPLY: &str = "Unexpected reply from the server";
+pub(super) const UNEXPECTED_REPLY: &str = "Unexpected reply from the server";
 
 /// The daemon's code for a folder that is not in a git repository.
 const NOT_GIT_WORKTREE: &str = "not_git_worktree";
@@ -75,6 +75,10 @@ pub(super) const WORKTREE_CREATED_EVENT: &str = "worktree.created";
 
 /// The list in a `plugin_log_list` result, or `None` for another result type
 /// or a record the dialog cannot read, such as an unknown status.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the setup checklist reads it in slice 7")
+)]
 pub(super) fn parse_plugin_log_list(result: &Value) -> Option<PluginLogList> {
     if result["type"] != "plugin_log_list" {
         return None;
@@ -85,6 +89,10 @@ pub(super) fn parse_plugin_log_list(result: &Value) -> Option<PluginLogList> {
 /// The records of `list` for `workspace_id` and the `worktree.created` event,
 /// in the order the daemon sent them. The daemon filters too, but a daemon
 /// that ignores a filter must not change the checklist.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the setup checklist reads it in slice 7")
+)]
 pub(super) fn kept_records<'a>(
     list: &'a PluginLogList,
     workspace_id: &str,
@@ -108,18 +116,16 @@ pub(super) fn reply_message(result: &DialogResponse) -> Result<Value, String> {
     }
 }
 
-/// Whether the daemon answered that the folder is not in a git repository.
-fn is_not_git_worktree(result: &DialogResponse) -> bool {
-    result
-        .as_ref()
-        .is_ok_and(|response| response["error"]["code"].as_str() == Some(NOT_GIT_WORKTREE))
+/// The code of the error the daemon answered with, if it answered with one.
+pub(super) fn error_code(result: &DialogResponse) -> Option<&str> {
+    result.as_ref().ok()?["error"]["code"].as_str()
 }
 
 /// The project a check's answer opens the confirm page for, by the design's
 /// table (D6), or the text the page shows in red instead. A folder outside
 /// a git repository opens as `not_git_project`.
 fn checked_project(result: &DialogResponse, not_git_project: Project) -> Result<Project, String> {
-    if is_not_git_worktree(result) {
+    if error_code(result) == Some(NOT_GIT_WORKTREE) {
         return Ok(not_git_project);
     }
     let source = parse_worktree_list_source(&reply_message(result)?)
@@ -171,12 +177,14 @@ impl HerdrWindow {
             Ok(id) => {
                 dialog.error = None;
                 dialog.step = Step::Checking;
-                dialog.pending = Some(PendingCheck {
+                dialog.pending = Some(Pending {
                     id,
-                    not_git_project: Project {
-                        source_workspace_id,
-                        path: cwd,
-                        is_git: false,
+                    kind: PendingKind::Check {
+                        not_git_project: Project {
+                            source_workspace_id,
+                            path: cwd,
+                            is_git: false,
+                        },
                     },
                 });
             }
@@ -193,11 +201,12 @@ impl HerdrWindow {
     }
 
     /// Applies the answer in the dialog's slot when it is the pending
-    /// check's. An answer under any other id is ignored.
-    pub(super) fn apply_pending_check(&mut self, cx: &mut Context<Self>) {
+    /// request's. An answer under any other id is ignored.
+    pub(super) fn apply_pending_answer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some((id, Some(result))) = &self.live.dialog_response else {
             return;
         };
+        let result = result.clone();
         let Some(dialog) = self.menu.new_session.as_mut() else {
             return;
         };
@@ -207,13 +216,18 @@ impl HerdrWindow {
         let Some(pending) = dialog.pending.take() else {
             return;
         };
-        dialog.step = Step::Idle;
-        match checked_project(result, pending.not_git_project) {
-            Ok(project) => self.open_new_session_confirm(project, cx),
-            Err(message) => {
-                dialog.error = Some(message);
-                cx.notify();
+        match pending.kind {
+            PendingKind::Check { not_git_project } => {
+                dialog.step = Step::Idle;
+                match checked_project(&result, not_git_project) {
+                    Ok(project) => self.open_new_session_confirm(project, cx),
+                    Err(message) => {
+                        dialog.error = Some(message);
+                        cx.notify();
+                    }
+                }
             }
+            PendingKind::Start => self.apply_start_answer(&result, window, cx),
         }
     }
 }

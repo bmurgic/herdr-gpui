@@ -26,6 +26,8 @@ mod folder;
 mod projects;
 mod render;
 mod replies;
+mod setup;
+mod start;
 mod summary;
 
 #[cfg(test)]
@@ -58,11 +60,11 @@ pub(crate) struct NewSession {
     folder: Option<folder::FolderPage>,
     /// The confirm page, once a project was picked.
     confirm: Option<confirm::Confirm>,
-    /// Whether a folder check is waiting for the daemon.
+    /// Which request, if any, the dialog waits for.
     step: Step,
-    /// The folder check the dialog waits for, set exactly while `step` is
-    /// `Checking`.
-    pending: Option<PendingCheck>,
+    /// The request the dialog waits for, set exactly while `step` is not
+    /// `Idle`, except that a `Waiting` list that failed to queue sets none.
+    pending: Option<Pending>,
     /// Why the last folder check or refusal failed, shown in red under the
     /// field or the rows. The next check clears it.
     error: Option<String>,
@@ -74,15 +76,32 @@ enum Step {
     Idle,
     /// A `worktree.list` is out. The dialog does nothing until it is answered.
     Checking,
+    /// A `worktree.create` or `workspace.create` is out.
+    Creating,
+    /// The first `plugin.log.list` of the setup wait is out.
+    Waiting,
+    /// The `pane.send_text` that types the command is out.
+    Typing,
+    /// The `tab.focus` that ends the start is out.
+    Focusing,
 }
 
-/// The `worktree.list` the dialog waits for.
-struct PendingCheck {
+/// The request the dialog waits for.
+struct Pending {
     /// The request id its answer comes under.
     id: String,
-    /// The project the confirm page opens for when the folder is not a git
-    /// repository.
-    not_git_project: Project,
+    kind: PendingKind,
+}
+
+enum PendingKind {
+    /// A folder check.
+    Check {
+        /// The project the confirm page opens for when the folder is not a
+        /// git repository.
+        not_git_project: Project,
+    },
+    /// A step of a start, which `Step` names.
+    Start,
 }
 
 /// The rows the project page shows now, and the highlight among them.
@@ -200,8 +219,9 @@ impl HerdrWindow {
         cx.notify();
     }
 
-    /// Closes the dialog when its host was switched or its daemon restarted.
-    /// Runs on every window update, ahead of the workspace menu's dialogs.
+    /// Closes the dialog when its host was switched or its daemon restarted,
+    /// then applies the answer to its pending request. Runs on every window
+    /// update, ahead of the workspace menu's dialogs.
     pub(crate) fn update_new_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(dialog) = self
             .menu
@@ -223,16 +243,19 @@ impl HerdrWindow {
             self.dismiss_menu(window, cx);
             return;
         }
-        self.apply_pending_check(cx);
+        self.apply_pending_answer(window, cx);
     }
 
-    /// Whether a folder check is out, so the dialog does nothing until the
-    /// daemon answers it.
+    /// Whether a request that locks the dialog is out, so it does nothing
+    /// until the daemon answers. `Waiting` is not locked: its page keeps its
+    /// own buttons.
     pub(crate) fn new_session_locked(&self) -> bool {
-        self.menu
-            .new_session
-            .as_ref()
-            .is_some_and(|dialog| dialog.step == Step::Checking)
+        self.menu.new_session.as_ref().is_some_and(|dialog| {
+            matches!(
+                dialog.step,
+                Step::Checking | Step::Creating | Step::Typing | Step::Focusing
+            )
+        })
     }
 
     /// Called first by the overlay's outside-click handler. Returns whether

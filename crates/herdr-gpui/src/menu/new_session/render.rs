@@ -213,14 +213,20 @@ impl HerdrWindow {
                 .text_color(rgb(theme.subtext()))
                 .child(label_text(CHECKING_FOLDER))
         });
-        let error = dialog.error.as_ref().map(|error| {
+        let error = self.error_line();
+        step.into_iter().chain(error).collect()
+    }
+
+    /// Why the last check or start failed, in red, or nothing.
+    fn error_line(&self) -> Option<Div> {
+        let error = self.menu.new_session.as_ref()?.error.as_ref()?;
+        Some(
             div()
                 .debug_selector(|| "new-session-error".into())
                 .px(px(ENTRY_INSET))
-                .text_color(danger(theme))
-                .child(label_text(error))
-        });
-        step.into_iter().chain(error).collect()
+                .text_color(danger(&self.theme))
+                .child(label_text(error)),
+        )
     }
 
     /// The rows in the visible window of the entries that pass the filter.
@@ -320,7 +326,7 @@ impl HerdrWindow {
                     div()
                         .px(px(ENTRY_INSET))
                         .text_color(rgb(theme.subtext()))
-                        .child(CANNOT_TYPE),
+                        .child(label_text(CANNOT_TYPE)),
                 )
             })
             .child(
@@ -332,6 +338,7 @@ impl HerdrWindow {
                     .overflow_hidden()
                     .child(label_text(&summary)),
             )
+            .children(self.error_line())
             .child(
                 div()
                     .flex()
