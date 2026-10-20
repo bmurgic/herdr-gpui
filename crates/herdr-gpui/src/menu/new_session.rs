@@ -43,10 +43,10 @@ pub(crate) struct NewSession {
 }
 
 /// The rows the project page shows now, and the highlight among them.
-pub(super) struct ShownProjects {
+struct ShownProjects {
     /// The entries that pass the filter, top to bottom.
-    pub(super) rows: Vec<ProjectEntry>,
-    pub(super) highlighted: usize,
+    rows: Vec<ProjectEntry>,
+    highlighted: usize,
 }
 
 impl HerdrWindow {
@@ -101,7 +101,7 @@ impl HerdrWindow {
     /// The page's rows, read from the current snapshot every time so a
     /// workspace that closed, or a `repository` record that arrived, shows.
     /// `None` when the page is not open or has no snapshot.
-    pub(super) fn shown_projects(&self) -> Option<ShownProjects> {
+    fn shown_projects(&self) -> Option<ShownProjects> {
         let dialog = self.menu.new_session.as_ref()?;
         let snapshot = self.live.snapshot.as_ref()?;
         let filter = &self.menu.input.as_ref()?.text;
