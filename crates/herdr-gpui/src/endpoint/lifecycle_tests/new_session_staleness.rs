@@ -28,7 +28,7 @@ fn the_project_page_closes_when_its_host_or_boot_changes(cx: &mut gpui::TestAppC
             })
         };
         let (endpoint, mut server) = new_endpoint("ssh:fixture");
-        let (other, _other_server) = new_endpoint("ssh:other");
+        let (other, mut other_server) = new_endpoint("ssh:other");
         let boot = cx.update(|window, cx| {
             view.update(cx, |view, cx| {
                 view.endpoints.truncate(1);
@@ -58,23 +58,32 @@ fn the_project_page_closes_when_its_host_or_boot_changes(cx: &mut gpui::TestAppC
                 view.update_workspace_dialog(window, cx);
                 assert!(view.menu.page.is_none(), "{switch_host}");
                 assert!(view.menu.new_session.is_none(), "{switch_host}");
-                // An ordered marker exposes any request sent before it.
-                view.endpoints[1]
-                    .connection
-                    .handle
-                    .as_ref()
-                    .unwrap()
-                    .set_focus(&boot, false)
-                    .unwrap();
+                // An ordered marker on each host exposes any request sent
+                // before it, to the old host or to the newly selected one.
+                for endpoint in &view.endpoints[1..] {
+                    endpoint
+                        .connection
+                        .handle
+                        .as_ref()
+                        .unwrap()
+                        .set_focus(&boot, false)
+                        .unwrap();
+                }
             })
         });
-        loop {
-            match server.receive() {
-                ClientMessage::ClientShellEndpointRequest { request, .. } => {
-                    panic!("{switch_host} sent {request}")
+        let mut servers = vec![&mut server];
+        if switch_host {
+            servers.push(&mut other_server);
+        }
+        for server in servers {
+            loop {
+                match server.receive() {
+                    ClientMessage::ClientShellEndpointRequest { request, .. } => {
+                        panic!("{switch_host} sent {request}")
+                    }
+                    ClientMessage::ClientShellFocus { focused: false } => break,
+                    _ => {}
                 }
-                ClientMessage::ClientShellFocus { focused: false } => break,
-                _ => {}
             }
         }
     }
