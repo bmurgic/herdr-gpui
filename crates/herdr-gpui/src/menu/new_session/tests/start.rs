@@ -103,7 +103,7 @@ pub(super) fn is_closed(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) 
     })
 }
 
-fn step(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Step {
+pub(super) fn step(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Step {
     view.read_with(cx, |view, _| view.menu.new_session.as_ref().unwrap().step)
 }
 
