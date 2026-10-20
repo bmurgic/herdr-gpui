@@ -403,6 +403,19 @@ fn native_gui_live() {
 #[cfg(target_os = "macos")]
 const NEW_SESSION_MARKER: &str = "e2e-typed-marker";
 
+/// The hook that runs for 30 seconds. It first closes every descriptor past
+/// stdio. The daemon starts each hook from its own thread. On macOS a pipe end
+/// one thread has just created can leak into the process another thread
+/// starts at the same moment, and a leaked end keeps the first hook's output
+/// open, so its row would stay running until this hook exits. A scratch
+/// program with the daemon's spawn pattern showed that leak (the quick hook
+/// took as long as the sleeping one in 3 of 1000 pairs under CPU load, 0 of
+/// 1000 with this prefix). The one native stall this guards against was not
+/// traced to it.
+#[cfg(target_os = "macos")]
+const HANG_HOOK: &str =
+    r"for f in /dev/fd/*; do n=${f##*/}; [ $n -gt 2 ] && eval exec $n\>\&-; done; sleep 30";
+
 /// Clicks the new session dialog's footer button, project row, `start`,
 /// `close`, and then `start anyway` on a second session, on a real window,
 /// against a repository whose `worktree.created` hooks run for 30 seconds and
@@ -437,7 +450,7 @@ fn native_new_session(walk: &str) {
     ));
     fs::write(sandbox.dir.join("config.toml"), config).unwrap();
     let repo = seed_repository(sandbox);
-    link_setup_hook(sandbox, &binary, "e2e.hang", "sleep 30");
+    link_setup_hook(sandbox, &binary, "e2e.hang", HANG_HOOK);
     link_setup_hook(sandbox, &binary, "e2e.fail", "exit 1");
     // Two folders under a home of their own, so the folder page lists exactly
     // these, in this order.
@@ -572,7 +585,7 @@ platforms = ["linux", "macos"]
 
 [[events]]
 on = "worktree.created"
-command = ["/bin/sh", "-c", "{script}"]
+command = ["/bin/sh", "-c", '''{script}''']
 "#
         ),
     )
