@@ -14,7 +14,7 @@ mod new_session;
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 pub(crate) use new_session::NewSessionStage;
 #[cfg(all(test, unix))]
-pub(crate) use new_session::{ConfirmProject, DialogProbe};
+pub(crate) use new_session::{ConfirmProject, DialogProbe, tests as new_session_tests};
 mod new_workspace;
 mod page;
 mod pr;

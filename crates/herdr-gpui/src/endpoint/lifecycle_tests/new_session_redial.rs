@@ -4,7 +4,7 @@
 //! check.
 
 use super::*;
-use crate::menu::{ConfirmProject, DialogProbe, Page};
+use crate::menu::{ConfirmProject, DialogProbe, Page, new_session_tests::HOST_LABEL};
 
 /// Every request a start can send.
 const METHODS: &[Method] = &[
@@ -16,9 +16,6 @@ const METHODS: &[Method] = &[
     Method::PaneSendText,
     Method::TabFocus,
 ];
-
-/// The label the host shows in the lost-connection line.
-pub(super) const HOST_LABEL: &str = "devbox";
 
 /// How long the window waits for the state a test expects.
 const WAIT: Duration = Duration::from_secs(3);

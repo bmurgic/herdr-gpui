@@ -44,8 +44,10 @@ mod setup_rows;
 mod start;
 mod summary;
 
+/// The dialog's tests. The Unix-only endpoint lifecycle tests share its
+/// `pub(crate)` host label and reply fixtures.
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 /// The methods the dialog cannot work without.
 const REQUIRED_METHODS: [Method; 4] = [

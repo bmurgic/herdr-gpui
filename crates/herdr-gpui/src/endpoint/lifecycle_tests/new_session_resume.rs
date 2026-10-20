@@ -2,33 +2,12 @@
 //! that goes on listening: what they send while the host is down and after it
 //! connects again.
 
-use super::new_session_redial::{HOST_LABEL, Rig};
+use super::new_session_redial::Rig;
+use crate::menu::new_session_tests::{HOST_LABEL, log_list, ok, tab_info, worktree_created};
 use serde_json::json;
 
 /// The command the confirm page types by default.
 const COMMAND_TEXT: &str = "claude\n";
-
-fn created() -> serde_json::Value {
-    json!({"result": {
-        "type": "worktree_created",
-        "workspace": {"workspace_id": "w2"},
-        "tab": {"tab_id": "w2:t1"},
-        "root_pane": {"pane_id": "w2:p1"},
-        "worktree": {"path": "/w"},
-    }})
-}
-
-fn ok() -> serde_json::Value {
-    json!({"result": {"type": "ok"}})
-}
-
-fn tab_info() -> serde_json::Value {
-    json!({"result": {"type": "tab_info", "tab": {"tab_id": "w2:t1"}}})
-}
-
-fn log_list(logs: Vec<serde_json::Value>) -> serde_json::Value {
-    json!({"result": {"type": "plugin_log_list", "logs": logs}})
-}
 
 /// Where a start loses its connection.
 #[derive(Clone, Copy, Debug)]
@@ -44,7 +23,7 @@ impl Rig<'_> {
     /// has its request out. That request then times out with the connection.
     fn start_until_lost(&mut self, lost_at: LostAt) {
         self.start();
-        self.serve("worktree.create", created());
+        self.serve("worktree.create", worktree_created(None));
         self.serve("plugin.log.list", log_list(Vec::new()));
         if matches!(lost_at, LostAt::Focusing) {
             self.serve("pane.send_text", ok());

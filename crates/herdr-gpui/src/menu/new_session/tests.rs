@@ -288,7 +288,7 @@ pub(super) fn start_methods() -> Vec<&'static str> {
 }
 
 /// The daemon's answers to the start's requests, as endpoint envelopes.
-pub(super) fn worktree_created(branch: Option<&str>) -> Value {
+pub(crate) fn worktree_created(branch: Option<&str>) -> Value {
     let mut worktree = json!({"path": "/home/b/dev/herdr-wt"});
     if let Some(branch) = branch {
         worktree["branch"] = branch.into();
@@ -311,15 +311,15 @@ pub(super) fn workspace_created() -> Value {
     }})
 }
 
-pub(super) fn ok() -> Value {
+pub(crate) fn ok() -> Value {
     json!({"result": {"type": "ok"}})
 }
 
-pub(super) fn tab_info() -> Value {
+pub(crate) fn tab_info() -> Value {
     json!({"result": {"type": "tab_info", "tab": {"tab_id": "w2:t1"}}})
 }
 
-pub(super) fn log_list(logs: Vec<Value>) -> Value {
+pub(crate) fn log_list(logs: Vec<Value>) -> Value {
     json!({"result": {"type": "plugin_log_list", "logs": logs}})
 }
 
@@ -348,7 +348,7 @@ pub(super) fn error_line(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext)
 }
 
 /// The label the lost-connection tests give the selected host.
-pub(super) const HOST_LABEL: &str = "devbox";
+pub(crate) const HOST_LABEL: &str = "devbox";
 
 /// Names the selected host `HOST_LABEL`, so the lost-connection line has a
 /// label the test fixes itself.
