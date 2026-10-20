@@ -87,7 +87,7 @@ impl Method {
             Self::PaneSplit => "pane.split",
             Self::PaneSwap => "pane.swap",
             Self::PaneZoom => "pane.zoom",
-            Self::PluginLogList => "plugin.log",
+            Self::PluginLogList => "plugin.log.list",
             Self::ProductAnnouncementDismiss => "product_announcement.dismiss",
             Self::ReleaseNotesDismiss => "release_notes.dismiss",
             Self::ServerReloadConfig => "server.reload_config",
