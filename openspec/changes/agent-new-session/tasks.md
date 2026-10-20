@@ -305,26 +305,26 @@ Independent test: against a myherdr daemon with no setup hooks, start from the c
 
 Independent test: a start whose branch git refuses shows `starting…` with a turning icon and `Creating…`, then git's reason in red with `start` enabled, and a second start with a valid branch finishes without making a second workspace.
 
-- [ ] 6.1 New test [unit] in `crates/herdr-gpui/src/menu/new_session/tests/error_rows.rs`, declared in `menu/new_session/tests.rs`: Start 09, `status_rows` gives each Examples row's rows. Catches: B6.5.
-- [ ] 6.2 Tests in `crates/herdr-gpui/src/menu/new_session/tests/progress.rs`
+- [x] 6.1 New test [unit] in `crates/herdr-gpui/src/menu/new_session/tests/error_rows.rs`, declared in `menu/new_session/tests.rs`: Start 09, `status_rows` gives each Examples row's rows. Catches: B6.5.
+- [x] 6.2 Tests in `crates/herdr-gpui/src/menu/new_session/tests/progress.rs`
   - New test [integration]: Start 05, each Examples step count gives its frame and the `starting…` disabled button. Catches: B6.1.
   - New test [integration]: Start 06, each Examples input records no further request and leaves the page, rows, and fields unchanged. Catches: B6.2.
   - New test [integration]: Start 07, each Examples request shows its label under the rows. Catches: B6.3.
   - New test [integration]: Start 08, each Examples failure leaves the dialog open with its message above the buttons, `start` enabled, and no further request. Catches: B6.4.
   - New test [integration]: Start 08, a three-line failure message draws the rows `status_rows` gives. Catches: B6.11.
   - New test [integration]: Start 14, each Examples state gives no observe callback and records no request, modeled on the observe count in `settings_window/controls/tests/session_titles.rs:134-150`. Catches: B6.10.
-- [ ] 6.3 Tests in `crates/herdr-gpui/src/menu/new_session/tests/retry.rs`
+- [x] 6.3 Tests in `crates/herdr-gpui/src/menu/new_session/tests/retry.rs`
   - New test [integration]: Start 10, each Examples row records its requests and no `worktree.create`, and the dialog closes. Catches: B6.6.
   - New test [integration]: Start 16, the retry records one `tab.focus` and no `pane.send_text`. Catches: B6.7.
   - New test [integration]: Start 11, the focus stops on `command`, which ends with `x`, and the created rows are unchanged. Catches: B6.8.
   - New test [integration]: Start 12, each Examples input records one `tab.focus` for the created tab and no `pane.send_text`, and the dialog closes before the answer. Catches: B6.9.
-- [ ] 6.4 Strengthen test [integration] `a_refused_tab_focus_keeps_waiting_for_the_activation` in `endpoint/lifecycle_tests/empty_workspace_focus.rs:401-421`, renamed `a_refused_tab_focus_ends_the_wait_without_a_reconnect`: Start 20, the status text keeps the daemon's message, `activation` and `activation_deadline` are `None`, and a poll past the old deadline neither reconnects nor switches host, as the workspace test at `:263` asserts. Catches: B6.12.
-- [ ] 6.5 Build the full lock of D11 for `Creating`, `Typing`, and `Focusing`, and the `starting…` button and the step line, in `progress.rs` and `render.rs`.
-- [ ] 6.6 Build the loading icon and its cadence per D12: `spinner_turn`, `spinner_frame` and `last_frame_at` advanced in `update_new_session` from `cx.background_executor().now()`, and `cx.notify()` only on a change. An idle dialog returns without a notify.
-- [ ] 6.7 Replace slice 5's one red line with `status_rows` per D11, drawn with `wrap_two_lines` at the column width `glyph_width` gives. Add the `wrap_two_lines` re-export from `sidebar.rs` that task 3.6 left out.
-- [ ] 6.8 Build the resume and the read-only rows per D10 and D11: start resumes at the first step that has not succeeded, `focus_order` skips the created rows, and the `command` field stays editable.
-- [ ] 6.9 Build the ways out after a create per D11: Esc, `back`, and an outside click call `dismiss_menu` and then `navigate_endpoint` (`endpoint.rs:746-766`) for the created tab, while `step` is `Idle`.
-- [ ] 6.10 End a refused Tab focus per D11: `request_focus_change` records `focus_request` for a workspace or a tab target (`window/commands.rs:147-148`), and the doc comments of `end_refused_focus` (`state.rs:876-879`), of `raise_fence` (`window/commands.rs:164-166`), and of the unit test `other_replies_leave_the_activation_waiting` say that a pane focus keeps its fence. The only other reader of `focus_request` is the activation comparison at `state.rs:398`, which compares whole values and needs no change. The other refused-focus unit tests and the endpoint lifecycle tests run unchanged.
+- [x] 6.4 Strengthen test [integration] `a_refused_tab_focus_keeps_waiting_for_the_activation` in `endpoint/lifecycle_tests/empty_workspace_focus.rs:401-421`, renamed `a_refused_tab_focus_ends_the_wait_without_a_reconnect`: Start 20, the status text keeps the daemon's message, `activation` and `activation_deadline` are `None`, and a poll past the old deadline neither reconnects nor switches host, as the workspace test at `:263` asserts. Catches: B6.12.
+- [x] 6.5 Build the full lock of D11 for `Creating`, `Typing`, and `Focusing`, and the `starting…` button and the step line, in `progress.rs` and `render.rs`.
+- [x] 6.6 Build the loading icon and its cadence per D12: `spinner_turn`, `spinner_frame` and `last_frame_at` advanced in `update_new_session` from `cx.background_executor().now()`, and `cx.notify()` only on a change. An idle dialog returns without a notify.
+- [x] 6.7 Replace slice 5's one red line with `status_rows` per D11, drawn with `wrap_two_lines` at the column width `glyph_width` gives. Add the `wrap_two_lines` re-export from `sidebar.rs` that task 3.6 left out.
+- [x] 6.8 Build the resume and the read-only rows per D10 and D11: start resumes at the first step that has not succeeded, `focus_order` skips the created rows, and the `command` field stays editable.
+- [x] 6.9 Build the ways out after a create per D11: Esc, `back`, and an outside click call `dismiss_menu` and then `navigate_endpoint` (`endpoint.rs:746-766`) for the created tab, while `step` is `Idle`.
+- [x] 6.10 End a refused Tab focus per D11: `request_focus_change` records `focus_request` for a workspace or a tab target (`window/commands.rs:147-148`), and the doc comments of `end_refused_focus` (`state.rs:876-879`), of `raise_fence` (`window/commands.rs:164-166`), and of the unit test `other_replies_leave_the_activation_waiting` say that a pane focus keeps its fence. The only other reader of `focus_request` is the activation comparison at `state.rs:398`, which compares whole values and needs no change. The other refused-focus unit tests and the endpoint lifecycle tests run unchanged.
 
 ## 7. The setup checklist
 **Depends on:** 5, 6
