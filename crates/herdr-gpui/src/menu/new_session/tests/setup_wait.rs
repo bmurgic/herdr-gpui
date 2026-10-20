@@ -1,9 +1,8 @@
 //! The first part of the setup wait: the list the start sends after a
 //! worktree is created, and the answers that go straight on to typing.
 
-use super::start::{Boxes, configure, exchange, git_page, is_closed, step};
+use super::start::{Boxes, configure, exchange, git_page, is_closed};
 use super::*;
-use crate::menu::new_session::Step;
 
 /// What `configure` leaves the defaults as, with the worktree box as given.
 fn boxes(worktree_on: bool, command_on: bool) -> Boxes<'static> {
