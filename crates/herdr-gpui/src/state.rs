@@ -119,6 +119,11 @@ pub struct LiveState {
     pub(crate) supports_session_titles: bool,
     /// The agent-row menu's requests in flight, and their untaken outcomes.
     pub(crate) session_actions: SessionActions,
+    /// The id of the request herdr-client last reported timed out on this
+    /// connection. The `Disconnected` that follows does not clear it, so a
+    /// dialog that sees the connection gone can still tell a timeout from a
+    /// plain loss. A new connection starts with `None`.
+    pub(crate) request_timed_out: Option<String>,
     pub dirty: bool,
     pub(crate) dialog_response: Option<(String, Option<DialogResponse>)>,
     /// The one request a worktree script is waiting on (`worktree.list` or
@@ -241,6 +246,7 @@ impl Default for LiveState {
             supports_background_pane_commands: false,
             supports_session_titles: false,
             session_actions: SessionActions::default(),
+            request_timed_out: None,
             dirty: true,
             dialog_response: None,
             script_response: None,
@@ -305,6 +311,7 @@ impl LiveState {
             supports_background_pane_commands,
             supports_session_titles,
             session_actions,
+            request_timed_out,
             dirty: _,
             dialog_response,
             script_response,
@@ -369,6 +376,7 @@ impl LiveState {
             && *supports_background_pane_commands == self.supports_background_pane_commands
             && *supports_session_titles == self.supports_session_titles
             && *session_actions == self.session_actions
+            && *request_timed_out == self.request_timed_out
             && match (dialog_response, &self.dialog_response) {
                 (Some((a, None)), Some((b, None))) => a == b,
                 (a, b) => a.is_none() && b.is_none(),
@@ -627,7 +635,10 @@ impl LiveState {
             // The `Disconnected` that follows carries the reason text.
             ClientEvent::VersionMismatch(mismatch) => self.version_mismatch = Some(mismatch),
             // The `Disconnected` that follows already ends the connection.
-            ClientEvent::RequestTimedOut { request_id } => self.session_actions.timed_out(&request_id),
+            ClientEvent::RequestTimedOut { request_id } => {
+                self.session_actions.timed_out(&request_id);
+                self.request_timed_out = Some(request_id);
+            }
             ClientEvent::Disconnected { reason, ssh } => {
                 self.session_actions.interrupt_all();
                 self.supports_background_pane_commands = false;
