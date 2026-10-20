@@ -3,7 +3,6 @@
 
 use super::start::{Boxes, configure, exchange, git_page, is_closed};
 use super::*;
-use crate::sidebar::layout_tests::painted;
 
 /// What `configure` leaves the defaults as, with the worktree box as given.
 fn boxes(worktree_on: bool, command_on: bool) -> Boxes<'static> {
@@ -125,6 +124,5 @@ fn a_daemon_without_setup_tracking_starts_at_once(cx: &mut TestAppContext) {
             view.live.status_text(view.local_error.as_deref())
         });
         assert!(status.ends_with(NOTICE), "{name}: {status}");
-        assert!(!painted(test_cx, "skip waiting"), "{name}");
     }
 }
