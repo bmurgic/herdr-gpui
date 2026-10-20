@@ -56,13 +56,10 @@ fn a_start_in_flight_closes_with_its_host_or_boot(cx: &mut gpui::TestAppContext)
             })
         });
         let create_id = loop {
-            match server.receive() {
-                ClientMessage::ClientShellEndpointRequest { request, .. } => {
-                    let request: serde_json::Value = serde_json::from_str(&request).unwrap();
-                    assert_eq!(request["method"], "worktree.create", "{name}");
-                    break request["id"].as_str().unwrap().to_owned();
-                }
-                _ => {}
+            if let ClientMessage::ClientShellEndpointRequest { request, .. } = server.receive() {
+                let request: serde_json::Value = serde_json::from_str(&request).unwrap();
+                assert_eq!(request["method"], "worktree.create", "{name}");
+                break request["id"].as_str().unwrap().to_owned();
             }
         };
         cx.update(|window, cx| {
