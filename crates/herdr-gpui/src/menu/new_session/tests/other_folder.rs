@@ -74,7 +74,7 @@ fn field(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> String {
 fn status(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> (Step, Option<String>) {
     view.read_with(cx, |view, _| {
         let dialog = view.menu.new_session.as_ref().unwrap();
-        (dialog.step, dialog.error.clone())
+        (dialog.step, view.new_session_error_line())
     })
 }
 

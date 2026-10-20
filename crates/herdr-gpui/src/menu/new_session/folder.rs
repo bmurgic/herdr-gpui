@@ -7,7 +7,7 @@
 //! page shows, and Esc brings it back with the highlight it had. The
 //! suggestions are `FolderSuggestions`, shared with New Workspace.
 
-use super::Step;
+use super::{Step, outage::DialogError};
 use crate::{
     HerdrWindow,
     dialog_input::DialogInput,
@@ -181,7 +181,7 @@ impl HerdrWindow {
         }
         let text = input.text.trim().to_owned();
         if let Some(refusal) = page.suggestions.refusal_before_check(&text, snapshot_v2) {
-            dialog.error = Some(refusal.message().to_owned());
+            dialog.error = Some(DialogError::Message(refusal.message().to_owned()));
             return;
         }
         if !page.suggestions.is_local() {
@@ -189,7 +189,9 @@ impl HerdrWindow {
             return;
         }
         let Some(path) = page.suggestions.expand(&text) else {
-            dialog.error = Some(DirectoryRefusal::Missing.message().to_owned());
+            dialog.error = Some(DialogError::Message(
+                DirectoryRefusal::Missing.message().to_owned(),
+            ));
             return;
         };
         page.existence_check = Some(text.clone());
@@ -228,7 +230,9 @@ impl HerdrWindow {
         if exists {
             self.check_folder(text, None, cx);
         } else {
-            dialog.error = Some(DirectoryRefusal::Missing.message().to_owned());
+            dialog.error = Some(DialogError::Message(
+                DirectoryRefusal::Missing.message().to_owned(),
+            ));
             cx.notify();
         }
     }

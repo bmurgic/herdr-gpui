@@ -4,7 +4,7 @@
 //! applied by the table in the change's design (D6), and only when it comes
 //! under the id of the pending request.
 
-use super::{Pending, PendingKind, Step, confirm::Project};
+use super::{Pending, PendingKind, Step, confirm::Project, outage::DialogError};
 use crate::{
     HerdrWindow,
     menu::{endpoint_error, new_workspace::DirectoryRefusal},
@@ -134,13 +134,17 @@ impl HerdrWindow {
     /// locks the dialog until it answers. `text` is sent as the daemon reads
     /// it (`new_session_request_cwd`). A folder that is not a git repository
     /// opens the confirm page for that folder with `source_workspace_id`.
-    /// A request that cannot be queued shows why and sends nothing.
+    /// A request that cannot be queued shows why and sends nothing, and so does
+    /// a host that is not connected (D19).
     pub(super) fn check_folder(
         &mut self,
         text: &str,
         source_workspace_id: Option<String>,
         cx: &mut Context<Self>,
     ) {
+        if !self.new_session_host_connected() {
+            return;
+        }
         let Some(cwd) = self.new_session_request_cwd(text) else {
             // Only a home that is not UTF-8 gets here, and JSON cannot carry
             // the path it would expand to.
@@ -180,14 +184,14 @@ impl HerdrWindow {
                     },
                 });
             }
-            Err(error) => dialog.error = Some(error.to_string()),
+            Err(error) => dialog.error = Some(DialogError::Message(error.to_string())),
         }
         cx.notify();
     }
 
     fn set_new_session_error(&mut self, error: String, cx: &mut Context<Self>) {
         if let Some(dialog) = self.menu.new_session.as_mut() {
-            dialog.error = Some(error);
+            dialog.error = Some(DialogError::Message(error));
             cx.notify();
         }
     }
@@ -214,7 +218,7 @@ impl HerdrWindow {
                 match checked_project(&result, not_git_project) {
                     Ok(project) => self.open_new_session_confirm(project, cx),
                     Err(message) => {
-                        dialog.error = Some(message);
+                        dialog.error = Some(DialogError::Message(message));
                         cx.notify();
                     }
                 }

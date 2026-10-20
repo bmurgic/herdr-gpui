@@ -7,6 +7,7 @@
 use super::{
     Pending, PendingKind, Step,
     confirm::ConfirmRow,
+    outage::DialogError,
     replies::{UNEXPECTED_REPLY, reply_message},
     setup::SetupWait,
 };
@@ -75,8 +76,11 @@ impl HerdrWindow {
     }
 
     /// Sends the request of the first step that has not succeeded, or sends
-    /// nothing when the page is gone.
+    /// nothing when the page is gone or the host is not connected.
     pub(super) fn run_start_steps(&mut self, cx: &mut Context<Self>) {
+        if !self.new_session_host_connected() {
+            return;
+        }
         match self.next_start_step() {
             None => {}
             Some(NextStep::Create) => self.send_create(cx),
@@ -218,7 +222,7 @@ impl HerdrWindow {
     /// page, with the created rows read-only; a retry never lists again.
     pub(super) fn fail_start(&mut self, message: String, cx: &mut Context<Self>) {
         if let Some(dialog) = self.menu.new_session.as_mut() {
-            dialog.error = Some(message);
+            dialog.error = Some(DialogError::Message(message));
             dialog.step = Step::Idle;
             dialog.pending = None;
             if let Some(confirm) = dialog.confirm.as_mut() {
@@ -336,7 +340,7 @@ impl HerdrWindow {
             return false;
         };
         let endpoint = self.endpoints[self.selected_endpoint].id.clone();
-        let is_connected = self.live.status.is_connected();
+        let is_connected = self.new_session_host_connected();
         self.dismiss_menu(window, cx);
         if is_connected {
             self.navigate_endpoint(&endpoint, NavigationTarget::Tab(&tab_id), cx);

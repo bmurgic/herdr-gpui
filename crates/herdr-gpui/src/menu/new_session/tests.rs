@@ -16,6 +16,7 @@ mod confirm_page;
 mod error_rows;
 mod opening;
 mod other_folder;
+mod outage;
 mod progress;
 mod project_entries;
 mod project_page;
@@ -341,5 +342,5 @@ pub(super) fn expect_request(peer: &mut MockPeer, method: &str) -> Value {
 
 /// The dialog's red line, which the page shows above its buttons.
 pub(super) fn error_line(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Option<String> {
-    view.read_with(cx, |view, _| view.menu.new_session.as_ref()?.error.clone())
+    view.read_with(cx, |view, _| view.new_session_error_line())
 }

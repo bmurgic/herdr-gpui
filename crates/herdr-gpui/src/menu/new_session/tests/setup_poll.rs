@@ -10,6 +10,7 @@ use crate::{
     menu::new_session::{
         Step,
         confirm::ConfirmRow,
+        outage::DialogError,
         replies::{HookStatus, UNEXPECTED_REPLY},
     },
     sidebar::layout_tests::{painted, redraw},
@@ -576,19 +577,68 @@ fn a_retry_after_the_wait_does_not_list_again(cx: &mut TestAppContext) {
     assert_no_request(&mut peer, &view, test_cx);
 }
 
-/// Nothing is sent while the host is not connected, and the next list goes
-/// out on the first timer step after it connects again.
+/// New session setup wait 18, one case per Examples row: a list is out when
+/// the connection ends, or when its request times out. For 3 seconds of timer
+/// steps nothing is sent, the checklist stays with its row still running, and
+/// the red line names the loss. The first timer step after the host connects
+/// again sends one list, and no second one while that is unanswered.
 #[gpui::test]
 fn no_list_goes_out_while_the_host_is_not_connected(cx: &mut TestAppContext) {
-    let (view, test_cx, mut peer) = running_checklist(cx);
-    update(&view, test_cx, |view, _, _| {
-        view.live.status = crate::state::ConnectionStatus::Disconnected;
-    });
-    pass_in_steps(&view, test_cx, Duration::from_secs(2));
-    assert_no_request(&mut peer, &view, test_cx);
-    update(&view, test_cx, |view, _, _| {
-        view.live.status = crate::state::ConnectionStatus::Connected;
-    });
-    pass(&view, test_cx, TIMER_STEP);
-    assert_eq!(expect_request(&mut peer, "plugin.log.list"), list_params());
+    use crate::state::ConnectionStatus;
+    use herdr_client::ClientEvent;
+    let lose =
+        |view: &Entity<HerdrWindow>, cx: &mut VisualTestContext, id: &str, timed_out: bool| {
+            update(view, cx, |view, _, _| {
+                if timed_out {
+                    view.live.apply(ClientEvent::RequestTimedOut {
+                        request_id: id.to_owned(),
+                    });
+                }
+                view.live.apply(ClientEvent::Disconnected {
+                    reason: "connection closed".into(),
+                    ssh: None,
+                });
+            });
+        };
+    // (the list times out, the red line while the host is not connected)
+    let rows = [(false, "devbox is not ready"), (true, "Server timed out")];
+    for (timed_out, line) in rows {
+        let (view, test_cx, mut peer) = running_checklist(cx);
+        update(&view, test_cx, |view, _, _| {
+            let selected = view.selected_endpoint;
+            view.endpoints[selected].label = "devbox".into();
+        });
+        next_list(&mut peer, &view, test_cx);
+        let list_id = view.read_with(test_cx, |view, _| pending_id(view));
+        let methods = view.read_with(test_cx, |view, _| view.live.methods.clone());
+        lose(&view, test_cx, &list_id, timed_out);
+
+        pass_in_steps(&view, test_cx, Duration::from_secs(3));
+        assert!(has_checklist(&view, test_cx), "{line}");
+        assert_eq!(row_statuses(&view, test_cx), [HookStatus::Running]);
+        assert_eq!(error_line(&view, test_cx).as_deref(), Some(line));
+        // The connection holds back what follows its unanswered list, so a
+        // list the dialog queued anyway shows in its own state: a pending
+        // request, a stored refusal, or a wait that ended.
+        let stored = view.read_with(test_cx, |view, _| {
+            let dialog = view.menu.new_session.as_ref().unwrap();
+            (dialog.step, dialog.pending.is_none(), dialog.error.clone())
+        });
+        let expected = timed_out.then_some(DialogError::TimedOut);
+        assert_eq!(stored, (Step::Waiting, true, expected), "{line}");
+        assert_no_request(&mut peer, &view, test_cx);
+
+        // The connection still holds the dropped list, since the test sets
+        // the loss by hand. Its late answer is the dialog's to ignore.
+        late_answer(&mut peer, &view, test_cx, &list_id, ok());
+        // A real redial brings a welcome with the daemon's methods again.
+        update(&view, test_cx, |view, _, _| {
+            view.live.status = ConnectionStatus::Connected;
+            view.live.methods = methods;
+        });
+        pass(&view, test_cx, TIMER_STEP);
+        assert_eq!(expect_request(&mut peer, "plugin.log.list"), list_params());
+        pass_in_steps(&view, test_cx, Duration::from_secs(2));
+        assert_no_request(&mut peer, &view, test_cx);
+    }
 }

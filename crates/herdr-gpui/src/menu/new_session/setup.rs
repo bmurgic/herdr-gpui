@@ -9,6 +9,7 @@
 use super::{
     Step,
     confirm::ConfirmRow,
+    outage::DialogError,
     replies::{
         HookStatus, PluginLogRecord, UNEXPECTED_REPLY, WORKTREE_CREATED_EVENT, error_code,
         kept_records, parse_plugin_log_list,
@@ -154,6 +155,12 @@ impl SetupWait {
     fn is_list_due(&self, now: Instant) -> bool {
         self.next_list_at.is_some_and(|due| now >= due)
     }
+
+    /// Makes the next list due at `now`, so the first timer step after a
+    /// dropped list sends one.
+    pub(super) fn list_again_at(&mut self, now: Instant) {
+        self.next_list_at = Some(now);
+    }
 }
 
 impl StartProgress {
@@ -220,7 +227,7 @@ impl HerdrWindow {
             }
             Err(error) => {
                 dialog.step = Step::Waiting;
-                dialog.error = Some(error.to_string());
+                dialog.error = Some(DialogError::Message(error.to_string()));
                 wait.next_list_at = Some(now + LIST_INTERVAL);
             }
         }
@@ -250,7 +257,7 @@ impl HerdrWindow {
         let Some(created) = confirm.started.created.as_ref() else {
             return;
         };
-        if is_due && self.live.status.is_connected() {
+        if is_due && self.new_session_host_connected() {
             let workspace_id = created.workspace_id.clone();
             self.send_setup_list(workspace_id, cx);
         }
@@ -329,7 +336,7 @@ impl HerdrWindow {
     fn keep_waiting_with_error(&mut self, message: String, cx: &mut Context<Self>) {
         let now = cx.background_executor().now();
         if let Some(dialog) = self.menu.new_session.as_mut() {
-            dialog.error = Some(message);
+            dialog.error = Some(DialogError::Message(message));
             if let Some(wait) = dialog
                 .confirm
                 .as_mut()
@@ -393,7 +400,7 @@ impl HerdrWindow {
         if let Some(dialog) = self.menu.new_session.as_mut() {
             dialog.pending = None;
         }
-        if self.live.status.is_connected() {
+        if self.new_session_host_connected() {
             self.finish_start_step(cx, |progress| progress.end_setup_wait());
             return;
         }

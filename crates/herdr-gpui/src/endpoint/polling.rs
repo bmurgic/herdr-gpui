@@ -121,7 +121,7 @@ impl HerdrWindow {
             // The install instructions have no daemon-bound target. A background
             // retry must not dismiss them before the user can follow the link.
             let installing = self.menu.page == Some(crate::menu::Page::Install);
-            self.reset_selected(cx);
+            self.reset_selected_after_redial(cx);
             if installing {
                 self.menu.page = Some(crate::menu::Page::Install);
             }

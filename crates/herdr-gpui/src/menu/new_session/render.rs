@@ -183,12 +183,7 @@ impl HerdrWindow {
             .collect::<Vec<_>>();
         let listing_error = suggestions
             .listing_error()
-            .filter(|_| {
-                self.menu
-                    .new_session
-                    .as_ref()
-                    .is_some_and(|dialog| dialog.error.is_none())
-            })
+            .filter(|_| self.new_session_error_line().is_none())
             .map(|error| div().text_color(danger(theme)).child(error.to_owned()));
         div()
             .flex()
@@ -231,16 +226,16 @@ impl HerdrWindow {
 
     /// Why the last check or start failed, in red, or nothing.
     fn error_line(&self) -> Option<Div> {
-        let error = self.menu.new_session.as_ref()?.error.as_ref()?;
-        Some(self.error_frame().child(label_text(error)))
+        let error = self.new_session_error_line()?;
+        Some(self.error_frame().child(label_text(&error)))
     }
 
     /// Why a start failed, in red, on at most `ERROR_ROWS` rows that keep the
     /// message's reason, or nothing.
     fn error_rows(&self, viewport_width: Pixels) -> Option<Div> {
-        let error = self.menu.new_session.as_ref()?.error.as_ref()?;
+        let error = self.new_session_error_line()?;
         let rows = status_rows(
-            error,
+            &error,
             self.new_session_text_columns(viewport_width),
             ERROR_ROWS,
         );

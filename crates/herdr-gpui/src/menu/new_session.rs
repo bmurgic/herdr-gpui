@@ -22,6 +22,7 @@ use gpui::{Context, KeyDownEvent, Window};
 use herdr_client::Method;
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 pub(crate) use native::NewSessionStage;
+use outage::DialogError;
 use projects::{ProjectEntry, filtered_entries, project_entries};
 use std::path::PathBuf;
 
@@ -29,6 +30,7 @@ mod confirm;
 mod folder;
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 mod native;
+mod outage;
 mod progress;
 mod projects;
 mod render;
@@ -76,7 +78,7 @@ pub(crate) struct NewSession {
     pending: Option<Pending>,
     /// Why the last folder check or refusal failed, shown in red under the
     /// field or the rows. The next check clears it.
-    error: Option<String>,
+    error: Option<DialogError>,
     /// Which of the loading icon's frames shows, 0 to 9.
     spinner_frame: u8,
     /// When the icon last moved a frame, or `None` while no request that
@@ -261,6 +263,9 @@ impl HerdrWindow {
             return;
         }
         self.apply_pending_answer(window, cx);
+        if self.end_lost_request(cx.background_executor().now()) {
+            cx.notify();
+        }
         self.poll_setup_list(cx);
         self.advance_spinner(cx);
     }

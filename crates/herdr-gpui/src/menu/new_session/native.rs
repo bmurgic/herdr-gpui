@@ -105,7 +105,7 @@ impl HerdrWindow {
             "lists sent {}, answered {}; red text {:?}; rows {rows:?}; last answer {}",
             wait.trace.sent,
             wait.trace.answered,
-            dialog.error,
+            self.new_session_error_line(),
             wait.trace.last_answer.as_deref().unwrap_or("none"),
         )
     }
