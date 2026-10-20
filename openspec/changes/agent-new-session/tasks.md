@@ -254,13 +254,13 @@ Independent test: from `Other folder…`, a subfolder of a repository opens the 
 
 Independent test: against a myherdr daemon with no setup hooks, start from the confirm page and see a new worktree workspace focused with the command typed into its first pane, while `config.toml` keeps its setting.
 
-- [ ] 5.1 Extend test [unit] in `crates/herdr-client/src/method/tests.rs`: add `PluginLogList` to `MYHERDR_OFFERED` (`:160`), to `ALL` (`:171`), and to the exhaustive match (`:221`) with the wire name `plugin.log.list`. Catches: B5.1.
-- [ ] 5.2 Tests in `crates/herdr-gpui/src/menu/new_session/tests/replies.rs`
+- [x] 5.1 Extend test [unit] in `crates/herdr-client/src/method/tests.rs`: add `PluginLogList` to `MYHERDR_OFFERED` (`:160`), to `ALL` (`:171`), and to the exhaustive match (`:221`) with the wire name `plugin.log.list`. Catches: B5.1.
+- [x] 5.2 Tests in `crates/herdr-gpui/src/menu/new_session/tests/replies.rs`
   - Extend test [unit]: Start 01, `WorkspaceCreated` parses with and without `tab` and `root_pane`. Catches: B5.2.
   - Extend test [unit]: Start 01, `WorktreeCreated` reads `branch` when it is named and `None` when it is not. Catches: B5.3.
   - Extend test [unit]: Setup 01, `parse_plugin_log_list` gives `None` for the `paused` record and for the record without `started_unix_ms`, and keeps the record with an extra field. Catches: B5.4.
   - Extend test [unit]: Setup 01, `kept_records` keeps only the matching records in reply order. Catches: B5.5.
-- [ ] 5.3 Tests in `crates/herdr-gpui/src/menu/new_session/tests/start.rs`, declared in `menu/new_session/tests.rs`
+- [x] 5.3 Tests in `crates/herdr-gpui/src/menu/new_session/tests/start.rs`, declared in `menu/new_session/tests.rs`
   - New test [integration]: Start 01, each Examples row records its requests in order and closes the dialog after the focus answer. Catches: B5.6.
   - New test [integration]: Start 02, the create records `cwd` and no `workspace_id`. Catches: B5.7.
   - New test [integration]: Start 03, each Examples reply shows `Unexpected reply from the server` and records no `pane.send_text` and no `tab.focus`. Catches: B5.8.
@@ -271,16 +271,16 @@ Independent test: against a myherdr daemon with no setup hooks, start from the c
   - New test [integration]: after a `worktree_create_failed` answer, the next Enter on `start` records a second `worktree.create`. Catches: B5.18.
   - New test [integration]: a client-side error for the pending create shows its display text in red and returns the step to `Idle`. Catches: B5.20.
   - New test [integration]: a start without a connection handle shows `Not connected to a daemon.` in red and returns the step to `Idle`. Catches: B5.19.
-- [ ] 5.4 Tests in `crates/herdr-gpui/src/menu/new_session/tests/setup_wait.rs`
+- [x] 5.4 Tests in `crates/herdr-gpui/src/menu/new_session/tests/setup_wait.rs`
   - New test [integration]: Setup 01, the first list records `w2`, `worktree.created`, and limit 200, and each Examples answer goes on to typing and the focus with no checklist. Catches: B5.11, B5.12.
   - New test [integration]: Setup 06, both Examples rows record no `plugin.log.list` and close after the focus. Catches: B5.13. (The Refiner folded this case into Start 01's table in `tests/start.rs`.)
   - New test [integration]: Setup 12, each Examples row puts `Setup tracking not supported on this server` in the status text, shows no checklist, and types only when the command is on. Catches: B5.14.
-- [ ] 5.5 New test [integration] in `crates/herdr-gpui/src/endpoint/lifecycle_tests/new_session_staleness.rs`: AN06, each Examples row closes the dialog on its named page and records no further request, and so does the same-tick run. Catches: B5.16.
-- [ ] 5.6 Add `Method::PluginLogList` per D15 to `crates/herdr-client/src/method.rs`. `Method::preferred_in` (`:123`) and the method match in `connection.rs:465` keep their wildcard arms.
-- [ ] 5.7 Make `tab` and `root_pane` of `WorkspaceCreated` and `branch` of `CreatedWorktree` optional fields per D10 in `teleport/snapshot.rs` (`CreatedWorktree` at `:223`, `WorkspaceCreated` at `:229`). The existing callers in `teleport/job.rs:366`, `:411` and `orchestrator/actions.rs:404` keep working unchanged.
-- [ ] 5.8 Build `start_new_session` per D10 in `start.rs`: the create, type, and focus steps, their answer tables applied in `update_new_session` after the staleness step, `dismiss_menu` and `fence_focus_change` on `tab_info` (`window/commands.rs:155`), and the Idle guard of D10's blocked actions. A failed answer stores `error`, returns `step` to `Idle`, and draws the message as one red line above the buttons; slice 6 replaces that line, the lock, and the resume.
-- [ ] 5.9 Build the first part of the setup wait per D13 in `setup.rs`: the missing-method notice through `local_error` as D11's notices bullet says, the first `plugin.log.list` request, `parse_plugin_log_list` and `kept_records` in `replies.rs`, and the move to typing when the first answer keeps no running record. Until slice 7, a first answer with a running or failed kept record, an error, or an unexpected reply also moves on to typing; no test asserts that interim rule.
-- [ ] 5.10 Draw `can_type` per D7: the dim, unchecked `run command` row, the dim `command` row, the line `This server cannot type a command.`, and the rows skipped by `focus_order`.
+- [x] 5.5 New test [integration] in `crates/herdr-gpui/src/endpoint/lifecycle_tests/new_session_staleness.rs`: AN06, each Examples row closes the dialog on its named page and records no further request, and so does the same-tick run. Catches: B5.16.
+- [x] 5.6 Add `Method::PluginLogList` per D15 to `crates/herdr-client/src/method.rs`. `Method::preferred_in` (`:123`) and the method match in `connection.rs:465` keep their wildcard arms.
+- [x] 5.7 Make `tab` and `root_pane` of `WorkspaceCreated` and `branch` of `CreatedWorktree` optional fields per D10 in `teleport/snapshot.rs` (`CreatedWorktree` at `:223`, `WorkspaceCreated` at `:229`). The existing callers in `teleport/job.rs:366`, `:411` and `orchestrator/actions.rs:404` keep working unchanged.
+- [x] 5.8 Build `start_new_session` per D10 in `start.rs`: the create, type, and focus steps, their answer tables applied in `update_new_session` after the staleness step, `dismiss_menu` and `fence_focus_change` on `tab_info` (`window/commands.rs:155`), and the Idle guard of D10's blocked actions. A failed answer stores `error`, returns `step` to `Idle`, and draws the message as one red line above the buttons; slice 6 replaces that line, the lock, and the resume.
+- [x] 5.9 Build the first part of the setup wait per D13 in `setup.rs`: the missing-method notice through `local_error` as D11's notices bullet says, the first `plugin.log.list` request, `parse_plugin_log_list` and `kept_records` in `replies.rs`, and the move to typing when the first answer keeps no running record. Until slice 7, a first answer with a running or failed kept record, an error, or an unexpected reply also moves on to typing; no test asserts that interim rule.
+- [x] 5.10 Draw `can_type` per D7: the dim, unchecked `run command` row, the dim `command` row, the line `This server cannot type a command.`, and the rows skipped by `focus_order`.
 
 ## 6. Start progress, errors, and the ways out
 **Depends on:** 5
