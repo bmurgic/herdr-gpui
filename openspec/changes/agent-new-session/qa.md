@@ -14,7 +14,7 @@ No automation in `just ci` drives the native herdr-gpui window against a myherdr
 Shared starting state for every procedure:
 
 - A desktop session with herdr-gpui built from this change.
-- A myherdr daemon built from `/Users/bmurgic/Development/Personal/myherdr` at commit `764b110e`, running in a private QA folder `<qa>` with its own home, config, and socket folders. herdr-gpui connects only to that daemon. No other Herdr daemon, home folder, or session is used or stopped.
+- A myherdr daemon built from a myherdr checkout (`<myherdr>`) at commit `764b110e`, running in a private QA folder `<qa>` with its own home, config, and socket folders. herdr-gpui connects only to that daemon. No other Herdr daemon, home folder, or session is used or stopped.
 - The daemon's `config.toml` sets `onboarding = false`, `[session_titles] enabled = false`, and `[ui] new_session_command = "printf qa-after-setup"`, unless a procedure says otherwise.
 - A git repository at `<qa>/repos/demo` with one commit on `main`, and a folder `<qa>/notes` that is not in a git repository.
 - The daemon has the workspaces `demo` in `<qa>/repos/demo` and `notes` in `<qa>/notes`, each with one terminal tab.
