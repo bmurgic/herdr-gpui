@@ -74,8 +74,8 @@ Shared starting state for every procedure:
 
 **Procedure**
 
-1. In the terminal, run `herdr-gpui keybinds`.
-   - **Observe:** The output lists `new_session` with the label `New Session` and no keys.
+1. In the terminal, run `herdr-gpui keybinds --json`.
+   - **Observe:** The `bindings` array has an entry whose `name` is `new_session`, whose `label` is `New Session`, and whose `keys` is `[]`.
 2. Open the command palette, type `New Session`, and press Return.
    - **Observe:** The new-session dialog opens on its project page with `demo`, `notes`, and `Other folder…`.
 3. Press Esc. In the terminal, run `herdr-gpui run new_session`.

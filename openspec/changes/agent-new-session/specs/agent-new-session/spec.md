@@ -57,7 +57,7 @@ The `new_session` command SHALL open the new-session dialog on its project page,
 
 #### Scenario: Agent new session 05 - the command has no default key
 - **GIVEN** a keymap with no `[keybindings]` entry for `new_session`
-- **WHEN** the user runs `herdr-gpui keybinds`
+- **WHEN** the user runs `herdr-gpui keybinds --json`
 - **THEN** `new_session` is listed with the label `New Session` and no keys
 
 ### Requirement: The dialog belongs to the host it opened on

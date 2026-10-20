@@ -52,7 +52,7 @@ Feature: agent-new-session
   # Covers: agent-new-session / The new_session command opens the dialog / Agent new session 05 - the command has no default key
   Scenario: Agent new session 05 - the command has no default key
     Given a keymap with no `[keybindings]` entry for `new_session`
-    When the user runs `herdr-gpui keybinds`
+    When the user runs `herdr-gpui keybinds --json`
     Then `new_session` is listed with the label `New Session` and no keys
 
   # Covers: agent-new-session / The dialog belongs to the host it opened on / Agent new session 06 - a host change closes the dialog
