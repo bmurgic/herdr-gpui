@@ -87,6 +87,22 @@ fn the_start_button_turns_its_icon_every_100_ms(cx: &mut TestAppContext) {
         redraw(test_cx);
         assert!(painted(test_cx, "starting…"), "{steps} steps");
         assert!(!painted(test_cx, "start"), "{steps} steps");
+        assert!(
+            test_cx.debug_bounds("new-session-spinner").is_some(),
+            "{steps} steps"
+        );
+    }
+}
+
+/// The icon's turn is its frame's share of ten, so it comes back to where it
+/// began after ten frames.
+#[test]
+fn the_icon_turns_one_tenth_per_frame() {
+    for (frame, turn) in [(0, 0.0), (1, 0.1), (5, 0.5), (9, 0.9)] {
+        assert!(
+            (crate::menu::new_session::progress::spinner_turn(frame) - turn).abs() < 1e-6,
+            "frame {frame}"
+        );
     }
 }
 
