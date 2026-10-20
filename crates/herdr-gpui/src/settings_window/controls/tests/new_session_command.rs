@@ -384,6 +384,35 @@ fn a_saved_command_shows_trimmed_when_the_reload_after_it_fails(cx: &mut TestApp
 
 #[cfg(unix)]
 #[gpui::test]
+fn the_old_command_typed_again_after_a_save_is_saved_too(cx: &mut TestAppContext) {
+    let (view, cx, seam) = open_seamed(cx, CLAUDE, None);
+    edit_to(&view, cx, "codex");
+    press(cx, "enter");
+    cx.run_until_parked();
+    assert_eq!(seam.commands(), ["codex"]);
+    assert_eq!(phase(&view, cx), CommandPhase::NotEditing);
+
+    // The field kept the focus, so this is one change back to the old command.
+    edit_to(&view, cx, "claude");
+    assert_eq!(phase(&view, cx), CommandPhase::Editing);
+    press(cx, "enter");
+    cx.run_until_parked();
+    assert_eq!(seam.commands(), ["codex", "claude"]);
+    assert_eq!(seam.file(), CLAUDE);
+    assert_eq!(text(&view, cx), "claude");
+}
+
+#[cfg(unix)]
+#[gpui::test]
+fn a_reload_while_idle_shows_the_changed_command_trimmed(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, CLAUDE);
+    reload(&view, cx, "[ui]\nnew_session_command = \"  codex \"\n");
+    assert_eq!(text(&view, cx), "codex");
+    assert_eq!(phase(&view, cx), CommandPhase::NotEditing);
+}
+
+#[cfg(unix)]
+#[gpui::test]
 fn a_reload_during_an_edit_keeps_the_typed_text(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, CLAUDE);
     edit_to(&view, cx, "codex");

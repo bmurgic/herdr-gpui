@@ -47,10 +47,15 @@ struct CommandField {
 }
 
 impl CommandField {
+    /// Shows `text` and records it as `shown`, even when the input already
+    /// holds it: a later change back to the text it held before is still the
+    /// user's, so `shown` must follow every path that sets the text.
     fn replace_text(&mut self, text: &str, cx: &mut App) {
         self.shown = text.to_owned();
-        self.input
-            .update(cx, |input, cx| input.set_text_selected(text, cx));
+        if self.input.read(cx).text() != text {
+            self.input
+                .update(cx, |input, cx| input.set_text_selected(text, cx));
+        }
     }
 }
 
@@ -243,9 +248,7 @@ impl SettingsWindow {
             return;
         };
         field.phase = CommandPhase::NotEditing;
-        if field.input.read(cx).text() != written {
-            field.replace_text(written, cx);
-        }
+        field.replace_text(written, cx);
         cx.notify();
     }
 
@@ -276,11 +279,7 @@ impl SettingsWindow {
             }
             // After a write that succeeded but a reload that did not, the
             // old settings would erase text the file now holds.
-            CommandPhase::NotEditing if reloaded => {
-                if field.input.read(cx).text() != saved {
-                    field.replace_text(&saved, cx);
-                }
-            }
+            CommandPhase::NotEditing if reloaded => field.replace_text(&saved, cx),
             CommandPhase::NotEditing => {}
         }
         cx.notify();
