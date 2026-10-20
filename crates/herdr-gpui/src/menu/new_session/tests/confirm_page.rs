@@ -5,9 +5,13 @@ use crate::{
         Page,
         new_session::confirm::{Confirm, ConfirmRow},
     },
-    sidebar::layout_tests::{inside, painted, redraw, text_bounds},
+    sidebar::{
+        glyph_width,
+        layout_tests::{inside, painted, redraw, text_bounds},
+    },
 };
 use gpui::{Modifiers, point};
+use unicode_width::UnicodeWidthStr;
 
 /// The method the confirm page needs on top of the dialog's own.
 const SEND_TEXT: &str = "pane.send_text";
@@ -441,4 +445,29 @@ fn space_does_nothing_on_start_or_back(cx: &mut TestAppContext) {
     assert!(is_confirming(&view, test_cx));
     assert_eq!(field(&view, test_cx, ConfirmRow::Branch), "mine");
     assert_no_request(&mut peer, &view, test_cx);
+}
+
+/// The summary row has its own 8 px padding on each side, so a sentence is cut
+/// to the columns that fit inside it, not to the dialog's text width. This
+/// sentence is 65 columns uncut, which is 483.6 px at 7.44 px a column, and the
+/// row's text box is 470 px.
+#[gpui::test]
+fn the_summary_is_cut_to_the_columns_inside_its_own_padding(cx: &mut TestAppContext) {
+    let root = format!("/home/b/dev/{}", "abcdefghijklmnopqrstu");
+    let (view, test_cx, _peer) = project_page(
+        cx,
+        &methods_with_send_text(),
+        "[ui]\n",
+        json!([main_checkout("w1", "herdr", &root)]),
+    );
+    press(test_cx, "enter up up up up space");
+    let expected = "Will start claude in ~/…/abcdefghijklmnopqrstu (main checkout).";
+    assert_summary(test_cx, expected);
+    let glyph = view.read_with(test_cx, |view, _| glyph_width(&view.config.ui));
+    let row = test_cx.debug_bounds("new-session-summary").unwrap();
+    let text_box = f32::from(row.size.width) - 16.;
+    assert!(
+        expected.width() as f32 * glyph <= text_box,
+        "{expected:?} is wider than the summary's text box"
+    );
 }

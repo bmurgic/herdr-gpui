@@ -75,11 +75,11 @@ impl HerdrWindow {
         div().flex().flex_col().child(header).child(body)
     }
 
-    /// How many display columns one line of the dialog's text holds in a
-    /// window `viewport_width` wide, by the sidebar's rule: the width divided
-    /// by the font's glyph width, rounded down.
+    /// How many display columns the summary row's text box holds in a window
+    /// `viewport_width` wide, by the sidebar's rule: the width divided by the
+    /// font's glyph width, rounded down. The row's own inset is not text room.
     pub(super) fn new_session_text_columns(&self, viewport_width: Pixels) -> usize {
-        self.text_columns(Self::dialog_text_width(viewport_width))
+        self.text_columns((Self::dialog_text_width(viewport_width) - 2. * ENTRY_INSET).max(0.))
     }
 
     /// The width inside the dialog's panel and body inset.
