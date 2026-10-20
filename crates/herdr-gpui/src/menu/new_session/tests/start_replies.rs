@@ -6,9 +6,10 @@ use crate::menu::new_session::Step;
 
 const UNEXPECTED: &str = "Unexpected reply from the server";
 
-/// New session start 03, the typing and focus rows for another result type:
-/// each shows the unexpected-reply line and returns to `Idle`, and the next
-/// start resumes at that step without creating again.
+/// D10's typing and focus tables, their "another result type" row: each
+/// shows the unexpected-reply line and returns to `Idle`, and the next start
+/// resumes at that step without creating again. New session start 08 checks
+/// the same line for the create, and start 10 the resume after a failed step.
 #[gpui::test]
 fn a_wrong_type_answer_to_typing_or_focus_fails_the_start(cx: &mut TestAppContext) {
     let (view, test_cx, mut peer) = git_page(cx, &start_methods());

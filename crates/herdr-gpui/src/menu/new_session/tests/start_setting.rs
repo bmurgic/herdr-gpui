@@ -16,7 +16,7 @@ fn a_start_with_an_edited_command_leaves_config_toml_unchanged(cx: &mut TestAppC
     std::fs::write(&path, saved).unwrap();
     let (view, test_cx, mut peer) = git_page(cx, &start_methods());
     update(&view, test_cx, |view, _, _| {
-        view.settings.shared = Some(Settings::load_path(path.clone()).unwrap());
+        view.settings.shared = Some(Settings::load_path_for_tests(path.clone()).unwrap());
     });
     click(test_cx, "new-session-command");
     set_focused_text(&view, test_cx, "codex");

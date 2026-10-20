@@ -484,7 +484,14 @@ impl Settings {
         Self::load_path(path)
     }
 
-    pub(crate) fn load_path(path: PathBuf) -> crate::Result<Self> {
+    /// `load_path` for tests outside this module that need settings read
+    /// from a temporary file.
+    #[cfg(test)]
+    pub(crate) fn load_path_for_tests(path: PathBuf) -> crate::Result<Self> {
+        Self::load_path(path)
+    }
+
+    fn load_path(path: PathBuf) -> crate::Result<Self> {
         let result =
             persistence::read(&path).and_then(|snapshot| Self::parse(path.clone(), snapshot));
         result.map_err(|error| crate::Error::from(error).at_path(&path))
