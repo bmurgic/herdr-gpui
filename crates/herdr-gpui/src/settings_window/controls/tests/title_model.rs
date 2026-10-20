@@ -4,8 +4,7 @@ use super::session_titles::{draw, painted};
 use super::*;
 #[cfg(unix)]
 use crate::{
-    herdr_settings::{Settings, TitleAgent},
-    search_input::SearchInput,
+    herdr_settings::TitleAgent, search_input::SearchInput,
     settings_window::controls::session_titles::ModelPhase,
 };
 #[cfg(unix)]
@@ -27,14 +26,6 @@ fn open<'a>(
     let (_, view, cx) = sessions_fixture(cx, Some(config), &[Host::Local { titles: true }]);
     activate(cx);
     (view, cx)
-}
-
-/// Focus events reach the field only while its window is the active one.
-#[cfg(unix)]
-fn activate(cx: &mut VisualTestContext) {
-    cx.update(|window, _| window.activate_window());
-    cx.run_until_parked();
-    draw(cx);
 }
 
 /// `open`, saving through a recording seam that reloads `config`.
@@ -91,18 +82,10 @@ fn recorded(edits: &Edits) -> Vec<String> {
         .collect()
 }
 
-/// Moves focus to `handle` and lets the focus events run.
-#[cfg(unix)]
-fn focus(cx: &mut VisualTestContext, handle: &FocusHandle) {
-    cx.update(|window, cx| window.focus(handle, cx));
-    draw(cx);
-    cx.run_until_parked();
-}
-
 #[cfg(unix)]
 fn focus_field(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext) {
-    let handle = input(view, cx).read_with(cx, |input, _| input.focus.clone());
-    focus(cx, &handle);
+    let field = input(view, cx);
+    focus_input(cx, &field);
 }
 
 /// Focus on the settings window's own handle, which is where a click outside
@@ -125,21 +108,6 @@ fn set_text(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext, text: &st
 #[cfg(unix)]
 fn type_text(cx: &mut VisualTestContext, text: &str) {
     cx.simulate_input(text);
-    draw(cx);
-}
-
-#[cfg(unix)]
-fn press(cx: &mut VisualTestContext, keys: &str) {
-    cx.simulate_keystrokes(keys);
-    draw(cx);
-}
-
-/// A reload that finds `config` on disk.
-#[cfg(unix)]
-fn reload(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext, config: &str) {
-    let mut loaded = skill_load().unwrap();
-    loaded.shared = Some(Settings::parse_text(config).unwrap());
-    view.update(cx, |view, cx| view.apply_loaded(Ok(loaded), cx));
     draw(cx);
 }
 
@@ -246,14 +214,7 @@ fn failed_save_after_focus_left_ends_editing(cx: &mut TestAppContext) {
     let (view, cx, edits) = open_recording(cx, SONNET, true);
     focus_field(&view, cx);
     type_text(cx, "opus");
-    // Dispatched without running the executor, so the write has not finished
-    // when focus moves.
-    cx.update(|window, cx| {
-        window.dispatch_keystroke(Keystroke::parse("enter").unwrap(), cx);
-    });
-    let root = view.read_with(cx, |view, _| view.focus.clone());
-    cx.update(|window, cx| window.focus(&root, cx));
-    draw(cx);
+    enter_then_blur_before_the_save_finishes(&view, cx);
     assert_eq!(phase(&view, cx), ModelPhase::Submitted(TitleAgent::Claude));
     cx.run_until_parked();
 
@@ -268,8 +229,7 @@ fn failed_save_after_focus_left_ends_editing(cx: &mut TestAppContext) {
 fn title_model_field_turns_pasted_breaks_into_spaces(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, SONNET);
     focus_field(&view, cx);
-    cx.write_to_clipboard(ClipboardItem::new_string("my\tmodel".into()));
-    cx.dispatch_action(crate::actions::Paste);
+    paste(cx, "my\tmodel");
     assert_eq!(text(&view, cx), "my model");
 }
 

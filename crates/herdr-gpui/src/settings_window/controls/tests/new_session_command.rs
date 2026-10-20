@@ -142,10 +142,7 @@ fn open<'a>(
     config: &str,
 ) -> (Entity<SettingsWindow>, &'a mut VisualTestContext) {
     let (_, view, cx) = sessions_fixture(cx, Some(config), &[Host::Local { titles: false }]);
-    // Focus events reach the field only while its window is the active one.
-    cx.update(|window, _| window.activate_window());
-    cx.run_until_parked();
-    draw(cx);
+    activate(cx);
     assert!(painted(cx, FIELD), "the New session field is drawn");
     (view, cx)
 }
@@ -185,18 +182,10 @@ fn field_has_focus(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext) ->
     cx.update(|window, _| handle.is_focused(window))
 }
 
-/// Moves focus to `handle` and lets the focus events run.
-#[cfg(unix)]
-fn focus(cx: &mut VisualTestContext, handle: &FocusHandle) {
-    cx.update(|window, cx| window.focus(handle, cx));
-    draw(cx);
-    cx.run_until_parked();
-}
-
 #[cfg(unix)]
 fn focus_field(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext) {
-    let handle = input(view, cx).read_with(cx, |input, _| input.focus.clone());
-    focus(cx, &handle);
+    let field = input(view, cx);
+    focus_input(cx, &field);
 }
 
 /// Focuses the field and replaces its text, as typing over a selection does.
@@ -205,28 +194,6 @@ fn edit_to(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext, text: &str
     focus_field(view, cx);
     input(view, cx).update(cx, |input, cx| input.set_text_selected(text, cx));
     cx.run_until_parked();
-    draw(cx);
-}
-
-#[cfg(unix)]
-fn press(cx: &mut VisualTestContext, keys: &str) {
-    cx.simulate_keystrokes(keys);
-    draw(cx);
-}
-
-#[cfg(unix)]
-fn paste(cx: &mut VisualTestContext, text: &str) {
-    cx.write_to_clipboard(ClipboardItem::new_string(text.into()));
-    cx.dispatch_action(crate::actions::Paste);
-    draw(cx);
-}
-
-/// A reload that finds `config` on disk.
-#[cfg(unix)]
-fn reload(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext, config: &str) {
-    let mut loaded = skill_load().unwrap();
-    loaded.shared = Some(Settings::parse_text(config).unwrap());
-    view.update(cx, |view, cx| view.apply_loaded(Ok(loaded), cx));
     draw(cx);
 }
 
@@ -450,14 +417,7 @@ fn failed_shared_load() -> crate::Result<super::super::super::Loaded> {
 fn a_failed_save_after_the_focus_left_puts_the_saved_command_back(cx: &mut TestAppContext) {
     let (view, cx, seam) = open_seamed(cx, CLAUDE, Some(permission_denied));
     edit_to(&view, cx, "codex");
-    // Dispatched without running the executor, so the write has not finished
-    // when the focus moves.
-    cx.update(|window, cx| {
-        window.dispatch_keystroke(Keystroke::parse("enter").unwrap(), cx);
-    });
-    let root = view.read_with(cx, |view, _| view.focus.clone());
-    cx.update(|window, cx| window.focus(&root, cx));
-    draw(cx);
+    enter_then_blur_before_the_save_finishes(&view, cx);
     assert_eq!(phase(&view, cx), CommandPhase::Submitted);
     cx.run_until_parked();
 
