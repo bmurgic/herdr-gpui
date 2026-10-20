@@ -10,6 +10,14 @@ use crate::{
     sidebar::layout_tests::redraw,
 };
 
+/// Presses and releases the right button at a point the dialog does not
+/// cover.
+fn right_click_outside(cx: &mut VisualTestContext) {
+    let outside = gpui::point(px(10.), px(300.));
+    cx.simulate_mouse_down(outside, gpui::MouseButton::Right, Modifiers::default());
+    cx.simulate_mouse_up(outside, gpui::MouseButton::Right, Modifiers::default());
+}
+
 /// Presses Enter on `start` and answers the requests so that the worktree is
 /// created, no setup hook is listed, and the typing fails.
 fn fail_typing(peer: &mut MockPeer, view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) {
@@ -110,9 +118,10 @@ fn the_created_rows_are_read_only(cx: &mut TestAppContext) {
     assert_eq!(field(&view, test_cx, ConfirmRow::Branch), branch);
 }
 
-/// New session start 12, one case per Examples row: the dialog closes before
-/// the focus is answered, and the one request is a `tab.focus` for the
-/// created tab.
+/// New session start 12, one case per Examples row, and a right click outside
+/// the dialog, which leaves like the left click (the spec says "a click
+/// outside"): the dialog closes before the focus is answered, and the one
+/// request is a `tab.focus` for the created tab.
 #[gpui::test]
 fn leaving_after_the_workspace_exists_focuses_it_without_typing(cx: &mut TestAppContext) {
     type Input = fn(&mut VisualTestContext);
@@ -120,6 +129,7 @@ fn leaving_after_the_workspace_exists_focuses_it_without_typing(cx: &mut TestApp
         ("Esc", |cx| press(cx, "escape")),
         ("Enter on back", |cx| press(cx, "down enter")),
         ("a click outside the dialog", click_outside),
+        ("a right click outside the dialog", right_click_outside),
     ];
     for (input, give) in inputs {
         let (view, test_cx, mut peer) = git_page(cx, &start_methods());
