@@ -144,8 +144,11 @@ impl HerdrWindow {
                 return false;
             }
         };
-        let focus_request =
-            matches!(focus, Some(OwnedNavigationTarget::Workspace(_))).then_some(id);
+        let focus_request = matches!(
+            focus,
+            Some(OwnedNavigationTarget::Workspace(_) | OwnedNavigationTarget::Tab(_))
+        )
+        .then_some(id);
         if let Some(state) = state.as_deref_mut() {
             self.raise_fence(state, focus, focus_request);
         }
@@ -163,8 +166,9 @@ impl HerdrWindow {
     }
 
     /// Records a barrier in `state`, the selected endpoint's locked inbox, and
-    /// starts its deadline. `focus_request` is the id of the workspace focus the
-    /// barrier waits on, when it is one.
+    /// starts its deadline. `focus_request` is the id of the workspace or tab
+    /// focus the barrier waits on, when it is one. A pane focus has none and
+    /// keeps its fence.
     fn raise_fence(
         &mut self,
         state: &mut state::LiveState,

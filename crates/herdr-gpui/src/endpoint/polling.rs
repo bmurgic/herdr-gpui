@@ -190,7 +190,7 @@ impl HerdrWindow {
             }
             changed = Redraw::Window;
         }
-        // A refused workspace focus ended its activation, so there is nothing
+        // A refused workspace or tab focus ended its activation, so there is nothing
         // left for the deadline to expire on. The refusal is consumed here: it
         // names that one fence, not whatever activation follows.
         if self.live.focus_refused {

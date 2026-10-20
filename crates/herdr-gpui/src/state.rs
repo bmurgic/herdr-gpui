@@ -135,7 +135,7 @@ pub struct LiveState {
     pub(crate) notifications_lost: bool,
     outer_focused: Option<bool>,
     pub activation: Option<SurfaceActivation>,
-    /// The daemon refused the workspace focus that raised the last fence, so
+    /// The daemon refused the workspace or tab focus that raised the last fence, so
     /// there is no activation to wait for. The window reads it to drop the
     /// fence's deadline instead of reconnecting when it passes, and consumes
     /// it there. The next fence and a new session clear it too.
@@ -197,8 +197,8 @@ pub struct SurfaceActivation {
     pub failed: bool,
     pub focus: Option<crate::OwnedNavigationTarget>,
     pub active: bool,
-    /// The workspace focus request (`workspace.focus` or its `.v2` form) that
-    /// raised this fence, when it was one. A refusal of that request ends the
+    /// The workspace focus request (`workspace.focus` or its `.v2` form) or tab
+    /// focus request (`tab.focus`) that raised this fence, when it was one. A refusal of that request ends the
     /// activation, because no focus change is coming for the surface to settle on.
     pub focus_request: Option<String>,
 }
@@ -873,9 +873,9 @@ impl LiveState {
         self.dirty = true;
     }
 
-    /// Ends the activation `request_id` raised, when it is a workspace focus
-    /// the daemon refused. Tab and pane focus keep their fence: only a
-    /// workspace focus is ruled to stop waiting. A fence that failed to raise
+    /// Ends the activation `request_id` raised, when it is a workspace or tab
+    /// focus the daemon refused. A pane focus keeps its fence: only workspace
+    /// and tab focus are ruled to stop waiting. A fence that failed to raise
     /// has no acknowledgement coming and stays for its deadline's reconnect.
     fn end_refused_focus(&mut self, request_id: &str) {
         if self.activation.as_ref().is_some_and(|activation| {
