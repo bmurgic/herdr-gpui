@@ -35,6 +35,9 @@ pub(super) struct Card {
 struct CommandField {
     input: Entity<SearchInput>,
     phase: CommandPhase,
+    /// The text this window last put into the input. A text change that
+    /// differs from it is the user's, even when the saved command is stale.
+    shown: String,
     /// Tracked from the focus events, because a reload has no `Window` to ask.
     has_focus: bool,
     /// What the input's look was last set from, so a frame that changes
@@ -44,7 +47,8 @@ struct CommandField {
 }
 
 impl CommandField {
-    fn replace_text(&self, text: &str, cx: &mut App) {
+    fn replace_text(&mut self, text: &str, cx: &mut App) {
+        self.shown = text.to_owned();
         self.input
             .update(cx, |input, cx| input.set_text_selected(text, cx));
     }
@@ -126,11 +130,12 @@ impl SettingsWindow {
             return;
         };
         if self.controls.new_session_command.field.is_none() {
+            let shown = shared.new_session_command.trim().to_owned();
             let input = cx.new(SearchInput::new);
             input.update(cx, |input, cx| {
                 input.set_breaks_as_spaces(true);
                 input.set_placeholder("none", cx);
-                input.set_text_selected(shared.new_session_command.trim(), cx);
+                input.set_text_selected(&shown, cx);
             });
             let focus = input.read(cx).focus.clone();
             let changed = cx.subscribe(&input, |this, _, _: &Changed, cx| {
@@ -145,6 +150,7 @@ impl SettingsWindow {
             self.controls.new_session_command.field = Some(CommandField {
                 input,
                 phase: CommandPhase::NotEditing,
+                shown,
                 has_focus: false,
                 synced_look: None,
                 _subscriptions: [changed, focused, blurred],
@@ -183,15 +189,16 @@ impl SettingsWindow {
     }
 
     /// Editing starts on a text change while focused too, but only a change
-    /// the user made: syncing the saved command into the field is not one.
+    /// the user made: putting the saved or written command into the field is
+    /// not one.
     fn new_session_command_text_changed(&mut self, cx: &mut Context<Self>) {
-        let saved = self.shown_new_session_command();
         let Some(field) = &mut self.controls.new_session_command.field else {
             return;
         };
         if field.phase == CommandPhase::NotEditing
             && field.has_focus
-            && saved.is_some_and(|saved| field.input.read(cx).text() != saved)
+            && self.shared.is_some()
+            && field.input.read(cx).text() != field.shown
         {
             field.phase = CommandPhase::Editing;
         }
@@ -209,22 +216,35 @@ impl SettingsWindow {
             (true, CommandPhase::NotEditing) if self.shared.is_some() => {
                 field.phase = CommandPhase::Editing;
             }
-            (false, CommandPhase::Editing) => self.finish_new_session_command_edit(true, cx),
+            (false, CommandPhase::Editing) => self.finish_new_session_command_edit(cx),
             _ => {}
         }
         cx.notify();
     }
 
-    /// Ends the edit. `restore` shows the saved command again; without it the
-    /// typed text stays, for a save whose write succeeded.
-    fn finish_new_session_command_edit(&mut self, restore: bool, cx: &mut Context<Self>) {
+    /// Ends the edit without a write and shows the saved command again.
+    fn finish_new_session_command_edit(&mut self, cx: &mut Context<Self>) {
         let saved = self.shown_new_session_command();
         let Some(field) = &mut self.controls.new_session_command.field else {
             return;
         };
         field.phase = CommandPhase::NotEditing;
-        if restore && let Some(saved) = saved {
+        if let Some(saved) = saved {
             field.replace_text(&saved, cx);
+        }
+        cx.notify();
+    }
+
+    /// Ends the edit after `written` was saved, and shows it. The settings
+    /// the window holds may still be the old ones, when the reload after the
+    /// write failed, so they cannot say what the file holds now.
+    fn finish_saved_new_session_command(&mut self, written: &str, cx: &mut Context<Self>) {
+        let Some(field) = &mut self.controls.new_session_command.field else {
+            return;
+        };
+        field.phase = CommandPhase::NotEditing;
+        if field.input.read(cx).text() != written {
+            field.replace_text(written, cx);
         }
         cx.notify();
     }
@@ -285,8 +305,8 @@ impl SettingsWindow {
         let command = input.text().trim().to_owned();
         field.phase = CommandPhase::Submitted;
         self.save_shared_then(
-            Edit::NewSessionCommand(command),
-            |this, cx| this.finish_new_session_command_edit(false, cx),
+            Edit::NewSessionCommand(command.clone()),
+            move |this, cx| this.finish_saved_new_session_command(&command, cx),
             cx,
         );
     }
@@ -321,7 +341,7 @@ impl SettingsWindow {
         window.prevent_default();
         match key {
             "enter" => self.submit_new_session_command(cx),
-            "escape" => self.finish_new_session_command_edit(true, cx),
+            "escape" => self.finish_new_session_command_edit(cx),
             _ => {}
         }
         cx.notify();

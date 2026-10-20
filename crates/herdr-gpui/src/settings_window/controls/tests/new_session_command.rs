@@ -41,13 +41,15 @@ enum Recorded {
 /// A shared-settings seam that records each `Edit`. A write applies a
 /// `NewSessionCommand` to `file`, the config text every reload answers with,
 /// so a reload finds what was saved. `failure` makes the next write fail
-/// instead, leaving `file` as it was.
+/// instead, leaving `file` as it was. `reload_failure` makes the next reload
+/// fail, whatever the file holds.
 #[cfg(unix)]
 #[derive(Clone)]
 struct Seam {
     edits: Arc<Mutex<Vec<Recorded>>>,
     file: Arc<Mutex<String>>,
     failure: Arc<Mutex<Option<Failure>>>,
+    reload_failure: Arc<Mutex<Option<Failure>>>,
 }
 
 #[cfg(unix)]
@@ -57,12 +59,17 @@ impl Seam {
             edits: Default::default(),
             file: Arc::new(Mutex::new(file.into())),
             failure: Arc::new(Mutex::new(failure)),
+            reload_failure: Default::default(),
         }
+    }
+
+    fn fail_next_reload(&self, failure: Failure) {
+        *self.reload_failure.lock().unwrap() = Some(failure);
     }
 
     fn io(&self) -> SharedIo {
         let (edits, file, failure) = (self.edits.clone(), self.file.clone(), self.failure.clone());
-        let reload = self.file.clone();
+        let (reload, reload_failure) = (self.file.clone(), self.reload_failure.clone());
         SharedIo {
             write: Arc::new(move |edit| {
                 let (recorded, command) = match edit {
@@ -85,6 +92,9 @@ impl Seam {
                 Ok(())
             }),
             load: Arc::new(move || {
+                if let Some(error) = reload_failure.lock().unwrap().take() {
+                    return Err(error());
+                }
                 let mut loaded = skill_load()?;
                 loaded.shared = Some(Settings::parse_text(&reload.lock().unwrap())?);
                 Ok(loaded)
@@ -347,6 +357,29 @@ fn leaving_the_field_puts_the_saved_command_back(cx: &mut TestAppContext) {
     assert_eq!(phase(&view, cx), CommandPhase::NotEditing);
     assert_eq!(seam.recorded(), [Recorded::SessionSidebar(false)]);
     assert_eq!(seam.file(), CLAUDE);
+}
+
+#[cfg(unix)]
+#[gpui::test]
+fn a_saved_command_shows_trimmed_when_the_reload_after_it_fails(cx: &mut TestAppContext) {
+    let (view, cx, seam) = open_seamed(cx, CLAUDE, None);
+    seam.fail_next_reload(permission_denied);
+    edit_to(&view, cx, "  codex ");
+    press(cx, "enter");
+    cx.run_until_parked();
+
+    // The write landed and the reload did not, so the old settings still hold
+    // `claude`; the field shows what the file now holds.
+    assert_eq!(seam.commands(), ["codex"]);
+    assert_eq!(seam.file(), "[ui]\nnew_session_command = \"codex\"\n");
+    assert!(
+        footer(&view, cx)
+            .as_deref()
+            .is_some_and(|footer| footer.starts_with("Could not reload settings")),
+        "the reload failed"
+    );
+    assert_eq!(text(&view, cx), "codex");
+    assert_eq!(phase(&view, cx), CommandPhase::NotEditing);
 }
 
 #[cfg(unix)]
