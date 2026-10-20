@@ -42,7 +42,7 @@ pub(super) fn sidebar_width(preferred: Option<f32>, window_width: f32) -> f32 {
 
 /// Sidebar labels are monospace by default and digits are near-uniform
 /// elsewhere, so an em-fraction bounds a glyph well enough to divide a line.
-pub(super) fn glyph_width(font: &FontConfig) -> f32 {
+pub(crate) fn glyph_width(font: &FontConfig) -> f32 {
     font.size * 0.62
 }
 
