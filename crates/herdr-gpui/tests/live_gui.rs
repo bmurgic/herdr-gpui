@@ -478,7 +478,11 @@ fn native_new_session(walk: &str) {
         .env_remove("HERDR_CLIENT_SOCKET_PATH")
         .env("LC_ALL", "en_US.UTF-8");
     isolated.daemon = Some(daemon.arg("server").spawn().unwrap());
-    wait_for_socket(&socket, isolated.daemon.as_mut().unwrap());
+    isolated.sandbox.wait_for_daemon_at(
+        &socket,
+        isolated.daemon.as_mut().unwrap(),
+        Duration::from_secs(20),
+    );
     let mut command = gui_command(&isolated.sandbox, |name| std::env::var_os(name));
     command
         .env("HERDR_TEST_NEW_SESSION", walk)
@@ -503,35 +507,8 @@ fn native_new_session(walk: &str) {
     let log = fs::read_to_string(isolated.sandbox.dir.join("gui.log")).unwrap();
     eprintln!("{log}");
     assert!(status.success(), "native new session walk failed: {status}");
-    let passed = format!("NEW SESSION native PASS: {}:", walk_name(walk));
+    let passed = format!("NEW SESSION native PASS: {walk}:");
     assert!(log.contains(&passed), "no {passed:?} line in the GUI log");
-}
-
-/// Waits for the daemon to bind `socket`, failing when it exits first.
-#[cfg(target_os = "macos")]
-fn wait_for_socket(socket: &Path, daemon: &mut Child) {
-    eprintln!(
-        "isolated daemon pid={} socket={}",
-        daemon.id(),
-        socket.display()
-    );
-    let deadline = Instant::now() + Duration::from_secs(20);
-    while !socket.exists() {
-        assert!(
-            daemon.try_wait().unwrap().is_none(),
-            "daemon exited during startup"
-        );
-        assert!(Instant::now() < deadline, "daemon startup timed out");
-        thread::sleep(Duration::from_millis(20));
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn walk_name(walk: &str) -> &'static str {
-    match walk {
-        "project" => "Project",
-        _ => "Folder",
-    }
 }
 
 /// A git repository with one commit, so the daemon reports a repository root

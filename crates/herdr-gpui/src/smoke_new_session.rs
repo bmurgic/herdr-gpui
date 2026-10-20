@@ -68,10 +68,19 @@ pub(super) enum Walk {
 
 impl Walk {
     pub(super) fn from_env() -> Option<Self> {
-        match std::env::var(WALK_VARIABLE).ok()?.as_str() {
-            "project" => Some(Self::Project),
-            "folder" => Some(Self::Folder),
-            _ => None,
+        let value = std::env::var(WALK_VARIABLE).ok()?;
+        [Self::Project, Self::Folder]
+            .into_iter()
+            .find(|walk| walk.name() == value)
+    }
+
+    /// The `HERDR_TEST_NEW_SESSION` value that picks this walk. The PASS and
+    /// FAIL lines name the walk by it, so the native test finds its own line
+    /// with the value it set.
+    fn name(self) -> &'static str {
+        match self {
+            Self::Project => "project",
+            Self::Folder => "folder",
         }
     }
 }
@@ -90,11 +99,11 @@ pub(super) fn start(handle: WindowHandle<HerdrWindow>, walk: Walk, cx: &mut App)
         };
         match outcome {
             Ok(summary) => {
-                eprintln!("NEW SESSION native PASS: {walk:?}: {summary}");
+                eprintln!("NEW SESSION native PASS: {}: {summary}", walk.name());
                 std::process::exit(0);
             }
             Err(error) => {
-                eprintln!("NEW SESSION native FAIL: {walk:?}: {error:#}");
+                eprintln!("NEW SESSION native FAIL: {}: {error:#}", walk.name());
                 std::process::exit(1);
             }
         }

@@ -92,13 +92,19 @@ impl Sandbox {
     }
 
     pub fn wait_for_daemon(&self, child: &mut Child, timeout: Duration) {
+        self.wait_for_daemon_at(&self.socket(), child, timeout);
+    }
+
+    /// Waits for the daemon to bind `socket`, failing when it exits first or
+    /// `timeout` passes.
+    pub fn wait_for_daemon_at(&self, socket: &Path, child: &mut Child, timeout: Duration) {
         eprintln!(
-            "isolated daemon pid={} dir={}",
+            "isolated daemon pid={} socket={}",
             child.id(),
-            self.dir.display()
+            socket.display()
         );
         let deadline = Instant::now() + timeout;
-        while !self.socket().exists() {
+        while !socket.exists() {
             assert!(
                 child.try_wait().unwrap().is_none(),
                 "daemon exited during startup"
