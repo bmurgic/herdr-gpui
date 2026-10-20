@@ -405,7 +405,7 @@ const NEW_SESSION_MARKER: &str = "e2e-typed-marker";
 
 /// Clicks the new session dialog's footer button, project row, `start`, and
 /// `close` on a real window, against a repository whose `worktree.created`
-/// hooks run for 20 seconds and fail. See `smoke_new_session.rs`.
+/// hooks run for 30 seconds and fail. See `smoke_new_session.rs`.
 #[cfg(target_os = "macos")]
 #[test]
 #[ignore = "requires active desktop and explicit HERDR_TEST_BINARY; launches a native GUI and isolated daemon"]
@@ -436,7 +436,7 @@ fn native_new_session(walk: &str) {
     ));
     fs::write(sandbox.dir.join("config.toml"), config).unwrap();
     let repo = seed_repository(sandbox);
-    link_setup_hook(sandbox, &binary, "e2e.hang", "sleep 20");
+    link_setup_hook(sandbox, &binary, "e2e.hang", "sleep 30");
     link_setup_hook(sandbox, &binary, "e2e.fail", "exit 1");
     // Two folders under a home of their own, so the folder page lists exactly
     // these, in this order.
