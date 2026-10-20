@@ -269,13 +269,14 @@ impl HerdrWindow {
         let Some(focus) = self.new_session_confirm().map(|confirm| confirm.focus) else {
             return false;
         };
-        let is_field = matches!(focus, ConfirmRow::Branch | ConfirmRow::Command);
         match event.keystroke.key.as_str() {
             "up" => self.move_confirm_focus(-1, cx),
             "down" => self.move_confirm_focus(1, cx),
             "escape" => self.leave_new_session_confirm(cx),
             "enter" => self.activate_confirm_row(focus, cx),
-            "space" if !is_field => self.activate_confirm_row(focus, cx),
+            "space" if matches!(focus, ConfirmRow::Worktree | ConfirmRow::CommandToggle) => {
+                self.activate_confirm_row(focus, cx);
+            }
             _ => return false,
         }
         cx.stop_propagation();

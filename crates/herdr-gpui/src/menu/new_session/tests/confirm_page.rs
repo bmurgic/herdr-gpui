@@ -434,3 +434,23 @@ fn a_click_on_a_repository_entry_opens_its_confirm_page(cx: &mut TestAppContext)
     assert_eq!(project.source_workspace_id.as_deref(), Some("w1"));
     assert_no_request(&mut peer, &view, test_cx);
 }
+
+/// D7: Space flips a checkbox or types into a field. On `start` and `back` it
+/// does nothing, so the page and its edits stay as they were.
+#[gpui::test]
+fn space_does_nothing_on_start_or_back(cx: &mut TestAppContext) {
+    let (view, test_cx, mut peer) = confirm_page(cx, &methods_with_send_text());
+    press(test_cx, "up up up");
+    set_focused_text(&view, test_cx, "mine");
+    press(test_cx, "down down down down down");
+    assert_eq!(focus(&view, test_cx), ConfirmRow::Back);
+    press(test_cx, "space");
+    assert!(is_confirming(&view, test_cx));
+    assert_eq!(focus(&view, test_cx), ConfirmRow::Back);
+    assert_eq!(field(&view, test_cx, ConfirmRow::Branch), "mine");
+    press(test_cx, "up space");
+    assert_eq!(focus(&view, test_cx), ConfirmRow::Start);
+    assert!(is_confirming(&view, test_cx));
+    assert_eq!(field(&view, test_cx, ConfirmRow::Branch), "mine");
+    assert_no_request(&mut peer, &view, test_cx);
+}
