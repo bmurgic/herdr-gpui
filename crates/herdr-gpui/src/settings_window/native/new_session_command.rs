@@ -9,15 +9,10 @@
 //! only in the key window, and macOS will not make a fixture app launched
 //! from the background key (`sessions.rs` parks the title model field for
 //! the same reason).
-use super::{Section, SettingsWindow, click_category};
-use super::{
-    open_settings,
-    sessions::{WINDOW_SIZE, sandboxed_config, scroll_to_sessions},
-};
+use super::{SettingsWindow, sessions::open_general_sessions};
 use crate::{HerdrWindow, sidebar::layout_tests::PaintedProbes};
 use anyhow::{Context as _, Result, ensure};
 use gpui::*;
-use std::time::{Duration, Instant};
 
 /// The row, its field, and its `Apply` button, as the controls probe them.
 const ROW: &str = "settings-new-session-command-row";
@@ -31,7 +26,6 @@ const SESSION_TITLES: &str = "settings-session-titles";
 /// The note qa.md's step 1 reads under the row, written out here rather than
 /// taken from the control, so a changed note fails the check.
 const NOTE: &str = "Command the Agents tab's new dialog types; empty types none";
-const POLL: Duration = Duration::from_millis(20);
 
 /// Opens Settings from `source`, sizes it as the other Settings walks do,
 /// shows General scrolled to the Sessions card, and checks that the
@@ -42,20 +36,7 @@ pub(crate) async fn open_new_session_row(
     source: WindowHandle<HerdrWindow>,
     cx: &mut AsyncApp,
 ) -> Result<(AnyWindowHandle, String)> {
-    let settings = open_settings(source, cx).await?;
-    sandboxed_config(settings, cx)?;
-    settings.update(cx, |_, window, _| window.resize(WINDOW_SIZE))?;
-    let deadline = Instant::now() + Duration::from_secs(2);
-    while settings.update(cx, |_, window, _| window.viewport_size())? != WINDOW_SIZE {
-        ensure!(Instant::now() < deadline, "Settings resize timed out");
-        cx.background_executor().timer(POLL).await;
-    }
-    let general = Section::ALL
-        .iter()
-        .position(|section| *section == Section::General)
-        .context("General is not a Settings category")?;
-    click_category(settings, general, Section::General, cx).await?;
-    scroll_to_sessions(settings, cx)?;
+    let (settings, _) = open_general_sessions(source, cx).await?;
     let bounds = |id: &str, view: &SettingsWindow, cx: &App| view.native_control_bounds(id, cx);
     let shown = AnyWindowHandle::from(settings).update(cx, |root, window, cx| -> Result<_> {
         cx.default_global::<PaintedProbes>().0.clear();
