@@ -5,3 +5,9 @@ skills/** text eol=lf
 # Conflicts are rebuilt by Cargo rather than resolved by hand; `just hooks`
 # configures the driver. Without it Git falls back to its ordinary merge.
 Cargo.lock merge=cargo-lock
+
+# The PR size table counts only `tests/` directories as tests by default. These
+# test modules live beside their code, compiled only under `cfg(test)`.
+crates/**/*_tests/** bmagic-kind=tests
+crates/**/*_tests.rs bmagic-kind=tests
+crates/**/tests.rs bmagic-kind=tests
