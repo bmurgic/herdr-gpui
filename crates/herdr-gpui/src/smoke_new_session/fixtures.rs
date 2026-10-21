@@ -9,7 +9,8 @@
 //! Only the harness owns the daemon process, so a walk asks it to signal the
 //! daemon by writing `request-<n>` into `HERDR_TEST_NEW_SESSION_CONTROL`, and
 //! the harness answers in `done-<n>` once the daemon has paused, resumed,
-//! exited, or listens again.
+//! exited, or listens again. The `cli` walk asks it the same way to run the
+//! `herdr-gpui` command line.
 use super::*;
 
 const NOTES_VARIABLE: &str = "HERDR_TEST_NEW_SESSION_NOTES";
@@ -153,20 +154,36 @@ impl Driver {
     /// Asks the harness to do `action` to the daemon and waits for its
     /// answer, which names the daemon's process id.
     pub(super) async fn daemon(&self, cx: &mut AsyncApp, action: DaemonAction) -> Result<String> {
+        let name = action.name();
+        let answer = self
+            .ask_harness(cx, name, &format!("{name} the daemon"))
+            .await?;
+        eprintln!("NEW SESSION daemon {name}: {answer}");
+        Ok(answer)
+    }
+
+    /// Writes `request` for the harness and waits for its answer. `what`
+    /// names the request in failures, as in "the harness could not {what}".
+    pub(super) async fn ask_harness(
+        &self,
+        cx: &mut AsyncApp,
+        request: &str,
+        what: &str,
+    ) -> Result<String> {
         let folder = env_path(CONTROL_VARIABLE)?;
         let number = self.requests.get() + 1;
         self.requests.set(number);
-        let request = folder.join(format!("request-{number}"));
+        let request_path = folder.join(format!("request-{number}"));
         let staged = folder.join(format!("staged-{number}"));
-        let name = action.name();
+        let body = request.to_owned();
         // Written aside and renamed, so the harness never reads half a request.
         cx.background_executor()
             .spawn(async move {
-                std::fs::write(&staged, name)?;
-                std::fs::rename(&staged, &request)
+                std::fs::write(&staged, body)?;
+                std::fs::rename(&staged, &request_path)
             })
             .await
-            .with_context(|| format!("writing daemon request {number} ({name})"))?;
+            .with_context(|| format!("writing harness request {number} ({what})"))?;
         let done = folder.join(format!("done-{number}"));
         let deadline = Instant::now() + CONTROL_DEADLINE;
         loop {
@@ -178,21 +195,20 @@ impl Driver {
             if let Some(answer) = answer {
                 ensure!(
                     !answer.starts_with("error"),
-                    "the harness could not {name} the daemon: {answer}"
+                    "the harness could not {what}: {answer}"
                 );
-                eprintln!("NEW SESSION daemon {name}: {answer}");
                 return Ok(answer);
             }
             ensure!(
                 Instant::now() < deadline,
-                "the harness did not {name} the daemon within {CONTROL_DEADLINE:?}"
+                "the harness did not {what} within {CONTROL_DEADLINE:?}"
             );
             self.timer.timer(POLL).await;
         }
     }
 }
 
-fn env_path(name: &str) -> Result<PathBuf> {
+pub(super) fn env_path(name: &str) -> Result<PathBuf> {
     let path = std::env::var_os(name)
         .map(PathBuf::from)
         .with_context(|| format!("{name} unset"))?;

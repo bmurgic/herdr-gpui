@@ -36,6 +36,8 @@ use std::{
 // keep-sorted start
 #[path = "smoke_new_session/agents.rs"]
 mod agents;
+#[path = "smoke_new_session/cli.rs"]
+mod cli;
 #[path = "smoke_new_session/confirm.rs"]
 mod confirm;
 #[path = "smoke_new_session/failed_start.rs"]
@@ -121,6 +123,7 @@ macro_rules! walks {
 walks! {
     // keep-sorted start
     Agents => "agents", agents;
+    Cli => "cli", cli;
     Confirm => "confirm", confirm;
     FailedStart => "failed-start", failed_start;
     Folder => "folder", folder;

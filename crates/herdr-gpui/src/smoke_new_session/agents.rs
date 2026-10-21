@@ -125,7 +125,7 @@ impl Driver {
     }
 
     /// Waits for New Workspace, and fails if the new-session dialog opened.
-    async fn new_workspace_page(&self, cx: &mut AsyncApp, opener: &str) -> Result<()> {
+    pub(super) async fn new_workspace_page(&self, cx: &mut AsyncApp, opener: &str) -> Result<()> {
         self.until(cx, &format!("New Workspace from {opener}"), |view| {
             ensure!(
                 view.new_session_stage().is_none(),

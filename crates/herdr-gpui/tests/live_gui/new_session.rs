@@ -56,6 +56,15 @@ fn native_new_session_agents_tab_keys() {
     native_new_session("agents");
 }
 
+/// qa.md's "Open the new-session dialog from the palette and the command
+/// line", steps 1, 3, and 4, with the `herdr-gpui` this test built run as a
+/// child against the window's control socket.
+#[test]
+#[ignore = "requires active desktop and explicit HERDR_TEST_BINARY; launches a native GUI and isolated daemon"]
+fn native_new_session_cli_runs_the_command() {
+    native_new_session("cli");
+}
+
 /// Step 1 of qa.md's "Change the New session command in Settings": the row's
 /// place and text, and its screenshots.
 #[test]
@@ -218,6 +227,15 @@ fn native_new_session(walk: &str) {
         socket.as_os_str().len() < 104,
         "standard socket path too long for Unix socket; set HERDR_TEST_TMPDIR to a shorter parent"
     );
+    if walk == "cli" {
+        // Where the window's `XDG_STATE_HOME` puts its control socket. A
+        // socket it cannot bind is only logged, so check the length here.
+        let control_socket = sandbox.dir.join("state/herdr/gpui/control.sock");
+        assert!(
+            control_socket.as_os_str().len() < 104,
+            "control socket path too long for Unix socket; set HERDR_TEST_TMPDIR to a shorter parent"
+        );
+    }
     isolated.daemon = Some(spawn_daemon(sandbox, &binary, "daemon.log"));
     isolated.sandbox.wait_for_daemon_at(
         &socket,
@@ -343,7 +361,13 @@ fn serve_walk(
                     is_stopped = false;
                     answer
                 }
-                other => format!("error: unknown request {other:?}"),
+                other => match other.strip_prefix("cli") {
+                    Some(args) if args.is_empty() || args.starts_with('\n') => {
+                        let args: Vec<&str> = args.lines().filter(|arg| !arg.is_empty()).collect();
+                        run_cli(&isolated.sandbox, next, &args)
+                    }
+                    _ => format!("error: unknown request {other:?}"),
+                },
             };
             eprintln!("daemon request {next} {action}: {answer}");
             let staged = control.join(format!("answer-{next}"));
@@ -353,6 +377,45 @@ fn serve_walk(
         }
         thread::sleep(Duration::from_millis(50));
     }
+}
+
+/// Runs the `herdr-gpui` this test built with `args`, as the `cli` walk asks,
+/// in the sandbox's environment without the daemon variables Herdr sets in a
+/// pane, so it acts in the frontmost window. Answers with its exit code and
+/// output as JSON. A child still running after `CLI_DEADLINE` is killed
+/// through its own handle.
+fn run_cli(sandbox: &Sandbox, number: u32, args: &[&str]) -> String {
+    const CLI_DEADLINE: Duration = Duration::from_secs(20);
+    let stdout = format!("cli-{number}.out");
+    let stderr = sandbox.dir.join(format!("cli-{number}.err"));
+    let mut command = sandbox.command(env!("CARGO_BIN_EXE_herdr-gpui"), &stdout);
+    command
+        .env_remove("HERDR_SOCKET_PATH")
+        .env_remove("HERDR_CLIENT_SOCKET_PATH")
+        .stderr(fs::File::create(&stderr).unwrap())
+        .args(args);
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => return format!("error: spawning herdr-gpui {args:?}: {error}"),
+    };
+    let deadline = Instant::now() + CLI_DEADLINE;
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return format!("error: herdr-gpui {args:?} ran longer than {CLI_DEADLINE:?}");
+        }
+        thread::sleep(Duration::from_millis(20));
+    };
+    serde_json::json!({
+        "code": status.code(),
+        "stdout": fs::read_to_string(sandbox.dir.join(&stdout)).unwrap(),
+        "stderr": fs::read_to_string(&stderr).unwrap(),
+    })
+    .to_string()
 }
 
 /// Sends `SIG<name>` to the exact process `pid`, which this harness started.
