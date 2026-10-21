@@ -1,7 +1,7 @@
 # new-session-command-setting Specification
 
 ## Purpose
-TBD - created by archiving change agent-new-session. Update Purpose after archive.
+The `ui.new_session_command` setting in Herdr's `config.toml`, edited from the Settings > General `New session` row, sets the command the new-session dialog types into a new session, `claude` by default.
 ## Requirements
 ### Requirement: The new session command setting
 

@@ -1,7 +1,7 @@
 # agent-new-session Specification
 
 ## Purpose
-TBD - created by archiving change agent-new-session. Update Purpose after archive.
+The new-session dialog, opened from the Agents tab's footer `new` control or the `new_session` command, lets the user pick a project or another folder, choose whether to create a git worktree, and start the configured command in a new workspace.
 ## Requirements
 ### Requirement: The Agents tab's new opens the new-session dialog
 

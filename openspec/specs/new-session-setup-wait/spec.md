@@ -1,7 +1,7 @@
 # new-session-setup-wait Specification
 
 ## Purpose
-TBD - created by archiving change agent-new-session. Update Purpose after archive.
+After a start creates a worktree, the dialog polls `plugin.log.list` for that worktree's setup hooks and shows them as a checklist with elapsed times and failure details, so the user can wait, skip waiting, start anyway, or close before the command runs.
 ## Requirements
 ### Requirement: Setup wait
 

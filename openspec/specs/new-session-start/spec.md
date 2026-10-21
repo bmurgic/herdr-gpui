@@ -1,7 +1,7 @@
 # new-session-start Specification
 
 ## Purpose
-TBD - created by archiving change agent-new-session. Update Purpose after archive.
+Starting a new session creates exactly one worktree or workspace on the selected host, types the configured command into its first pane when the command is on, and focuses the new tab, with a loading icon, readable error lines, and a retry that never creates a second workspace.
 ## Requirements
 ### Requirement: Start sequence
 
