@@ -13,6 +13,7 @@ No automation in `just ci` drives the native herdr-gpui window against a myherdr
 
 - `native_new_session_clicks_reach_their_rows` and `native_new_session_folder_clicks_reach_their_rows` check that each click on the project page and the other-folder page reaches its control, including the click on a folder suggestion (Agent new session 16).
 - `native_new_session_agents_tab_keys`: steps 3 to 7 of `Open the new-session dialog from the Agents tab`, with the linked worktree `demo-fix`, and step 2 of `Open the new-session dialog from the palette and the command line`.
+- `native_new_session_cli_runs_the_command`: steps 1, 3, and 4 of `Open the new-session dialog from the palette and the command line`. The test runs the `herdr-gpui` it built as a separate process, outside any Herdr pane, against the window's control socket inside the sandbox, and checks each exit status and the window.
 - `native_new_session_confirm_keys`: steps 2 to 7 of `Review the confirm page for a repository`.
 - `native_new_session_folder_keys`: steps 1 to 3 and 5 to 7 of `Check another folder`.
 - `native_new_session_start_types_in_new_tab`: steps 1 to 4 of `Start a session in a new worktree`.
@@ -22,14 +23,12 @@ No automation in `just ci` drives the native herdr-gpui window against a myherdr
 - `native_new_session_setup_failed_log`: steps 1 and 2 of `See a failed setup hook`.
 - `native_new_session_settings_command`: step 1 of `Change the New session command in Settings`.
 
-Steps 3 and 4 of `Open the new-session dialog from the palette and the command line` have no native walk: they are CLI steps that a tester runs by hand in the terminal beside the window.
-
 The walks differ from the procedures in two places:
 
 - The sandbox shell draws its prompt over output that ends without a newline, so `printf qa-after-setup` leaves no `qa-after-setup` on screen. Where a step observes that text in a terminal, the walk checks for the typed command line and a new prompt after it.
 - The sandbox daemon answers a folder check at once. In step 6 of `Check another folder`, the walk pauses the daemon until it has read `Checking folder…`.
 
-Synthesized keys skip macOS's own keyboard handling. They do not test which window macOS makes the key window, how macOS routes keys to it, or input methods (IME). The tester still runs every desktop procedure on a desktop session for those. Steps 2 to 6 of `Change the New session command in Settings` have no native walk: the field starts an edit only in the key window, and macOS does not make a test app launched in the background the key window. That procedure is the only check of typing, pasting, and `Apply` in that field in the real window. The opt-in native suite needs an active desktop and a daemon binary the tester names. The CLI procedure runs in a terminal beside that window. Each procedure names the screenshots it saves. The tester saves each one from the real native window.
+Synthesized keys skip macOS's own keyboard handling. They do not test which window macOS makes the key window, how macOS routes keys to it, or input methods (IME). The tester still runs every desktop procedure on a desktop session for those. Steps 2 to 6 of `Change the New session command in Settings` have no native walk. A click focuses the field, but the app learns that the field gained focus only while its window is the key window, and the field starts an edit only then. macOS does not make a test app launched in the background the key window, so in a walk the typed text never becomes an edit, and Esc, Return, and `Apply` save or restore nothing. Step 3 also pastes from another application, and the walks never touch the system clipboard. That procedure is the only check of typing, pasting, and `Apply` in that field in the real window. The opt-in native suite needs an active desktop and a daemon binary the tester names. The CLI procedure runs in a terminal beside that window. Each procedure names the screenshots it saves. The tester saves each one from the real native window.
 
 Shared starting state for every procedure:
 
