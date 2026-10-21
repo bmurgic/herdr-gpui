@@ -362,11 +362,11 @@ impl SettingsWindow {
             .child(div().font_weight(FontWeight::SEMIBOLD).child(title))
     }
 
-    pub(super) fn control_note(&self, text: impl Into<SharedString>) -> Div {
+    pub(super) fn control_note(&self, text: impl IntoElement) -> Div {
         div()
             .min_w_0()
             .text_color(rgb(self.theme.muted))
-            .child(text.into())
+            .child(text)
     }
 
     /// A row's text field and its `Apply` need shared saves, which Windows

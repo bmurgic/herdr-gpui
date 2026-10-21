@@ -31,6 +31,12 @@ mod confirm;
 mod folder;
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 mod native;
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+pub(crate) use {
+    confirm::ConfirmRow,
+    native::{ChecklistView, ConfirmView, ProjectsView},
+    setup::SetupButton,
+};
 mod outage;
 #[cfg(all(test, unix))]
 mod probe;

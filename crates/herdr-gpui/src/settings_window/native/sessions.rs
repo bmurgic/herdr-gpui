@@ -11,7 +11,7 @@ use super::*;
 use std::path::{Path, PathBuf};
 
 /// Wide and tall enough to show the whole Sessions card once scrolled to it.
-const WINDOW_SIZE: Size<Pixels> = Size {
+pub(super) const WINDOW_SIZE: Size<Pixels> = Size {
     width: px(960.),
     height: px(780.),
 };
@@ -73,7 +73,10 @@ pub(crate) async fn verify_sessions(
 /// The file Settings writes shared settings to. Refuses to go on unless it
 /// is the fixture's `HERDR_CONFIG_PATH` inside its private `HOME`, so no
 /// click below can write a real config.
-fn sandboxed_config(settings: WindowHandle<SettingsWindow>, cx: &mut AsyncApp) -> Result<PathBuf> {
+pub(super) fn sandboxed_config(
+    settings: WindowHandle<SettingsWindow>,
+    cx: &mut AsyncApp,
+) -> Result<PathBuf> {
     let configured = std::env::var_os("HERDR_CONFIG_PATH")
         .map(PathBuf::from)
         .context("the fixture sets no HERDR_CONFIG_PATH")?;
@@ -95,7 +98,10 @@ fn sandboxed_config(settings: WindowHandle<SettingsWindow>, cx: &mut AsyncApp) -
 }
 
 /// Scrolls the body so the Sessions card starts at its top.
-fn scroll_to_sessions(settings: WindowHandle<SettingsWindow>, cx: &mut AsyncApp) -> Result<()> {
+pub(super) fn scroll_to_sessions(
+    settings: WindowHandle<SettingsWindow>,
+    cx: &mut AsyncApp,
+) -> Result<()> {
     AnyWindowHandle::from(settings).update(cx, |root, window, cx| -> Result<()> {
         window.draw(cx).clear(cx);
         let view = root

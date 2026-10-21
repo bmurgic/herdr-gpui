@@ -17,6 +17,8 @@ pub(crate) use new_session::ConnectionReport;
     all(feature = "integration-test", target_os = "macos")
 ))]
 pub(crate) use new_session::NewSessionStage;
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+pub(crate) use new_session::{ChecklistView, ConfirmRow, ConfirmView, ProjectsView, SetupButton};
 #[cfg(all(test, unix))]
 pub(crate) use new_session::{ConfirmProject, DialogProbe, tests as new_session_tests};
 mod new_workspace;

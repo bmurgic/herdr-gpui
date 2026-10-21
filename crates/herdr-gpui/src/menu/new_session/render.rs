@@ -77,7 +77,7 @@ impl HerdrWindow {
                     div()
                         .debug_selector(|| "new-session-path".into())
                         .text_color(rgb(theme.subtext()))
-                        .child(shorten_home(&confirm.project.path, home)),
+                        .child(label_text(&shorten_home(&confirm.project.path, home))),
                 )
             });
         let folder = self
@@ -135,7 +135,7 @@ impl HerdrWindow {
                             .left(px(6.))
                             .h(px(font.line_height()))
                             .text_color(rgb(theme.muted))
-                            .child(FILTER_PLACEHOLDER),
+                            .child(label_text(FILTER_PLACEHOLDER)),
                     )
                 });
         div()
@@ -572,7 +572,8 @@ impl HerdrWindow {
     ) -> Stateful<Div> {
         self.confirm_row_frame(confirm, row, id, cx)
             .child(checkbox(&self.theme, self.config.ui.size, checked))
-            .child(label)
+            // A probed label, so the native walk can click the row by it.
+            .child(label_text(label))
     }
 
     fn field_row(
@@ -597,7 +598,7 @@ impl HerdrWindow {
                     .w(px(FIELD_LABEL_WIDTH))
                     .flex_none()
                     .when(!is_on, |label| label.text_color(rgb(theme.subtext())))
-                    .child(label),
+                    .child(label_text(label)),
             )
             .child(div().flex_1().min_w_0().child(field))
     }

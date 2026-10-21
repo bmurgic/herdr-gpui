@@ -14,6 +14,10 @@
 //! walk clicks a folder suggestion and checks that it fills the field and
 //! sends nothing.
 //!
+//! The qa walks (`agents` and the others `Walk` names) run the qa.md steps
+//! Feature QA could not run, with keys sent through the window's own
+//! dispatch; each topic file under `smoke_new_session/` says which steps.
+//!
 //! The window dials the sandbox daemon's standard session socket, so the
 //! window trusts the daemon as local on its own. The walk checks that socket
 //! lies inside the sandbox before it sends anything.
@@ -24,11 +28,35 @@ use crate::{
 };
 use anyhow::ensure;
 use std::{
+    cell::Cell,
     path::{Path as FilePath, PathBuf},
     sync::mpsc::{self, TryRecvError},
 };
 
-/// Names the walk to run: `project` or `folder`.
+// keep-sorted start
+#[path = "smoke_new_session/agents.rs"]
+mod agents;
+#[path = "smoke_new_session/confirm.rs"]
+mod confirm;
+#[path = "smoke_new_session/failed_start.rs"]
+mod failed_start;
+#[path = "smoke_new_session/fixtures.rs"]
+mod fixtures;
+#[path = "smoke_new_session/folder_keys.rs"]
+mod folder_keys;
+#[path = "smoke_new_session/keys.rs"]
+mod keys;
+#[path = "smoke_new_session/outage.rs"]
+mod outage;
+#[path = "smoke_new_session/settings.rs"]
+mod settings;
+#[path = "smoke_new_session/setup.rs"]
+mod setup;
+#[path = "smoke_new_session/start.rs"]
+mod start;
+// keep-sorted end
+
+/// Names the walk to run, as `Walk::name` spells it.
 const WALK_VARIABLE: &str = "HERDR_TEST_NEW_SESSION";
 /// The git repository the project walk's workspace opens in.
 const REPO_VARIABLE: &str = "HERDR_TEST_NEW_SESSION_REPO";
@@ -60,28 +88,56 @@ const SHELL_PROMPT: &str = "LIVE>";
 const FOLDER_ROW: &str = "Projects";
 const FOLDER_TEXT: &str = "~/Projects";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Walk {
-    Project,
-    Folder,
+/// Declares each walk once: its variant, the `HERDR_TEST_NEW_SESSION` value
+/// that picks it, and the `Driver` method that runs it.
+macro_rules! walks {
+    ($($walk:ident => $name:literal, $run:ident;)+) => {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub(super) enum Walk {
+            $($walk,)+
+        }
+
+        impl Walk {
+            const ALL: &[Self] = &[$(Self::$walk,)+];
+
+            /// The `HERDR_TEST_NEW_SESSION` value that picks this walk. The
+            /// PASS and FAIL lines name the walk by it, so the native test
+            /// finds its own line with the value it set.
+            fn name(self) -> &'static str {
+                match self {
+                    $(Self::$walk => $name,)+
+                }
+            }
+
+            async fn run(self, driver: &Driver, cx: &mut AsyncApp) -> Result<String> {
+                match self {
+                    $(Self::$walk => driver.$run(cx).await,)+
+                }
+            }
+        }
+    };
+}
+
+walks! {
+    // keep-sorted start
+    Agents => "agents", agents;
+    Confirm => "confirm", confirm;
+    FailedStart => "failed-start", failed_start;
+    Folder => "folder", folder;
+    FolderKeys => "folder-keys", folder_keys;
+    Outage => "outage", outage;
+    Project => "project", project;
+    Settings => "settings", settings;
+    SetupFailed => "setup-failed", setup_failed;
+    SetupWait => "setup-wait", setup_wait;
+    Start => "start", start;
+    // keep-sorted end
 }
 
 impl Walk {
     pub(super) fn from_env() -> Option<Self> {
         let value = std::env::var(WALK_VARIABLE).ok()?;
-        [Self::Project, Self::Folder]
-            .into_iter()
-            .find(|walk| walk.name() == value)
-    }
-
-    /// The `HERDR_TEST_NEW_SESSION` value that picks this walk. The PASS and
-    /// FAIL lines name the walk by it, so the native test finds its own line
-    /// with the value it set.
-    fn name(self) -> &'static str {
-        match self {
-            Self::Project => "project",
-            Self::Folder => "folder",
-        }
+        Self::ALL.iter().copied().find(|walk| walk.name() == value)
     }
 }
 
@@ -91,10 +147,7 @@ pub(super) fn start(handle: WindowHandle<HerdrWindow>, walk: Walk, cx: &mut App)
     let timer = cx.background_executor().clone();
     cx.spawn(async move |cx| {
         let outcome = match Driver::new(handle, timer, cx).await {
-            Ok(driver) => match walk {
-                Walk::Project => driver.project(cx).await,
-                Walk::Folder => driver.folder(cx).await,
-            },
+            Ok(driver) => walk.run(&driver, cx).await,
             Err(error) => Err(error),
         };
         match outcome {
@@ -124,6 +177,8 @@ struct Driver {
     handle: WindowHandle<HerdrWindow>,
     timer: BackgroundExecutor,
     target: Target,
+    /// How many daemon requests the walk has sent the harness.
+    requests: Cell<u32>,
 }
 
 impl Driver {
@@ -137,6 +192,7 @@ impl Driver {
             handle,
             timer,
             target,
+            requests: Cell::new(0),
         };
         driver.check_socket_is_in_sandbox(cx)?;
         Ok(driver)
@@ -610,14 +666,24 @@ impl Driver {
 
     /// Saves a PNG of the window under `HERDR_TEST_NEW_SESSION_CAPTURE` when
     /// that is set and the build can render images; otherwise does nothing.
-    #[cfg(feature = "mockup")]
     fn capture(&self, cx: &mut AsyncApp, name: &str) -> Result<()> {
+        self.capture_file(
+            cx,
+            AnyWindowHandle::from(self.handle),
+            &format!("new-session-{name}.png"),
+        )
+    }
+
+    /// Saves a PNG of `window` as `file` under `HERDR_TEST_NEW_SESSION_CAPTURE`,
+    /// as `capture` does, for the screens qa.md names and the Settings window.
+    #[cfg(feature = "mockup")]
+    fn capture_file(&self, cx: &mut AsyncApp, window: AnyWindowHandle, file: &str) -> Result<()> {
         let Some(directory) = std::env::var_os(CAPTURE_VARIABLE) else {
             return Ok(());
         };
-        let path = PathBuf::from(directory).join(format!("new-session-{name}.png"));
+        let path = PathBuf::from(directory).join(file);
         ensure!(path.is_absolute(), "{CAPTURE_VARIABLE} must be absolute");
-        let image = AnyWindowHandle::from(self.handle).update(cx, |_, window, cx| {
+        let image = window.update(cx, |_, window, cx| {
             window.draw(cx).clear(cx);
             window.render_to_image()
         })??;
@@ -629,7 +695,7 @@ impl Driver {
     }
 
     #[cfg(not(feature = "mockup"))]
-    fn capture(&self, _: &mut AsyncApp, _: &str) -> Result<()> {
+    fn capture_file(&self, _: &mut AsyncApp, _: AnyWindowHandle, _: &str) -> Result<()> {
         let _ = CAPTURE_VARIABLE;
         Ok(())
     }

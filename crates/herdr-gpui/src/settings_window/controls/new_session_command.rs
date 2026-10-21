@@ -4,12 +4,15 @@
 //! `save_shared_then`, whose hook ends the edit on success. A failed save is
 //! told apart in `apply_loaded`, which calls `sync_new_session_command_field`
 //! while the field is still submitted.
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+use super::native_probe;
 use super::{Edit, SettingsWindow, claim_field_key, field_key, keep_focus};
 use crate::{
     config::{FontConfig, Theme},
     herdr_settings::{DEFAULT_NEW_SESSION_COMMAND, Settings},
     search_input::{Changed, SearchInput},
     settings_window::Section,
+    sidebar::label_text,
 };
 use gpui::{prelude::*, *};
 
@@ -79,8 +82,16 @@ impl SettingsWindow {
         [
             div()
                 .debug_selector(|| "settings-new-session-command-row".into())
-                .child(self.control_row("New session", self.new_session_command_value(cx))),
-            self.control_note("Command the Agents tab's new dialog types; empty types none"),
+                .child(self.control_row("New session", self.new_session_command_value(cx)))
+                .map(|row| {
+                    #[cfg(all(feature = "integration-test", target_os = "macos"))]
+                    let row = row.child(native_probe("settings-new-session-command-row"));
+                    row
+                }),
+            // Probed text, so the native walk reads the note as painted.
+            self.control_note(label_text(
+                "Command the Agents tab's new dialog types; empty types none",
+            )),
         ]
     }
 
@@ -103,7 +114,12 @@ impl SettingsWindow {
             .control_choice("settings-new-session-command-apply", "Apply", false, true)
             .debug_selector(|| "settings-new-session-command-apply".into())
             .on_mouse_down(MouseButton::Left, keep_focus)
-            .on_click(cx.listener(|this, _, _, cx| this.submit_new_session_command(cx)));
+            .on_click(cx.listener(|this, _, _, cx| this.submit_new_session_command(cx)))
+            .map(|apply| {
+                #[cfg(all(feature = "integration-test", target_os = "macos"))]
+                let apply = apply.child(native_probe("settings-new-session-command-apply"));
+                apply
+            });
         div()
             .flex()
             .items_center()
@@ -114,7 +130,12 @@ impl SettingsWindow {
                     .w(px(260.))
                     .min_w_0()
                     .on_key_down(cx.listener(Self::new_session_command_key))
-                    .child(field.input.clone()),
+                    .child(field.input.clone())
+                    .map(|field| {
+                        #[cfg(all(feature = "integration-test", target_os = "macos"))]
+                        let field = field.child(native_probe("settings-new-session-command"));
+                        field
+                    }),
             )
             .child(apply)
             .into_any_element()
@@ -338,6 +359,22 @@ impl SettingsWindow {
             _ => {}
         }
         cx.notify();
+    }
+
+    /// What the row shows, for the native walk: the field's text, or the
+    /// plain text where no field is built.
+    #[cfg(all(feature = "integration-test", target_os = "macos"))]
+    pub(in crate::settings_window) fn native_new_session_command(&self, cx: &App) -> String {
+        match self
+            .controls
+            .new_session_command
+            .field
+            .as_ref()
+            .filter(|_| self.shared_text_editable())
+        {
+            Some(field) => field.input.read(cx).text().to_owned(),
+            None => plain_new_session_command(self.shared.as_ref()).0,
+        }
     }
 
     // Only the Unix-gated tests read the field, so a Windows test build would

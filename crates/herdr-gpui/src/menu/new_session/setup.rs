@@ -90,7 +90,7 @@ impl SetupRow {
 
 /// The two buttons under the checklist.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) enum SetupButton {
+pub(crate) enum SetupButton {
     /// `skip waiting`, or `start anyway` once a row has failed.
     #[default]
     Proceed,
