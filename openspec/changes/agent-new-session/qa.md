@@ -9,7 +9,25 @@
 > Steps are user actions and observations only: no functions, test files, greps, or imports.
 > If no automation can drive this interface, say so; do not convert procedures into unit tests.
 
-No automation in `just ci` drives the native herdr-gpui window against a myherdr daemon. Two opt-in native tests click the dialog in the real window against a sandbox daemon (design.md D17): `native_new_session_clicks_reach_their_rows` walks the project page, and `native_new_session_folder_clicks_reach_their_rows` walks the other-folder page, including the click on a folder suggestion (Agent new session 16). They check only that each click reaches its control, so these procedures still prove the behavior. The opt-in native suite needs an active desktop and a daemon binary the tester names, so a tester runs the desktop procedures on a desktop session. A native test cannot type into the Settings window, so `Change the New session command in Settings` is the only check of that field in the real window. The CLI procedure runs in a terminal beside that window. Each procedure names the screenshots it saves. The tester saves each one from the real native window.
+No automation in `just ci` drives the native herdr-gpui window against a myherdr daemon. Opt-in native tests walk the dialog in the real window against a sandbox daemon (design.md D17). They click through AppKit and press keys through GPUI's `dispatch_keystroke`, which hands each key to the window directly. Each test runs these procedures and steps:
+
+- `native_new_session_clicks_reach_their_rows` and `native_new_session_folder_clicks_reach_their_rows` check that each click on the project page and the other-folder page reaches its control, including the click on a folder suggestion (Agent new session 16).
+- `native_new_session_agents_tab_keys`: steps 3 to 7 of `Open the new-session dialog from the Agents tab`, with the linked worktree `demo-fix`, and step 2 of `Open the new-session dialog from the palette and the command line`.
+- `native_new_session_confirm_keys`: steps 2 to 7 of `Review the confirm page for a repository`.
+- `native_new_session_folder_keys`: steps 1 to 3 and 5 to 7 of `Check another folder`.
+- `native_new_session_start_types_in_new_tab`: steps 1 to 4 of `Start a session in a new worktree`.
+- `native_new_session_failed_start_retries`: steps 1 to 3 of `Recover from a failed start`.
+- `native_new_session_outage_keeps_dialog`: steps 1 to 12 of `Lose the connection while the dialog is open`. It pauses, resumes, stops, and restarts only the daemon process it started.
+- `native_new_session_setup_wait`: steps 1 to 3 of `Wait for a setup hook`.
+- `native_new_session_setup_failed_log`: steps 1 and 2 of `See a failed setup hook`.
+- `native_new_session_settings_command`: step 1 of `Change the New session command in Settings`.
+
+The walks differ from the procedures in two places:
+
+- The sandbox shell draws its prompt over output that ends without a newline, so `printf qa-after-setup` leaves no `qa-after-setup` on screen. Where a step observes that text in a terminal, the walk checks for the typed command line and a new prompt after it.
+- The sandbox daemon answers a folder check at once. In step 6 of `Check another folder`, the walk pauses the daemon until it has read `Checking folder…`.
+
+Synthesized keys skip macOS's own keyboard handling. They do not test which window macOS makes the key window, how macOS routes keys to it, or input methods (IME). The tester still runs every desktop procedure on a desktop session for those. Steps 2 to 6 of `Change the New session command in Settings` have no native walk: the field starts an edit only in the key window, and macOS does not make a test app launched in the background the key window. That procedure is the only check of typing, pasting, and `Apply` in that field in the real window. The opt-in native suite needs an active desktop and a daemon binary the tester names. The CLI procedure runs in a terminal beside that window. Each procedure names the screenshots it saves. The tester saves each one from the real native window.
 
 Shared starting state for every procedure:
 
@@ -218,7 +236,7 @@ Shared starting state for every procedure:
 
 **Procedure**
 
-1. Click the footer `new` control. In the terminal, run `kill -STOP <pid>`. Press Return on `demo`.
+1. Click the footer `new` control. In the terminal, run `kill -STOP <pid>`. Press Return on `notes`. The dialog asks the daemon about the `notes` folder. It opens `demo`'s confirm page without asking, because the daemon already reported `demo`'s repository.
    - **Observe:** `Checking folder…` shows. About 60 seconds later the project page shows with `Server timed out` in red, and it stays while the daemon is paused.
 2. Run `kill -CONT <pid>`.
    - **Observe:** Within 30 seconds herdr-gpui is connected again. The project page still shows, with `Server timed out` in red.
@@ -239,7 +257,7 @@ Shared starting state for every procedure:
 10. Click the footer `new` control, press Return on `demo`, and click `start`. Once the checklist shows, run `kill <pid>` and wait until that process has exited.
     - **Observe:** The checklist stays, the row still reads running, and the line above the buttons shows `<host> is not ready` in red.
 11. Click `close`.
-    - **Observe:** The dialog closes at once, and the workspace that was focused before step 10 stays focused.
+    - **Observe:** The dialog closes at once. The window shows no workspace focus while the daemon is gone. Once step 12 connects, the workspace that was focused before step 10 is focused.
 12. Start the QA daemon again with the same command, for the procedures that follow.
     - **Observe:** herdr-gpui connects to it, and no dialog opens. If `demo` or `notes` is missing from the sidebar, recreate it as the shared starting state describes.
 
