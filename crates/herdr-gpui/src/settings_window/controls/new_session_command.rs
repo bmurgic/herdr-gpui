@@ -170,8 +170,8 @@ impl SettingsWindow {
             let focused = cx.on_focus(&focus, window, |this, _, cx| {
                 this.new_session_command_focus_changed(true, cx)
             });
-            let blurred = cx.on_blur(&focus, window, |this, _, cx| {
-                this.new_session_command_focus_changed(false, cx)
+            let blurred = cx.on_blur(&focus, window, |this, window, cx| {
+                this.new_session_command_blurred(window, cx)
             });
             self.controls.new_session_command.field = Some(CommandField {
                 input,
@@ -229,6 +229,20 @@ impl SettingsWindow {
             field.phase = CommandPhase::Editing;
         }
         cx.notify();
+    }
+
+    /// GPUI reports an inactive window's focus path as empty, so switching to
+    /// another application blurs the field. That must not end the edit: the
+    /// user may be copying text to paste into it. On reactivation `on_focus`
+    /// finds the edit still running and leaves it alone.
+    fn new_session_command_blurred(&mut self, window: &Window, cx: &mut Context<Self>) {
+        if window.is_window_active() {
+            self.new_session_command_focus_changed(false, cx);
+            return;
+        }
+        if let Some(field) = &mut self.controls.new_session_command.field {
+            field.has_focus = false;
+        }
     }
 
     /// Focus starts an edit. Losing it ends one without a write; a save in

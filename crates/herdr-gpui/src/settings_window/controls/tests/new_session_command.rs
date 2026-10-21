@@ -326,6 +326,56 @@ fn leaving_the_field_puts_the_saved_command_back(cx: &mut TestAppContext) {
     assert_eq!(seam.file(), CLAUDE);
 }
 
+/// Another application takes the OS activation, so GPUI reports the window's
+/// focus path as empty, then gives it back.
+#[cfg(unix)]
+fn switch_app_and_back(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext) {
+    cx.deactivate_window();
+    draw(cx);
+    assert!(!cx.update(|window, _| window.is_window_active()));
+    assert_eq!(text(view, cx), "codex", "while another app is active");
+    assert_eq!(phase(view, cx), CommandPhase::Editing, "while inactive");
+    activate(cx);
+}
+
+#[cfg(unix)]
+#[gpui::test]
+fn an_app_switch_keeps_the_edit_for_return_and_apply(cx: &mut TestAppContext) {
+    for apply in [false, true] {
+        let (view, cx, seam) = open_seamed(cx, CLAUDE, None);
+        edit_to(&view, cx, "codex");
+        switch_app_and_back(&view, cx);
+        assert_eq!(text(&view, cx), "codex", "apply: {apply}");
+        assert_eq!(phase(&view, cx), CommandPhase::Editing, "apply: {apply}");
+        assert!(field_has_focus(&view, cx), "apply: {apply}");
+
+        // Scenario 07: the suffix was copied in the other application.
+        press(cx, "end");
+        paste(cx, " --yolo");
+        if apply {
+            click(cx, APPLY);
+        } else {
+            press(cx, "enter");
+        }
+        assert_eq!(seam.commands(), ["codex --yolo"], "apply: {apply}");
+        assert_eq!(text(&view, cx), "codex --yolo", "apply: {apply}");
+        assert_eq!(phase(&view, cx), CommandPhase::NotEditing, "apply: {apply}");
+    }
+}
+
+#[cfg(unix)]
+#[gpui::test]
+fn leaving_the_field_after_an_app_switch_puts_the_saved_command_back(cx: &mut TestAppContext) {
+    let (view, cx, seam) = open_seamed(cx, CLAUDE, None);
+    edit_to(&view, cx, "codex");
+    switch_app_and_back(&view, cx);
+    let root = view.read_with(cx, |view, _| view.focus.clone());
+    focus(cx, &root);
+    assert_eq!(text(&view, cx), "claude");
+    assert_eq!(phase(&view, cx), CommandPhase::NotEditing);
+    assert_eq!(seam.recorded(), [], "a blur writes nothing");
+}
+
 #[cfg(unix)]
 #[gpui::test]
 fn a_saved_command_shows_trimmed_when_the_reload_after_it_fails(cx: &mut TestAppContext) {
