@@ -22,6 +22,8 @@ No automation in `just ci` drives the native herdr-gpui window against a myherdr
 - `native_new_session_setup_failed_log`: steps 1 and 2 of `See a failed setup hook`.
 - `native_new_session_settings_command`: step 1 of `Change the New session command in Settings`.
 
+Steps 3 and 4 of `Open the new-session dialog from the palette and the command line` have no native walk: they are CLI steps that a tester runs by hand in the terminal beside the window.
+
 The walks differ from the procedures in two places:
 
 - The sandbox shell draws its prompt over output that ends without a newline, so `printf qa-after-setup` leaves no `qa-after-setup` on screen. Where a step observes that text in a terminal, the walk checks for the typed command line and a new prompt after it.
