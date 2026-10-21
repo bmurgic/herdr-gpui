@@ -378,6 +378,34 @@ fn leaving_the_field_after_an_app_switch_puts_the_saved_command_back(cx: &mut Te
 
 #[cfg(unix)]
 #[gpui::test]
+fn a_save_that_fails_during_an_app_switch_keeps_the_typed_text(cx: &mut TestAppContext) {
+    let (view, cx, seam) = open_seamed(cx, CLAUDE, Some(permission_denied));
+    edit_to(&view, cx, "codex");
+    // No executor run between Return and the switch, so the save is still in
+    // flight when the window loses activation.
+    cx.update(|window, cx| {
+        window.dispatch_keystroke(Keystroke::parse("enter").unwrap(), cx);
+    });
+    assert_eq!(phase(&view, cx), CommandPhase::Submitted);
+    cx.deactivate_window();
+    draw(cx);
+    cx.run_until_parked();
+    assert_eq!(
+        footer(&view, cx).as_deref(),
+        Some("Save settings: permission denied")
+    );
+    assert_eq!(text(&view, cx), "codex", "while another app is active");
+    assert_eq!(phase(&view, cx), CommandPhase::Editing, "while inactive");
+
+    activate(cx);
+    assert_eq!(text(&view, cx), "codex");
+    assert_eq!(phase(&view, cx), CommandPhase::Editing);
+    assert_eq!(seam.commands(), ["codex"]);
+    assert_eq!(seam.file(), CLAUDE);
+}
+
+#[cfg(unix)]
+#[gpui::test]
 fn a_saved_command_shows_trimmed_when_the_reload_after_it_fails(cx: &mut TestAppContext) {
     let (view, cx, seam) = open_seamed(cx, CLAUDE, None);
     seam.fail_next_reload(permission_denied);
