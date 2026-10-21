@@ -168,7 +168,10 @@ fn a_host_that_is_not_local_gets_no_listing(cx: &mut TestAppContext) {
     assert!(matches(&view, cx).is_empty());
     assert_eq!(error(&view, cx), None);
     view.read_with(cx, |view, _| {
-        assert_eq!(view.menu.new_workspace.as_ref().unwrap().parent, None);
+        assert_eq!(
+            view.menu.new_workspace.as_ref().unwrap().suggestions.parent,
+            None
+        );
     });
 }
 
@@ -222,7 +225,12 @@ fn the_selection_stops_at_both_ends_and_tab_needs_a_match(cx: &mut TestAppContex
     cx.run_until_parked();
     let selected = |view: &Entity<HerdrWindow>, cx: &mut VisualTestContext| {
         view.read_with(cx, |view, _| {
-            view.menu.new_workspace.as_ref().unwrap().selected
+            view.menu
+                .new_workspace
+                .as_ref()
+                .unwrap()
+                .suggestions
+                .selected
         })
     };
 
@@ -303,7 +311,8 @@ fn six_rows_show_and_the_list_scrolls_to_the_selection(cx: &mut TestAppContext) 
     let shown = |view: &Entity<HerdrWindow>, cx: &mut VisualTestContext| {
         view.read_with(cx, |view, _| {
             let form = view.menu.new_workspace.as_ref().unwrap();
-            form.visible(VISIBLE_ROWS)
+            form.suggestions
+                .visible(VISIBLE_ROWS)
                 .map(|(index, name)| (index, name.to_owned()))
                 .collect::<Vec<_>>()
         })
@@ -320,7 +329,15 @@ fn six_rows_show_and_the_list_scrolls_to_the_selection(cx: &mut TestAppContext) 
     // The selected row, `h`, is the last of the six rows drawn.
     assert_eq!(shown(&view, cx), rows(2, &["c", "d", "e", "f", "g", "h"]));
     view.read_with(cx, |view, _| {
-        assert_eq!(view.menu.new_workspace.as_ref().unwrap().selected, 7);
+        assert_eq!(
+            view.menu
+                .new_workspace
+                .as_ref()
+                .unwrap()
+                .suggestions
+                .selected,
+            7
+        );
     });
 }
 

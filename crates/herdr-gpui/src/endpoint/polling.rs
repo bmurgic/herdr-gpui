@@ -64,6 +64,9 @@ impl HerdrWindow {
         // OSC 52 writes are drained per endpoint so they are written once and
         // never linger in a live state that a later poll would re-read.
         let mut clipboard_writes = std::collections::VecDeque::new();
+        // The selected endpoint's last polled state when this poll redials
+        // it. The window copies that state only after the redial replaced it.
+        let mut redialled_from = None;
         for (index, endpoint) in self.endpoints.iter_mut().enumerate() {
             let updated = endpoint.poll(Instant::now());
             clipboard_writes.append(&mut endpoint.live.clipboard_writes);
@@ -96,6 +99,9 @@ impl HerdrWindow {
                 && endpoint.connection.handle.is_none()
                 && Instant::now() >= endpoint.retry_at
             {
+                if index == self.selected_endpoint {
+                    redialled_from = Some(crate::menu::ConnectionReport::from(&endpoint.live));
+                }
                 endpoint.connect(self.options, index == 0 && self.selected_endpoint == 0);
                 selected_changed |= index == self.selected_endpoint;
                 changed = Redraw::Window;
@@ -121,7 +127,7 @@ impl HerdrWindow {
             // The install instructions have no daemon-bound target. A background
             // retry must not dismiss them before the user can follow the link.
             let installing = self.menu.page == Some(crate::menu::Page::Install);
-            self.reset_selected(cx);
+            self.reset_selected_after_redial(redialled_from, cx);
             if installing {
                 self.menu.page = Some(crate::menu::Page::Install);
             }
@@ -190,9 +196,9 @@ impl HerdrWindow {
             }
             changed = Redraw::Window;
         }
-        // A refused workspace focus ended its activation, so there is nothing
-        // left for the deadline to expire on. The refusal is consumed here: it
-        // names that one fence, not whatever activation follows.
+        // A refused workspace or tab focus ended its activation, so there is
+        // nothing left for the deadline to expire on. The refusal is consumed
+        // here: it names that one fence, not whatever activation follows.
         if self.live.focus_refused {
             self.activation_deadline = None;
             self.live.focus_refused = false;

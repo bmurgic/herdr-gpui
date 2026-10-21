@@ -119,6 +119,11 @@ pub struct LiveState {
     pub(crate) supports_session_titles: bool,
     /// The agent-row menu's requests in flight, and their untaken outcomes.
     pub(crate) session_actions: SessionActions,
+    /// The id of the request herdr-client last reported timed out on this
+    /// connection. The `Disconnected` that follows does not clear it, so a
+    /// dialog that sees the connection gone can still tell a timeout from a
+    /// plain loss. A new connection starts with `None`.
+    pub(crate) request_timed_out: Option<String>,
     pub dirty: bool,
     pub(crate) dialog_response: Option<(String, Option<DialogResponse>)>,
     /// The one request a worktree script is waiting on (`worktree.list` or
@@ -135,10 +140,10 @@ pub struct LiveState {
     pub(crate) notifications_lost: bool,
     outer_focused: Option<bool>,
     pub activation: Option<SurfaceActivation>,
-    /// The daemon refused the workspace focus that raised the last fence, so
-    /// there is no activation to wait for. The window reads it to drop the
-    /// fence's deadline instead of reconnecting when it passes, and consumes
-    /// it there. The next fence and a new session clear it too.
+    /// The daemon refused the workspace or tab focus that raised the last
+    /// fence, so there is no activation to wait for. The window reads it to
+    /// drop the fence's deadline instead of reconnecting when it passes, and
+    /// consumes it there. The next fence and a new session clear it too.
     pub(crate) focus_refused: bool,
     pub supports_surface: bool,
     /// The session negotiated `shell.snapshot.v2`, whose daemon expands `~`
@@ -197,9 +202,10 @@ pub struct SurfaceActivation {
     pub failed: bool,
     pub focus: Option<crate::OwnedNavigationTarget>,
     pub active: bool,
-    /// The workspace focus request (`workspace.focus` or its `.v2` form) that
-    /// raised this fence, when it was one. A refusal of that request ends the
-    /// activation, because no focus change is coming for the surface to settle on.
+    /// The workspace focus request (`workspace.focus` or its `.v2` form) or
+    /// tab focus request (`tab.focus`) that raised this fence, when it was
+    /// one. A refusal of that request ends the activation, because no focus
+    /// change is coming for the surface to settle on.
     pub focus_request: Option<String>,
 }
 
@@ -240,6 +246,7 @@ impl Default for LiveState {
             supports_background_pane_commands: false,
             supports_session_titles: false,
             session_actions: SessionActions::default(),
+            request_timed_out: None,
             dirty: true,
             dialog_response: None,
             script_response: None,
@@ -304,6 +311,7 @@ impl LiveState {
             supports_background_pane_commands,
             supports_session_titles,
             session_actions,
+            request_timed_out,
             dirty: _,
             dialog_response,
             script_response,
@@ -368,6 +376,7 @@ impl LiveState {
             && *supports_background_pane_commands == self.supports_background_pane_commands
             && *supports_session_titles == self.supports_session_titles
             && *session_actions == self.session_actions
+            && *request_timed_out == self.request_timed_out
             && match (dialog_response, &self.dialog_response) {
                 (Some((a, None)), Some((b, None))) => a == b,
                 (a, b) => a.is_none() && b.is_none(),
@@ -626,7 +635,10 @@ impl LiveState {
             // The `Disconnected` that follows carries the reason text.
             ClientEvent::VersionMismatch(mismatch) => self.version_mismatch = Some(mismatch),
             // The `Disconnected` that follows already ends the connection.
-            ClientEvent::RequestTimedOut { request_id } => self.session_actions.timed_out(&request_id),
+            ClientEvent::RequestTimedOut { request_id } => {
+                self.session_actions.timed_out(&request_id);
+                self.request_timed_out = Some(request_id);
+            }
             ClientEvent::Disconnected { reason, ssh } => {
                 self.session_actions.interrupt_all();
                 self.supports_background_pane_commands = false;
@@ -873,9 +885,9 @@ impl LiveState {
         self.dirty = true;
     }
 
-    /// Ends the activation `request_id` raised, when it is a workspace focus
-    /// the daemon refused. Tab and pane focus keep their fence: only a
-    /// workspace focus is ruled to stop waiting. A fence that failed to raise
+    /// Ends the activation `request_id` raised, when it is a workspace or tab
+    /// focus the daemon refused. A pane focus keeps its fence: only workspace
+    /// and tab focus are ruled to stop waiting. A fence that failed to raise
     /// has no acknowledgement coming and stays for its deadline's reconnect.
     fn end_refused_focus(&mut self, request_id: &str) {
         if self.activation.as_ref().is_some_and(|activation| {

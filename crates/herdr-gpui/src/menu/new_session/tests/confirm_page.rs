@@ -1,0 +1,500 @@
+use super::*;
+use crate::{
+    herdr_settings::Settings,
+    menu::{
+        Page,
+        new_session::confirm::{Confirm, ConfirmRow},
+    },
+    sidebar::{
+        glyph_width,
+        layout_tests::{inside, painted, redraw, text_bounds},
+    },
+};
+use gpui::{Modifiers, point};
+use unicode_width::UnicodeWidthStr;
+
+/// The method the confirm page needs on top of the dialog's own.
+pub(super) const SEND_TEXT: &str = "pane.send_text";
+
+/// Every method the dialog needs, and the one that types a command.
+pub(super) fn methods_with_send_text() -> Vec<&'static str> {
+    let mut methods = METHODS.to_vec();
+    methods.push(SEND_TEXT);
+    methods
+}
+
+/// A window over `workspaces`, whose shared config says `config`, and a peer
+/// that advertises `methods`, with the project page open.
+pub(super) fn project_page<'a>(
+    cx: &'a mut TestAppContext,
+    methods: &[&str],
+    config: &str,
+    workspaces: Value,
+) -> (Entity<HerdrWindow>, &'a mut VisualTestContext, MockPeer) {
+    let (view, test_cx, peer) = dialog_window(cx, methods, false);
+    set_workspaces(&view, test_cx, workspaces);
+    update(&view, test_cx, |view, _, _| {
+        view.settings.shared = Some(Settings::parse_text(config).unwrap());
+        // The window sizes the daemon's tab to its own geometry about 150 ms
+        // after it settles and claims the tab again with a `tab.focus`, which
+        // would go out among the dialog's requests whenever a test's real time
+        // allows. The tests are not about it, so the geometry counts as sent.
+        view.last_queued_options = Some(view.options);
+        view.pending_resize = None;
+    });
+    assert!(open(&view, test_cx));
+    (view, test_cx, peer)
+}
+
+/// The confirm page for `herdr`, a git project, with the setting `claude`.
+pub(super) fn confirm_page<'a>(
+    cx: &'a mut TestAppContext,
+    methods: &[&str],
+) -> (Entity<HerdrWindow>, &'a mut VisualTestContext, MockPeer) {
+    confirm_page_with(cx, methods, "[ui]\nnew_session_command = \"claude\"\n")
+}
+
+pub(super) fn confirm_page_with<'a>(
+    cx: &'a mut TestAppContext,
+    methods: &[&str],
+    config: &str,
+) -> (Entity<HerdrWindow>, &'a mut VisualTestContext, MockPeer) {
+    let (view, test_cx, peer) = project_page(cx, methods, config, herdr_and_docs());
+    press(test_cx, "enter");
+    assert!(is_confirming(&view, test_cx));
+    (view, test_cx, peer)
+}
+
+pub(super) fn is_confirming(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> bool {
+    view.read_with(cx, |view, _| {
+        view.menu
+            .new_session
+            .as_ref()
+            .is_some_and(|dialog| dialog.confirm.is_some())
+    })
+}
+
+pub(super) fn confirm_of<R>(
+    view: &Entity<HerdrWindow>,
+    cx: &mut VisualTestContext,
+    read: impl FnOnce(&Confirm) -> R,
+) -> R {
+    view.read_with(cx, |view, _| {
+        read(
+            view.menu
+                .new_session
+                .as_ref()
+                .unwrap()
+                .confirm
+                .as_ref()
+                .unwrap(),
+        )
+    })
+}
+
+pub(super) fn focus(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> ConfirmRow {
+    confirm_of(view, cx, |confirm| confirm.focus)
+}
+
+/// The text of the branch or command field, wherever it is held.
+pub(super) fn field(
+    view: &Entity<HerdrWindow>,
+    cx: &mut VisualTestContext,
+    row: ConfirmRow,
+) -> String {
+    view.read_with(cx, |view, _| view.confirm_field_text(row).to_owned())
+}
+
+/// Asserts that the next frame paints `expected` as the summary line, inside
+/// the summary row. The text is read from the paint, not from page state.
+fn assert_summary(cx: &mut VisualTestContext, expected: &str) {
+    redraw(cx);
+    assert!(
+        painted(cx, expected),
+        "the summary {expected:?} was not drawn"
+    );
+    let row = cx.debug_bounds("new-session-summary").unwrap();
+    assert!(
+        inside(row, text_bounds(cx, expected)),
+        "{expected:?} is drawn outside the summary row"
+    );
+}
+
+/// `worktree/<word>-<word>-<4 hex digits>`, the form `proposed_branch` has.
+pub(super) fn is_proposed_branch(branch: &str) -> bool {
+    let Some(rest) = branch.strip_prefix("worktree/") else {
+        return false;
+    };
+    let mut parts = rest.split('-');
+    let (Some(first), Some(second), Some(hex), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return false;
+    };
+    let is_word = |word: &str| !word.is_empty() && word.chars().all(|c| c.is_ascii_lowercase());
+    is_word(first)
+        && is_word(second)
+        && hex.len() == 4
+        && hex
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+}
+
+/// Agent new session 19, one case per Examples row.
+#[gpui::test]
+fn up_and_down_move_through_every_row_and_stop_at_the_ends(cx: &mut TestAppContext) {
+    use ConfirmRow::{Back, Branch, Command, CommandToggle, Worktree};
+    for (keys, row) in [
+        ("up", Command),
+        ("up up", CommandToggle),
+        ("up up up", Branch),
+        ("up up up up", Worktree),
+        ("up up up up up", Worktree),
+        ("down", Back),
+        ("down down", Back),
+    ] {
+        let (view, test_cx, _peer) = confirm_page(cx, &methods_with_send_text());
+        press(test_cx, keys);
+        assert_eq!(focus(&view, test_cx), row, "{keys}");
+    }
+}
+
+/// Agent new session 21 rows 1 to 5. Space or Enter flips the box under the
+/// focus and keeps the branch text, after one flip and after two. On a fresh
+/// page, a field edit changes only the focused field, while the other holds
+/// different text.
+#[gpui::test]
+fn keys_flip_a_checkbox_or_edit_only_the_focused_field(cx: &mut TestAppContext) {
+    let (view, test_cx, _peer) = confirm_page(cx, &methods_with_send_text());
+    let branch = field(&view, test_cx, ConfirmRow::Branch);
+    press(test_cx, "up up up up");
+    press(test_cx, "space");
+    assert!(!confirm_of(&view, test_cx, |c| c.worktree_on));
+    assert_eq!(field(&view, test_cx, ConfirmRow::Branch), branch);
+    press(test_cx, "space");
+    assert!(confirm_of(&view, test_cx, |c| c.worktree_on));
+    assert_eq!(field(&view, test_cx, ConfirmRow::Branch), branch);
+
+    press(test_cx, "down down");
+    press(test_cx, "enter");
+    assert!(!confirm_of(&view, test_cx, |c| c.command_on));
+    assert!(confirm_of(&view, test_cx, |c| c.worktree_on));
+
+    let (view, test_cx, _peer) = confirm_page(cx, &methods_with_send_text());
+    let branch = field(&view, test_cx, ConfirmRow::Branch);
+    press(test_cx, "up");
+    assert_eq!(focus(&view, test_cx), ConfirmRow::Command);
+    press(test_cx, "space");
+    test_cx.simulate_input("--resume");
+    assert_eq!(
+        field(&view, test_cx, ConfirmRow::Command),
+        "claude --resume"
+    );
+    assert_eq!(field(&view, test_cx, ConfirmRow::Branch), branch);
+
+    press(test_cx, "up up");
+    assert_eq!(focus(&view, test_cx), ConfirmRow::Branch);
+    press(test_cx, "backspace backspace backspace backspace");
+    test_cx.simulate_input("test");
+    let edited = field(&view, test_cx, ConfirmRow::Branch);
+    assert_eq!(edited, format!("{}test", &branch[..branch.len() - 4]));
+    assert_eq!(
+        field(&view, test_cx, ConfirmRow::Command),
+        "claude --resume"
+    );
+}
+
+/// Agent new session 21 row 6: Enter on a field moves the focus down and
+/// leaves its text alone.
+#[gpui::test]
+fn enter_on_a_field_moves_the_focus_to_start(cx: &mut TestAppContext) {
+    let (view, test_cx, _peer) = confirm_page(cx, &methods_with_send_text());
+    press(test_cx, "up enter");
+    assert_eq!(focus(&view, test_cx), ConfirmRow::Start);
+    assert_eq!(field(&view, test_cx, ConfirmRow::Command), "claude");
+}
+
+/// Agent new session 22, one case per Examples row, each from the focus on
+/// `start`, so a click that only moves the focus leaves a box checked.
+#[gpui::test]
+fn a_click_works_on_every_row(cx: &mut TestAppContext) {
+    use ConfirmRow::{Back, Branch, Command, CommandToggle, Worktree};
+    for (selector, row) in [
+        ("new-session-worktree", Worktree),
+        ("new-session-branch", Branch),
+        ("new-session-run-command", CommandToggle),
+        ("new-session-command", Command),
+        ("new-session-back", Back),
+    ] {
+        let (view, test_cx, mut peer) = confirm_page(cx, &methods_with_send_text());
+        click(test_cx, selector);
+        match row {
+            Back => {
+                assert!(!is_confirming(&view, test_cx), "{selector}");
+                assert_eq!(shown(&view, test_cx)[0], "herdr");
+                assert_no_request(&mut peer, &view, test_cx);
+                continue;
+            }
+            Worktree => assert!(!confirm_of(&view, test_cx, |c| c.worktree_on)),
+            CommandToggle => assert!(!confirm_of(&view, test_cx, |c| c.command_on)),
+            _ => {}
+        }
+        assert_eq!(focus(&view, test_cx), row, "{selector}");
+    }
+}
+
+/// Agent new session 23, one case per Examples row: leaving by Esc or by
+/// `back` shows the project page, sends nothing, and the next pick has a new
+/// branch and the setting's command.
+#[gpui::test]
+fn leaving_the_confirm_page_discards_its_edits(cx: &mut TestAppContext) {
+    for leave in ["escape", "back"] {
+        let (view, test_cx, mut peer) = confirm_page(cx, &methods_with_send_text());
+        press(test_cx, "up up up");
+        set_focused_text(&view, test_cx, "mine");
+        press(test_cx, "down down");
+        set_focused_text(&view, test_cx, "codex");
+        assert_eq!(field(&view, test_cx, ConfirmRow::Branch), "mine");
+        if leave == "escape" {
+            press(test_cx, "escape");
+        } else {
+            click(test_cx, "new-session-back");
+        }
+        assert!(!is_confirming(&view, test_cx), "{leave}");
+        assert_eq!(shown(&view, test_cx)[0], "herdr", "{leave}");
+        assert_no_request(&mut peer, &view, test_cx);
+
+        press(test_cx, "enter");
+        let branch = field(&view, test_cx, ConfirmRow::Branch);
+        assert!(is_proposed_branch(&branch), "{leave}: {branch}");
+        assert_eq!(
+            field(&view, test_cx, ConfirmRow::Command),
+            "claude",
+            "{leave}"
+        );
+    }
+}
+
+/// Agent new session 24: a click on a row inside the dialog keeps it open, and
+/// a click on the overlay outside the dialog closes it, sending nothing.
+#[gpui::test]
+fn a_click_outside_the_dialog_closes_it(cx: &mut TestAppContext) {
+    let (view, test_cx, mut peer) = confirm_page(cx, &methods_with_send_text());
+    click(test_cx, "new-session-worktree");
+    assert!(is_confirming(&view, test_cx));
+    // The dialog is 520 px wide in an 800 px window, so x = 10 is outside it.
+    test_cx.simulate_click(point(px(10.), px(300.)), Modifiers::default());
+    assert_eq!(view.read_with(test_cx, |view, _| view.menu.page), None);
+    assert_no_request(&mut peer, &view, test_cx);
+}
+
+/// Agent new session 25 and 26: the drawn summary follows a flip of the
+/// worktree box and an edit of the command field while the setting stays
+/// `claude`. A path too long for one line of the dialog is cut so the drawn
+/// summary is no wider than the dialog's text, and keeps its reason.
+#[gpui::test]
+fn the_drawn_summary_follows_the_page_and_fits_the_dialog(cx: &mut TestAppContext) {
+    let root = format!("/home/b/{}/{}/herdr", "a".repeat(40), "b".repeat(40));
+    let (view, test_cx, _peer) = project_page(
+        cx,
+        &methods_with_send_text(),
+        "[ui]\nnew_session_command = \"claude\"\n",
+        json!([main_checkout("w1", "herdr", &root)]),
+    );
+    press(test_cx, "enter");
+    assert_summary(test_cx, "Will create a worktree and start claude in it.");
+    press(test_cx, "up up up up space");
+    assert_summary(test_cx, "Will start claude in ~/…/herdr (main checkout).");
+
+    press(test_cx, "down down");
+    assert_eq!(focus(&view, test_cx), ConfirmRow::Command);
+    set_focused_text(&view, test_cx, "codex");
+    assert_summary(test_cx, "Will start codex in ~/…/herdr (main checkout).");
+}
+
+/// Agent new session 25: without `pane.send_text` the drawn summary reads as
+/// the command being off, with the box on and `claude` in the field.
+#[gpui::test]
+fn a_server_that_cannot_type_draws_the_command_off(cx: &mut TestAppContext) {
+    let (view, test_cx, _peer) = confirm_page(cx, &METHODS);
+    assert_summary(test_cx, "Will open a shell in a new worktree.");
+    assert_eq!(
+        confirm_of(&view, test_cx, Confirm::rows),
+        [
+            ConfirmRow::Worktree,
+            ConfirmRow::Branch,
+            ConfirmRow::Start,
+            ConfirmRow::Back
+        ]
+    );
+}
+
+/// New session command setting 01 and Agent new session 18, one case per
+/// Examples row of each. A table without the key gives `claude` from the
+/// parse, and an empty setting stays empty. The page opens with the rows top
+/// to bottom, both boxes checked, a branch of the proposed form that drawing
+/// never regenerates, and the focus on `start`.
+///
+/// Agent new session 12 row 1 on every row: the workspace's folder is a
+/// subfolder of its repository, and the pick opens the confirm page for the
+/// repository root without asking the daemon, even though it lists worktrees.
+#[gpui::test]
+fn picking_a_known_repository_opens_the_confirm_page_with_the_setting(cx: &mut TestAppContext) {
+    for (config, command, summary) in [
+        (
+            "[ui]\n",
+            "claude",
+            "Will create a worktree and start claude in it.",
+        ),
+        (
+            "[ui]\nnew_session_command = \"claude\"\n",
+            "claude",
+            "Will create a worktree and start claude in it.",
+        ),
+        (
+            "[ui]\nnew_session_command = \"codex --yolo\"\n",
+            "codex --yolo",
+            "Will create a worktree and start codex --yolo in it.",
+        ),
+        (
+            "[ui]\nnew_session_command = \"codex\"\n",
+            "codex",
+            "Will create a worktree and start codex in it.",
+        ),
+        (
+            "[ui]\nnew_session_command = \"\"\n",
+            "",
+            "Will open a shell in a new worktree.",
+        ),
+    ] {
+        let mut workspace = main_checkout("w1", "herdr", "/home/b/dev/herdr");
+        workspace["new_workspace_cwd"] = json!("/home/b/dev/herdr/crates");
+        let (view, test_cx, mut peer) =
+            project_page(cx, &methods_with_send_text(), config, json!([workspace]));
+        press(test_cx, "enter");
+        let project = confirm_of(&view, test_cx, |confirm| confirm.project.clone());
+        assert_eq!(project.path, "/home/b/dev/herdr", "{config:?}");
+        assert!(project.is_git, "{config:?}");
+        assert_eq!(project.source_workspace_id.as_deref(), Some("w1"));
+        assert_eq!(
+            view.read_with(test_cx, |view, _| view.menu.page),
+            Some(Page::NewSession)
+        );
+        assert_eq!(
+            confirm_of(&view, test_cx, Confirm::rows),
+            [
+                ConfirmRow::Worktree,
+                ConfirmRow::Branch,
+                ConfirmRow::CommandToggle,
+                ConfirmRow::Command,
+                ConfirmRow::Start,
+                ConfirmRow::Back,
+            ],
+            "{config:?}"
+        );
+        assert!(confirm_of(&view, test_cx, |c| c.worktree_on && c.command_on));
+        assert_drawn_top_to_bottom(test_cx);
+        assert_eq!(focus(&view, test_cx), ConfirmRow::Start, "{config:?}");
+        assert_eq!(
+            field(&view, test_cx, ConfirmRow::Command),
+            command,
+            "{config:?}"
+        );
+        let branch = field(&view, test_cx, ConfirmRow::Branch);
+        assert!(is_proposed_branch(&branch), "{branch}");
+        assert_summary(test_cx, summary);
+        // Drawing never regenerates the branch.
+        draw(test_cx);
+        assert_eq!(field(&view, test_cx, ConfirmRow::Branch), branch);
+        assert_no_request(&mut peer, &view, test_cx);
+    }
+}
+
+/// Agent new session 5: a left click on an entry picks it, as Enter does. A
+/// repository's entry opens the confirm page for its root and sends nothing.
+#[gpui::test]
+fn a_click_on_a_repository_entry_opens_its_confirm_page(cx: &mut TestAppContext) {
+    let (view, test_cx, mut peer) =
+        project_page(cx, &methods_with_send_text(), "[ui]\n", herdr_and_docs());
+    click(test_cx, "new-session-row-0");
+    assert!(is_confirming(&view, test_cx));
+    let project = confirm_of(&view, test_cx, |confirm| confirm.project.clone());
+    assert_eq!(project.source_workspace_id.as_deref(), Some("w1"));
+    assert_no_request(&mut peer, &view, test_cx);
+}
+
+/// D7: Space flips a checkbox or types into a field. On `start` and `back` it
+/// does nothing, so the page and its edits stay as they were.
+#[gpui::test]
+fn space_does_nothing_on_start_or_back(cx: &mut TestAppContext) {
+    let (view, test_cx, mut peer) = confirm_page(cx, &methods_with_send_text());
+    press(test_cx, "up up up");
+    set_focused_text(&view, test_cx, "mine");
+    press(test_cx, "down down down down down");
+    assert_eq!(focus(&view, test_cx), ConfirmRow::Back);
+    press(test_cx, "space");
+    assert!(is_confirming(&view, test_cx));
+    assert_eq!(focus(&view, test_cx), ConfirmRow::Back);
+    assert_eq!(field(&view, test_cx, ConfirmRow::Branch), "mine");
+    press(test_cx, "up space");
+    assert_eq!(focus(&view, test_cx), ConfirmRow::Start);
+    assert!(is_confirming(&view, test_cx));
+    assert_eq!(field(&view, test_cx, ConfirmRow::Branch), "mine");
+    assert_no_request(&mut peer, &view, test_cx);
+}
+
+/// The summary row has its own 8 px padding on each side, so a sentence is cut
+/// to the columns that fit inside it, not to the dialog's text width. This
+/// sentence is 65 columns uncut, which is 483.6 px at 7.44 px a column, and the
+/// row's text box is 470 px.
+#[gpui::test]
+fn the_summary_is_cut_to_the_columns_inside_its_own_padding(cx: &mut TestAppContext) {
+    let root = format!("/home/b/dev/{}", "abcdefghijklmnopqrstu");
+    let (view, test_cx, _peer) = project_page(
+        cx,
+        &methods_with_send_text(),
+        "[ui]\n",
+        json!([main_checkout("w1", "herdr", &root)]),
+    );
+    press(test_cx, "enter up up up up space");
+    let expected = "Will start claude in ~/…/abcdefghijklmnopqrstu (main checkout).";
+    assert_summary(test_cx, expected);
+    let glyph = view.read_with(test_cx, |view, _| glyph_width(&view.config.ui));
+    let row = test_cx.debug_bounds("new-session-summary").unwrap();
+    let text_box = f32::from(row.size.width) - 16.;
+    assert!(
+        expected.width() as f32 * glyph <= text_box,
+        "{expected:?} is wider than the summary's text box"
+    );
+}
+
+/// New session command setting, D16: while the shared settings are not
+/// loaded, the command field starts as `claude`.
+#[gpui::test]
+fn the_command_is_claude_while_the_shared_settings_are_not_loaded(cx: &mut TestAppContext) {
+    let (view, test_cx, _peer) =
+        project_page(cx, &methods_with_send_text(), "[ui]\n", herdr_and_docs());
+    update(&view, test_cx, |view, _, _| view.settings.shared = None);
+    press(test_cx, "enter");
+    assert!(is_confirming(&view, test_cx));
+    assert_eq!(field(&view, test_cx, ConfirmRow::Command), "claude");
+}
+
+/// The rows are drawn top to bottom in the order the page lists them, with
+/// `back` to the right of `start` on the last line.
+fn assert_drawn_top_to_bottom(cx: &mut VisualTestContext) {
+    draw(cx);
+    let mut top = |selector: &'static str| cx.debug_bounds(selector).unwrap().origin.y;
+    let tops = [
+        top("new-session-worktree"),
+        top("new-session-branch"),
+        top("new-session-run-command"),
+        top("new-session-command"),
+        top("new-session-start"),
+    ];
+    assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "{tops:?}");
+    let start = cx.debug_bounds("new-session-start").unwrap();
+    let back = cx.debug_bounds("new-session-back").unwrap();
+    assert_eq!(back.origin.y, start.origin.y);
+    assert!(back.origin.x > start.origin.x);
+}

@@ -1,0 +1,58 @@
+//! What the lifecycle tests read of the dialog without drawing the window.
+//! Only the Unix-only lifecycle tests use it, so it is built with them.
+
+use super::{NewSessionStage, Step};
+use crate::HerdrWindow;
+use gpui::Context;
+
+/// What a test outside the dialog's module may read of it.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct DialogProbe {
+    /// The page the dialog shows.
+    pub(crate) page: NewSessionStage,
+    /// No request is out, so `start` and the other buttons act.
+    pub(crate) is_idle: bool,
+    /// The id of the request the dialog waits on.
+    pub(crate) pending_request_id: Option<String>,
+    /// The red line the dialog draws.
+    pub(crate) error_line: Option<String>,
+}
+
+impl HerdrWindow {
+    /// The dialog's page, step, and red line, or `None` when it is closed.
+    pub(crate) fn new_session_probe(&self) -> Option<DialogProbe> {
+        let page = self.new_session_stage()?;
+        let dialog = self.menu.new_session.as_ref()?;
+        Some(DialogProbe {
+            page,
+            is_idle: dialog.step == Step::Idle && dialog.pending.is_none(),
+            pending_request_id: dialog.pending.as_ref().map(|pending| pending.id.clone()),
+            error_line: self.new_session_error_line(),
+        })
+    }
+
+    /// Presses `key` (`enter`, `escape`) on the dialog as the keyboard would,
+    /// for tests that do not draw the window.
+    pub(crate) fn press_new_session_key_for_tests(
+        &mut self,
+        key: &str,
+        window: &mut gpui::Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Ok(keystroke) = gpui::Keystroke::parse(key) else {
+            return false;
+        };
+        let event = gpui::KeyDownEvent {
+            keystroke,
+            is_held: false,
+            prefer_character_input: false,
+        };
+        self.new_session_key(&event, window, cx)
+    }
+
+    /// Asks the daemon about `text` as the folder page's Enter does, for tests
+    /// that cannot name `check_folder`.
+    pub(crate) fn check_folder_for_tests(&mut self, text: &str, cx: &mut Context<Self>) {
+        self.check_folder(text, None, cx);
+    }
+}

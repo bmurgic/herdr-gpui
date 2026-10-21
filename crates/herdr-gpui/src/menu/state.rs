@@ -94,6 +94,8 @@ pub(crate) struct MenuState {
     pub(super) suggested_name: Option<String>,
     /// The New Workspace page's suggestions and checks, while it is open.
     pub(crate) new_workspace: Option<super::new_workspace::NewWorkspaceForm>,
+    /// The new-session dialog's pages and picks, while it is open.
+    pub(crate) new_session: Option<super::new_session::NewSession>,
     pub(super) worktree_open: Option<super::worktree_open::Picker>,
     pub(super) keybinds_scroll: ScrollHandle,
     pub(crate) keybinds_search: Option<Entity<crate::search_input::SearchInput>>,
@@ -323,6 +325,7 @@ impl MenuState {
             creation: None,
             suggested_name: None,
             new_workspace: None,
+            new_session: None,
             worktree_open: None,
             keybinds_scroll: ScrollHandle::new(),
             keybinds_search: None,
@@ -405,6 +408,7 @@ impl MenuState {
         self.creation = None;
         self.suggested_name = None;
         self.new_workspace = None;
+        self.new_session = None;
         self.worktree_open = None;
         self.close = None;
         self.worktree = None;

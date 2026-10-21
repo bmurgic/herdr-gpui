@@ -12,6 +12,7 @@ mod focus_acks;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod local_peer_warning;
 mod refused_focus;
+mod request_timeout;
 mod requests;
 mod session_actions;
 mod session_titles;

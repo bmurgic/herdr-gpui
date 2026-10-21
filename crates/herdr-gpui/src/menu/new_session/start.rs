@@ -1,0 +1,377 @@
+//! Start: the create, type, and focus steps of D10, in order, each one
+//! correlated request. The setup wait between create and type is `setup.rs`.
+//!
+//! `run_start_steps` picks the first step that has not succeeded, so a start
+//! after a failure resumes there instead of creating twice.
+
+use super::{
+    Pending, PendingKind, Step,
+    confirm::ConfirmRow,
+    outage::DialogError,
+    replies::{ReplyError, reply_result},
+    setup::SetupWait,
+};
+use crate::{
+    HerdrWindow,
+    navigation::{NavigationTarget, OwnedNavigationTarget},
+    state::DialogResponse,
+    teleport::{WorkspaceCreated, WorktreeCreated},
+};
+use gpui::{Context, Window};
+use herdr_client::Method;
+use serde_json::{Value, json};
+
+/// The workspace a start created, with the tab and pane the next steps use.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct CreatedSession {
+    pub(super) workspace_id: String,
+    pub(super) tab_id: String,
+    pub(super) pane_id: String,
+    /// The branch the daemon named, for a worktree.
+    pub(super) branch: Option<String>,
+}
+
+/// What a start has done so far. It lives with the confirm page and is
+/// dropped with it.
+#[derive(Debug, Default)]
+pub(super) struct StartProgress {
+    pub(super) created: Option<CreatedSession>,
+    /// Whether a worktree was created and the wait for its setup hooks has not
+    /// ended.
+    pub(super) setup_pending: bool,
+    /// What the setup wait has seen, from its first list until the wait ends
+    /// or a later step fails.
+    pub(super) setup: Option<SetupWait>,
+    /// Whether the command was typed.
+    pub(super) typed: bool,
+}
+
+enum NextStep {
+    Create,
+    SetupList { workspace_id: String },
+    Type { pane_id: String, command: String },
+    Focus { tab_id: String },
+}
+
+impl HerdrWindow {
+    /// `start_new_session` for the endpoint lifecycle tests, which cannot
+    /// name this module's private page keys.
+    #[cfg(all(test, unix))]
+    pub(crate) fn start_new_session_for_tests(&mut self, cx: &mut Context<Self>) {
+        self.start_new_session(cx);
+    }
+
+    /// Starts a session from the confirm page, from the first step that has
+    /// not succeeded. Does nothing unless the confirm page shows and no
+    /// request is out.
+    pub(super) fn start_new_session(&mut self, cx: &mut Context<Self>) {
+        let is_idle = self
+            .menu
+            .new_session
+            .as_ref()
+            .is_some_and(|dialog| dialog.confirm.is_some() && dialog.step == Step::Idle);
+        if is_idle {
+            self.run_start_steps(cx);
+        }
+    }
+
+    /// Sends the request of the first step that has not succeeded, or sends
+    /// nothing when the page is gone or the host is not connected.
+    pub(super) fn run_start_steps(&mut self, cx: &mut Context<Self>) {
+        if !self.new_session_host_connected() {
+            return;
+        }
+        match self.next_start_step() {
+            None => {}
+            Some(NextStep::Create) => self.send_create(cx),
+            Some(NextStep::SetupList { workspace_id }) => self.send_setup_list(workspace_id, cx),
+            Some(NextStep::Type { pane_id, command }) => {
+                let params = json!({"pane_id": pane_id, "text": format!("{command}\n")});
+                self.queue_start_request(Step::Typing, Method::PaneSendText, params, cx);
+            }
+            Some(NextStep::Focus { tab_id }) => {
+                let params = json!({"tab_id": tab_id});
+                self.queue_start_request(Step::Focusing, Method::TabFocus, params, cx);
+            }
+        }
+    }
+
+    fn next_start_step(&self) -> Option<NextStep> {
+        let progress = &self.new_session_confirm()?.started;
+        let Some(created) = progress.created.clone() else {
+            return Some(NextStep::Create);
+        };
+        if progress.setup_pending {
+            return Some(NextStep::SetupList {
+                workspace_id: created.workspace_id,
+            });
+        }
+        let command = self.command_to_type().filter(|_| !progress.typed);
+        if let Some(command) = command {
+            return Some(NextStep::Type {
+                pane_id: created.pane_id,
+                command,
+            });
+        }
+        Some(NextStep::Focus {
+            tab_id: created.tab_id,
+        })
+    }
+
+    /// The trimmed command start types, or `None` when the box is off, the
+    /// server cannot type, or the text is blank.
+    pub(super) fn command_to_type(&self) -> Option<String> {
+        let confirm = self.new_session_confirm()?;
+        if !confirm.command_on || !confirm.can_type {
+            return None;
+        }
+        let command = self.confirm_field_text(ConfirmRow::Command).trim();
+        (!command.is_empty()).then(|| command.to_owned())
+    }
+
+    /// D10's step 1: `worktree.create` with the worktree box on for a git
+    /// project, `workspace.create` otherwise.
+    fn send_create(&mut self, cx: &mut Context<Self>) {
+        let Some(confirm) = self.new_session_confirm() else {
+            return;
+        };
+        let project = &confirm.project;
+        let (step_method, params) = if confirm.uses_worktree() {
+            let branch = self.confirm_field_text(ConfirmRow::Branch).trim();
+            let branch = if branch.is_empty() {
+                crate::worktree::proposed_branch()
+            } else {
+                branch.to_owned()
+            };
+            let mut params = json!({
+                "branch": branch, "base": "HEAD", "focus": false, "trust_repository": false,
+            });
+            match &project.source_workspace_id {
+                Some(workspace_id) => params["workspace_id"] = workspace_id.as_str().into(),
+                None => params["cwd"] = project.path.as_str().into(),
+            }
+            (Method::WorktreeCreate, params)
+        } else {
+            (
+                Method::WorkspaceCreate,
+                json!({"cwd": project.path, "focus": false}),
+            )
+        };
+        self.queue_start_request(Step::Creating, step_method, params, cx);
+    }
+
+    /// Queues `method` and waits for its answer in `step`. A request that
+    /// cannot be queued shows why and leaves the start retryable.
+    pub(super) fn queue_start_request(
+        &mut self,
+        step: Step,
+        method: Method,
+        params: Value,
+        cx: &mut Context<Self>,
+    ) {
+        let was_spinning = self
+            .menu
+            .new_session
+            .as_ref()
+            .is_some_and(|dialog| dialog.step.is_spinning());
+        if let Err(error) = self.try_queue_start_request(step, method, params) {
+            self.fail_start(&error, cx);
+            return;
+        }
+        if let Some(dialog) = self.menu.new_session.as_mut() {
+            dialog.error = None;
+        }
+        if !was_spinning {
+            self.restart_spinner(cx);
+        }
+        cx.notify();
+    }
+
+    /// Queues `method` without clearing the dialog's red line or failing the
+    /// start, for the setup polls, whose red line stays until a list is
+    /// answered.
+    pub(super) fn try_queue_start_request(
+        &mut self,
+        step: Step,
+        method: Method,
+        params: Value,
+    ) -> crate::Result<()> {
+        let Some(boot_id) = self
+            .menu
+            .new_session
+            .as_ref()
+            .map(|dialog| dialog.boot_id.clone())
+        else {
+            return Ok(());
+        };
+        let id = self.endpoints[self.selected_endpoint]
+            .connection
+            .request_dialog(&boot_id, method, params)?;
+        if let Some(dialog) = self.menu.new_session.as_mut() {
+            dialog.step = step;
+            dialog.pending = Some(Pending {
+                id,
+                kind: PendingKind::Start,
+            });
+        }
+        Ok(())
+    }
+
+    /// Shows `error` in red and returns the dialog to `Idle`, so the next
+    /// start resumes. A checklist that was showing gives way to the confirm
+    /// page, with the created rows read-only; a retry never lists again.
+    pub(super) fn fail_start(&mut self, error: &impl std::error::Error, cx: &mut Context<Self>) {
+        if let Some(dialog) = self.menu.new_session.as_mut() {
+            dialog.error = Some(DialogError::Message(error.to_string()));
+            dialog.step = Step::Idle;
+            dialog.pending = None;
+            if let Some(confirm) = dialog.confirm.as_mut() {
+                confirm.started.setup = None;
+            }
+        }
+        cx.notify();
+    }
+
+    /// Applies the answer to the start's request in `step`.
+    pub(super) fn apply_start_answer(
+        &mut self,
+        result: &DialogResponse,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(step) = self.menu.new_session.as_ref().map(|dialog| dialog.step) else {
+            return;
+        };
+        let reply = match reply_result(result) {
+            Ok(reply) => reply,
+            Err(error) if step == Step::Waiting => {
+                self.apply_setup_list_failure(&error, cx);
+                return;
+            }
+            Err(error) => {
+                self.fail_start(&error, cx);
+                return;
+            }
+        };
+        match step {
+            Step::Creating => self.apply_create_answer(&reply, cx),
+            Step::Waiting => self.apply_setup_list_answer(&reply, cx),
+            Step::Typing if reply["type"] == "ok" => {
+                self.finish_start_step(cx, |progress| progress.typed = true);
+            }
+            Step::Focusing if reply["type"] == "tab_info" => self.finish_start(window, cx),
+            Step::Idle | Step::Checking | Step::Typing | Step::Focusing => {
+                self.fail_start(&ReplyError::Unexpected, cx);
+            }
+        }
+    }
+
+    /// Records a step's success and goes on to the next one.
+    pub(super) fn finish_start_step(
+        &mut self,
+        cx: &mut Context<Self>,
+        record: impl FnOnce(&mut StartProgress),
+    ) {
+        let Some(dialog) = self.menu.new_session.as_mut() else {
+            return;
+        };
+        dialog.step = Step::Idle;
+        if let Some(confirm) = dialog.confirm.as_mut() {
+            record(&mut confirm.started);
+        }
+        self.run_start_steps(cx);
+    }
+
+    fn apply_create_answer(&mut self, reply: &Value, cx: &mut Context<Self>) {
+        let via_worktree = self
+            .new_session_confirm()
+            .is_some_and(|confirm| confirm.uses_worktree());
+        let Some(created) = created_session(reply, via_worktree) else {
+            self.fail_start(&ReplyError::Unexpected, cx);
+            return;
+        };
+        self.finish_start_step(cx, |progress| {
+            progress.created = Some(created);
+            progress.setup_pending = via_worktree;
+        });
+    }
+
+    /// The last step: the dialog closes, and keys wait for the new tab's
+    /// surface as they do after any focus change.
+    fn finish_start(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let tab_id = self
+            .new_session_confirm()
+            .and_then(|confirm| confirm.started.created.as_ref())
+            .map(|created| created.tab_id.clone());
+        self.dismiss_menu(window, cx);
+        if let Some(tab_id) = tab_id {
+            self.fence_focus_change(Some(OwnedNavigationTarget::Tab(tab_id)));
+        }
+    }
+}
+
+impl HerdrWindow {
+    /// Leaves the dialog for the tab a start created, when it may: the
+    /// workspace exists and the dialog is not typing or focusing. A setup list
+    /// may be out, and its answer is then ignored. Closes the
+    /// dialog at once, types nothing, and asks the daemon to focus the tab
+    /// without waiting for its answer, as soon as the window is ready for
+    /// input. While the host is not connected the dialog only closes, so no
+    /// focus is stored to fire after a reconnect. Returns whether it left.
+    pub(super) fn leave_created_session(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(dialog) = self
+            .menu
+            .new_session
+            .as_ref()
+            .filter(|dialog| matches!(dialog.step, Step::Idle | Step::Waiting))
+        else {
+            return false;
+        };
+        let Some(tab_id) = dialog
+            .confirm
+            .as_ref()
+            .and_then(|confirm| confirm.started.created.as_ref())
+            .map(|created| created.tab_id.clone())
+        else {
+            return false;
+        };
+        let endpoint = self.endpoints[self.selected_endpoint].id.clone();
+        let is_connected = self.new_session_host_connected();
+        self.dismiss_menu(window, cx);
+        if is_connected {
+            self.navigate_endpoint(&endpoint, NavigationTarget::Tab(&tab_id), cx);
+        }
+        true
+    }
+}
+
+/// The session a create's reply names, or `None` for another reply type or a
+/// reply without its workspace, tab, or first pane.
+fn created_session(reply: &Value, via_worktree: bool) -> Option<CreatedSession> {
+    if via_worktree {
+        if reply["type"] != "worktree_created" {
+            return None;
+        }
+        let created: WorktreeCreated = serde_json::from_value(reply.clone()).ok()?;
+        return Some(CreatedSession {
+            workspace_id: created.workspace.workspace_id,
+            tab_id: created.tab.tab_id,
+            pane_id: created.root_pane.pane_id,
+            branch: created.worktree.branch,
+        });
+    }
+    if reply["type"] != "workspace_created" {
+        return None;
+    }
+    let created: WorkspaceCreated = serde_json::from_value(reply.clone()).ok()?;
+    Some(CreatedSession {
+        workspace_id: created.workspace.workspace_id,
+        tab_id: created.tab?.tab_id,
+        pane_id: created.root_pane?.pane_id,
+        branch: None,
+    })
+}

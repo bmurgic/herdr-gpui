@@ -178,6 +178,8 @@ pub(crate) enum SidebarCollapsedMode {
     Hidden,
 }
 
+/// The command the new dialog types when the config sets none.
+pub(crate) const DEFAULT_NEW_SESSION_COMMAND: &str = "claude";
 /// Herdr's default for `ui.mouse_scroll_lines`.
 pub(crate) const DEFAULT_MOUSE_SCROLL_LINES: NonZeroU16 = NonZeroU16::MIN.saturating_add(2);
 
@@ -256,6 +258,7 @@ pub(crate) enum Edit {
     HideSingleTabBar(bool),
     PaneHistory(bool),
     SessionSidebar(bool),
+    NewSessionCommand(String),
     SessionTitlesEnabled(bool),
     TitleAgent(TitleAgent),
     TitleModel(String),
@@ -298,6 +301,10 @@ pub(crate) struct Settings {
     /// Herdr's `ui.session_sidebar`: agent rows draw as four-line session rows.
     /// On unless the file turns it off.
     pub session_sidebar: bool,
+    /// Herdr's `ui.new_session_command`: what the Agents tab's new dialog
+    /// types into the new pane, as saved and untrimmed. `claude` when the key
+    /// is missing or is not a string; an empty string is a command too.
+    pub new_session_command: String,
     /// Herdr's `[session_titles]` section. An invalid section reads as the
     /// defaults, and `keep_session_titles` then restores the previous values.
     pub session_titles: SessionTitles,
@@ -395,6 +402,8 @@ struct Ui {
     // Herdr defaults this one on, unlike the derived `false`.
     #[serde(deserialize_with = "crate::lenient::or_default")]
     session_sidebar: Option<bool>,
+    #[serde(deserialize_with = "crate::lenient::or_default")]
+    new_session_command: Option<String>,
 }
 
 #[derive(Default, Deserialize)]
@@ -475,6 +484,13 @@ impl Settings {
         Self::load_path(path)
     }
 
+    /// `load_path` for tests outside this module that need settings read
+    /// from a temporary file.
+    #[cfg(all(test, unix))]
+    pub(crate) fn load_path_for_tests(path: PathBuf) -> crate::Result<Self> {
+        Self::load_path(path)
+    }
+
     fn load_path(path: PathBuf) -> crate::Result<Self> {
         let result =
             persistence::read(&path).and_then(|snapshot| Self::parse(path.clone(), snapshot));
@@ -542,6 +558,10 @@ impl Settings {
             right_click_passthrough: parsed.ui.right_click_passthrough_modifier,
             pane_history: parsed.experimental.pane_history,
             session_sidebar: parsed.ui.session_sidebar.unwrap_or(true),
+            new_session_command: parsed
+                .ui
+                .new_session_command
+                .unwrap_or_else(|| DEFAULT_NEW_SESSION_COMMAND.into()),
             session_titles_invalid: titles.is_none(),
             session_titles: titles.unwrap_or_default(),
             palettes,
@@ -607,6 +627,11 @@ impl Settings {
                     enabled.into(),
                 )?,
                 Edit::SessionSidebar(shown) => session_titles::edit_sidebar(&mut document, shown)?,
+                Edit::NewSessionCommand(command) => set(
+                    &mut document,
+                    &["ui", "new_session_command"],
+                    command.into(),
+                )?,
                 Edit::SessionTitlesEnabled(enabled) => {
                     session_titles::edit_enabled(&mut document, enabled)?
                 }

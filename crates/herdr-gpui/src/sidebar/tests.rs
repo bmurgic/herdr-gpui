@@ -31,3 +31,4 @@ mod session_text;
 mod statuses;
 mod sticky_hosts;
 mod tabs;
+mod truncate_middle;

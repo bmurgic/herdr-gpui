@@ -157,6 +157,12 @@ pub enum EndpointErrorCode {
     StaleContent,
     PaneNotFound,
     QueryTooLarge,
+    /// The folder a `worktree.list` named is not in a git repository.
+    NotGitWorktree,
+    /// The daemon does not know the method.
+    UnsupportedMethod,
+    /// The daemon does not offer the method on the endpoint socket.
+    UnsupportedEndpointCommand,
     Other(String),
 }
 
@@ -166,6 +172,9 @@ impl From<String> for EndpointErrorCode {
             "stale_content" => Self::StaleContent,
             "pane_not_found" => Self::PaneNotFound,
             "query_too_large" => Self::QueryTooLarge,
+            "not_git_worktree" => Self::NotGitWorktree,
+            "unsupported_method" => Self::UnsupportedMethod,
+            "unsupported_endpoint_command" => Self::UnsupportedEndpointCommand,
             _ => Self::Other(code),
         }
     }

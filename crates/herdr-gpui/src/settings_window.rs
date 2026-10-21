@@ -21,7 +21,7 @@ use persistence::{Loaded, SaveCompletion};
 mod themes;
 mod title_model_suggestions;
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
-pub(crate) use native::{verify_native, verify_sessions};
+pub(crate) use native::{open_new_session_row, verify_native, verify_sessions};
 pub(crate) use themes::{
     apply_loaded_theme, apply_theme_draft, theme_load_revision, theme_pending,
 };
@@ -753,6 +753,7 @@ impl SettingsWindow {
 impl Render for SettingsWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.ensure_title_model_field(window, cx);
+        self.ensure_new_session_command_field(window, cx);
         let content = match self.section {
             Section::Appearance => self.render_appearance(window, cx),
             Section::Integrations => self.render_integration_controls(cx),

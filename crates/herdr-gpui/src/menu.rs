@@ -10,6 +10,17 @@ mod devices;
 mod fan_out;
 mod git;
 mod github;
+mod new_session;
+pub(crate) use new_session::ConnectionReport;
+#[cfg(any(
+    all(test, unix),
+    all(feature = "integration-test", target_os = "macos")
+))]
+pub(crate) use new_session::NewSessionStage;
+#[cfg(all(feature = "integration-test", target_os = "macos"))]
+pub(crate) use new_session::{ChecklistView, ConfirmRow, ConfirmView, ProjectsView, SetupButton};
+#[cfg(all(test, unix))]
+pub(crate) use new_session::{ConfirmProject, DialogProbe, tests as new_session_tests};
 mod new_workspace;
 mod page;
 mod pr;

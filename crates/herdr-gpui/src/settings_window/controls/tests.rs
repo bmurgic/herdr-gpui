@@ -4,6 +4,7 @@ use core::prelude::v1::test;
 mod backdrop;
 mod device_icons;
 mod focus_follows_mouse;
+mod new_session_command;
 mod repository_icons;
 mod session_restore;
 mod session_titles;
@@ -130,6 +131,66 @@ pub(super) fn recording_shared(
         }),
     };
     (io, edits)
+}
+
+/// Focus events reach a field only while its window is the active one.
+#[cfg(unix)]
+pub(super) fn activate(cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    session_titles::draw(cx);
+}
+
+/// Moves focus to `handle` and lets the focus events run.
+#[cfg(unix)]
+pub(super) fn focus(cx: &mut VisualTestContext, handle: &FocusHandle) {
+    cx.update(|window, cx| window.focus(handle, cx));
+    session_titles::draw(cx);
+    cx.run_until_parked();
+}
+
+#[cfg(unix)]
+pub(super) fn focus_input(cx: &mut VisualTestContext, input: &Entity<SearchInput>) {
+    let handle = input.read_with(cx, |input, _| input.focus.clone());
+    focus(cx, &handle);
+}
+
+#[cfg(unix)]
+pub(super) fn press(cx: &mut VisualTestContext, keys: &str) {
+    cx.simulate_keystrokes(keys);
+    session_titles::draw(cx);
+}
+
+#[cfg(unix)]
+pub(super) fn paste(cx: &mut VisualTestContext, text: &str) {
+    cx.write_to_clipboard(ClipboardItem::new_string(text.into()));
+    cx.dispatch_action(crate::actions::Paste);
+    session_titles::draw(cx);
+}
+
+/// A reload that finds `config` on disk.
+#[cfg(unix)]
+pub(super) fn reload(view: &Entity<SettingsWindow>, cx: &mut VisualTestContext, config: &str) {
+    let mut loaded = skill_load().unwrap();
+    loaded.shared = Some(crate::herdr_settings::Settings::parse_text(config).unwrap());
+    view.update(cx, |view, cx| view.apply_loaded(Ok(loaded), cx));
+    session_titles::draw(cx);
+}
+
+/// Presses Enter in the focused field, then moves the focus to the window,
+/// without running the executor in between, so the save Enter started has
+/// not finished when the focus leaves.
+#[cfg(unix)]
+pub(super) fn enter_then_blur_before_the_save_finishes(
+    view: &Entity<SettingsWindow>,
+    cx: &mut VisualTestContext,
+) {
+    cx.update(|window, cx| {
+        window.dispatch_keystroke(Keystroke::parse("enter").unwrap(), cx);
+    });
+    let root = view.read_with(cx, |view, _| view.focus.clone());
+    cx.update(|window, cx| window.focus(&root, cx));
+    session_titles::draw(cx);
 }
 
 #[gpui::test]

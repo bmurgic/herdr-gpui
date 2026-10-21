@@ -286,8 +286,26 @@ impl ProbeText {
                     .first()
                     .and_then(|run| run.glyphs.first())
                     .context("independent glyph shaping produced no glyph")?;
+                // A font may swap in a contextual alternate, such as the raised
+                // colon between digits of `1:05`. Shaping the whole text again
+                // shows whether the painted glyph is that alternate.
+                let in_context = |window: &mut Window| {
+                    window
+                        .text_system()
+                        .shape_line(
+                            text.clone().into(),
+                            layout.font_size,
+                            &[window.text_style().to_run(text.len())],
+                            None,
+                        )
+                        .runs
+                        .iter()
+                        .flat_map(|run| run.glyphs.iter())
+                        .find(|candidate| candidate.index == glyph.index)
+                        .map(|candidate| candidate.id)
+                };
                 ensure!(
-                    expected.id == glyph.id,
+                    expected.id == glyph.id || in_context(window) == Some(glyph.id),
                     "painted glyph ID for {ch:?}: actual {:?}, expected {:?}",
                     glyph.id,
                     expected.id
@@ -537,7 +555,7 @@ pub(super) fn session_window(
 
 /// A full frame with the painted text recorded afresh.
 #[cfg(test)]
-pub(super) fn redraw(cx: &mut gpui::VisualTestContext) {
+pub(crate) fn redraw(cx: &mut gpui::VisualTestContext) {
     cx.update(|window, cx| {
         cx.default_global::<TextProbes>().0.clear();
         full_draw(window, cx).clear(cx);
@@ -545,17 +563,17 @@ pub(super) fn redraw(cx: &mut gpui::VisualTestContext) {
 }
 
 #[cfg(test)]
-pub(super) fn painted(cx: &mut gpui::VisualTestContext, text: &str) -> bool {
+pub(crate) fn painted(cx: &mut gpui::VisualTestContext, text: &str) -> bool {
     cx.update(|_, cx| cx.global::<TextProbes>().0.contains_key(text))
 }
 
 #[cfg(test)]
-pub(super) fn text_bounds(cx: &mut gpui::VisualTestContext, text: &str) -> Bounds<Pixels> {
+pub(crate) fn text_bounds(cx: &mut gpui::VisualTestContext, text: &str) -> Bounds<Pixels> {
     cx.update(|_, cx| cx.global::<TextProbes>().0[text].0)
 }
 
 #[cfg(test)]
-pub(super) fn inside(outer: Bounds<Pixels>, inner: Bounds<Pixels>) -> bool {
+pub(crate) fn inside(outer: Bounds<Pixels>, inner: Bounds<Pixels>) -> bool {
     outer.left() <= inner.left()
         && inner.right() <= outer.right()
         && outer.top() <= inner.top()

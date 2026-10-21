@@ -3,7 +3,7 @@
 //! `[session_titles]` section holds. A daemon that does not advertise
 //! `session_titles` ignores that section, so the three title rows show only
 //! on one that does.
-use super::{Edit, SettingsWindow};
+use super::{Edit, SettingsWindow, claim_field_key, field_key, keep_focus};
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 use super::{clear_native_bounds, native_probe};
 use crate::{
@@ -137,7 +137,8 @@ impl SettingsWindow {
                     row
                 }),
             )
-            .child(self.control_note("Agents and Spaces tabs, one list at a time"));
+            .child(self.control_note("Agents and Spaces tabs, one list at a time"))
+            .children(self.new_session_command_rows(cx));
         if !gate {
             return card;
         }
@@ -193,12 +194,6 @@ impl SettingsWindow {
 /// ends the edit on success; a failed save is told apart in `apply_loaded`,
 /// which calls `sync_title_model_field` while the field is still submitted.
 impl SettingsWindow {
-    /// The field and `Apply` need shared saves, which Windows refuses, so
-    /// anywhere else the row shows the model as plain text.
-    fn title_model_editable(&self) -> bool {
-        cfg!(unix) && self.shared.is_some()
-    }
-
     /// Builds the field when the row is about to render for the first time,
     /// and keeps its look and placeholder current.
     pub(in crate::settings_window) fn ensure_title_model_field(
@@ -207,7 +202,7 @@ impl SettingsWindow {
         cx: &mut Context<Self>,
     ) {
         let shown =
-            self.section == Section::General && self.titles_gate(cx) && self.title_model_editable();
+            self.section == Section::General && self.titles_gate(cx) && self.shared_text_editable();
         if !shown {
             self.release_hidden_title_model(window, cx);
             return;
@@ -266,14 +261,9 @@ impl SettingsWindow {
         });
     }
 
-    /// A field that keeps the window's focus while its row is gone would take
-    /// it as a new focus when the row returns, and start an edit unasked.
     fn release_hidden_title_model(&self, window: &Window, cx: &mut Context<Self>) {
-        let Some(field) = &self.controls.session_titles.model_field else {
-            return;
-        };
-        if field.input.read(cx).focus.is_focused(window) {
-            cx.defer_in(window, |this, window, cx| window.focus(&this.focus, cx));
+        if let Some(field) = &self.controls.session_titles.model_field {
+            self.release_hidden_field(&field.input, window, cx);
         }
     }
 
@@ -283,7 +273,7 @@ impl SettingsWindow {
             .session_titles
             .model_field
             .as_ref()
-            .filter(|_| self.title_model_editable());
+            .filter(|_| self.shared_text_editable());
         let Some(field) = field else {
             let shown = if titles.model.is_empty() {
                 format!("{} (default)", titles.agent.default_model())
@@ -317,7 +307,7 @@ impl SettingsWindow {
     fn title_model_detail(&self, cx: &mut Context<Self>) -> Div {
         let field = self.controls.session_titles.model_field.as_ref();
         let Some(field) = field.filter(|field| {
-            self.title_model_editable()
+            self.shared_text_editable()
                 && matches!(field.phase, ModelPhase::Editing(_))
                 && !field.suggestions.is_empty()
         }) else {
@@ -500,24 +490,18 @@ impl SettingsWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let key = event.keystroke.key.as_str();
-        if event.keystroke.modifiers.modified()
-            || !matches!(key, "up" | "down" | "enter" | "escape" | "tab")
-        {
+        let Some(key) = field_key(event) else {
             return;
-        }
+        };
         let Some(field) = &mut self.controls.session_titles.model_field else {
             return;
         };
         if !matches!(field.phase, ModelPhase::Editing(_)) {
             return;
         }
-        cx.stop_propagation();
-        // The input method owns these keys while it composes.
-        if field.input.read(cx).is_composing() {
+        if !claim_field_key(&field.input, window, cx) {
             return;
         }
-        window.prevent_default();
         let last = field.suggestions.len().saturating_sub(1);
         match key {
             "up" => field.highlighted = field.highlighted.saturating_sub(1),
@@ -558,10 +542,4 @@ impl SettingsWindow {
         let field = self.controls.session_titles.model_field.as_ref()?;
         field.suggestions.get(field.highlighted).copied()
     }
-}
-
-/// A click on the row's buttons must reach the field's state while it is still
-/// editing: left alone, GPUI moves focus to the window root on mouse-down.
-fn keep_focus(_: &MouseDownEvent, window: &mut Window, _: &mut App) {
-    window.prevent_default();
 }

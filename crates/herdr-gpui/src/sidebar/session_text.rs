@@ -8,7 +8,7 @@ const ELLIPSIS: &str = "…";
 
 /// `text` cut to at most `columns` columns, ending in an ellipsis when it was
 /// cut.
-pub(super) fn truncate_end(text: &str, columns: usize) -> String {
+pub(crate) fn truncate_end(text: &str, columns: usize) -> String {
     if text.width() <= columns {
         return text.to_owned();
     }
@@ -19,11 +19,29 @@ pub(super) fn truncate_end(text: &str, columns: usize) -> String {
     }
 }
 
+/// `text` cut to at most `columns` columns with its middle replaced by an
+/// ellipsis. The start keeps the extra column when the kept columns are odd.
+pub(crate) fn truncate_middle(text: &str, columns: usize) -> String {
+    if text.width() <= columns {
+        return text.to_owned();
+    }
+    if columns == 0 {
+        return String::new();
+    }
+    let kept_columns = columns - 1;
+    let suffix_columns = kept_columns / 2;
+    let suffix = suffix_within(text, suffix_columns);
+    format!(
+        "{}{ELLIPSIS}{suffix}",
+        prefix_within(text, kept_columns - suffix_columns)
+    )
+}
+
 /// `text` split over two lines of at most `columns` columns. The first breaks
 /// at the last space that keeps it within the budget, or inside a word when no
 /// space does. The second takes the rest and ends in an ellipsis when the rest
 /// is still too wide. The second is empty when `text` fits on the first.
-pub(super) fn wrap_two_lines(text: &str, columns: usize) -> (String, String) {
+pub(crate) fn wrap_two_lines(text: &str, columns: usize) -> (String, String) {
     if text.width() <= columns {
         return (text.to_owned(), String::new());
     }
@@ -62,6 +80,20 @@ pub(super) fn fit_line_one(title: &str, age: Option<&str>, columns: usize) -> (S
         .filter(|width| *width <= columns);
     let title_columns = age_width.map_or(columns, |width| columns.saturating_sub(width + 1));
     (truncate_end(title, title_columns), age_width.is_some())
+}
+
+fn suffix_within(text: &str, columns: usize) -> String {
+    let mut used = 0;
+    let mut reversed: Vec<char> = text
+        .chars()
+        .rev()
+        .take_while(|character| {
+            used += character.width().unwrap_or(0);
+            used <= columns
+        })
+        .collect();
+    reversed.reverse();
+    reversed.into_iter().collect()
 }
 
 fn prefix_within(text: &str, columns: usize) -> String {

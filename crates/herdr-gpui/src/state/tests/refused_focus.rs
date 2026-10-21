@@ -52,8 +52,8 @@ fn a_rejected_workspace_focus_ends_its_activation() {
 }
 
 /// Only the request the fence recorded counts: a refusal of another request, a
-/// fence with no focus request (a tab or pane focus), and a success all leave
-/// the activation waiting.
+/// fence with no focus request (a pane focus), and a success all leave the
+/// activation waiting.
 #[test]
 fn other_replies_leave_the_activation_waiting() {
     let mut state = focusing(Some("focus-1"));

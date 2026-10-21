@@ -47,6 +47,10 @@ mod session_rows;
 use session_rows::start_session_rows;
 
 #[cfg(target_os = "macos")]
+#[path = "smoke_new_session.rs"]
+mod new_session_walk;
+
+#[cfg(target_os = "macos")]
 #[path = "smoke_settings_sessions.rs"]
 mod settings_sessions;
 #[cfg(target_os = "macos")]
@@ -119,6 +123,21 @@ fn create_external_workspace(
     options: ConnectOptions,
     boot: String,
 ) -> Result<ExternalWorkspace> {
+    create_workspace_from_second_client(
+        target,
+        options,
+        boot,
+        serde_json::json!({"focus": false, "label": "external-gui-smoke"}),
+    )
+}
+
+/// Connects a second client and sends `workspace.create` with `params`.
+fn create_workspace_from_second_client(
+    target: ConnectTarget,
+    options: ConnectOptions,
+    boot: String,
+    params: serde_json::Value,
+) -> Result<ExternalWorkspace> {
     use herdr_client::ClientEvent;
     let client =
         herdr_client::connect(target, options).context("connecting external workspace client")?;
@@ -137,13 +156,7 @@ fn create_external_workspace(
                 let sent = Instant::now();
                 let id = client
                     .handle
-                    .request(
-                        &boot,
-                        Method::WorkspaceCreate,
-                        serde_json::json!({
-                            "focus": false, "label": "external-gui-smoke"
-                        }),
-                    )
+                    .request(&boot, Method::WorkspaceCreate, params.clone())
                     .context("queueing external workspace request")?;
                 request = Some((id, sent));
             }
@@ -183,6 +196,12 @@ fn create_external_workspace(
 }
 
 pub fn start(handle: WindowHandle<HerdrWindow>, cx: &mut App) {
+    // Its own walk, so a failing step of the shared one cannot hide it.
+    #[cfg(target_os = "macos")]
+    if let Some(walk) = new_session_walk::Walk::from_env() {
+        new_session_walk::start(handle, walk, cx);
+        return;
+    }
     let timer = cx.background_executor().clone();
     cx.spawn(async move |cx| {
         let mut step = 0;

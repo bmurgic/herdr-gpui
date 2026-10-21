@@ -214,7 +214,15 @@ fn typing_a_name_lists_no_folders_and_tab_leaves_it_alone(cx: &mut TestAppContex
 
     assert_eq!(text(&view, cx), "docs/");
     view.read_with(cx, |view, _| {
-        assert!(view.menu.new_workspace.as_ref().unwrap().matches.is_empty());
+        assert!(
+            view.menu
+                .new_workspace
+                .as_ref()
+                .unwrap()
+                .suggestions
+                .matches
+                .is_empty()
+        );
     });
 }
 

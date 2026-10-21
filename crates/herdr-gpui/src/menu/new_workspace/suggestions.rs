@@ -15,7 +15,7 @@ use std::{
 
 /// The most directory entries a listing reads. A folder with more keeps what
 /// was read, in the order the operating system gave it.
-pub(super) const MAX_FOLDER_ENTRIES: usize = 4096;
+pub(in crate::menu) const MAX_FOLDER_ENTRIES: usize = 4096;
 
 /// A `.git` file holds one `gitdir:` line, so anything larger is not one.
 const MAX_GIT_FILE_BYTES: u64 = 4096;
@@ -25,7 +25,7 @@ const MAX_GIT_CONFIG_BYTES: u64 = 64 * 1024;
 
 /// Why the typed directory cannot be used, before the daemon is asked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum DirectoryRefusal {
+pub(in crate::menu) enum DirectoryRefusal {
     /// The text is not `~`, an absolute path, or a path starting with `~/`.
     Form,
     /// This computer has no such directory.
@@ -35,7 +35,7 @@ pub(super) enum DirectoryRefusal {
 }
 
 impl DirectoryRefusal {
-    pub(super) fn message(self) -> &'static str {
+    pub(in crate::menu) fn message(self) -> &'static str {
         match self {
             Self::Form => "Enter an absolute directory or a path starting with ~/",
             Self::Missing => "That directory does not exist.",
@@ -77,7 +77,7 @@ pub(super) fn ranked_matches(children: &[String], query: &str) -> Vec<String> {
 /// most `limit` entries. Names that are not UTF-8 or hold a control character
 /// are left out, because the text field cannot hold them faithfully and
 /// completing one would name a different folder.
-pub(super) fn list_folders(parent: &Path, limit: usize) -> io::Result<Vec<String>> {
+pub(in crate::menu) fn list_folders(parent: &Path, limit: usize) -> io::Result<Vec<String>> {
     let mut folders = Vec::new();
     for entry in fs::read_dir(parent)?.take(limit) {
         let entry = entry?;
@@ -109,7 +109,7 @@ pub(super) fn expand_tilde(text: &str, home: Option<&Path>) -> Option<PathBuf> {
 
 /// Whether `text` is shaped like a directory the daemon could be given: `~`,
 /// or a path starting with `/` or `~/`. `~user` and relative paths are not.
-pub(super) fn check_form(text: &str) -> Result<(), DirectoryRefusal> {
+pub(in crate::menu) fn check_form(text: &str) -> Result<(), DirectoryRefusal> {
     let text = text.trim();
     if text == "~" || text.starts_with('/') || text.starts_with("~/") {
         Ok(())
@@ -122,7 +122,11 @@ pub(super) fn check_form(text: &str) -> Result<(), DirectoryRefusal> {
 /// expands `~` itself, so it gets the trimmed text. Stock Herdr does not, so
 /// it gets the path expanded here. `None` when that needs a home that is
 /// missing or not UTF-8, which JSON cannot carry.
-pub(super) fn request_cwd(text: &str, snapshot_v2: bool, home: Option<&Path>) -> Option<String> {
+pub(in crate::menu) fn request_cwd(
+    text: &str,
+    snapshot_v2: bool,
+    home: Option<&Path>,
+) -> Option<String> {
     let text = text.trim();
     if snapshot_v2 {
         return Some(text.to_owned());

@@ -13,8 +13,8 @@
 //! the host picker chose another one, as a dispatch job.
 
 use super::{
-    NewWorkspaceForm, Page, Step,
-    suggestions::{DirectoryRefusal, check_form, expand_tilde, proposed_label, request_cwd},
+    Page, Step,
+    suggestions::{DirectoryRefusal, expand_tilde, proposed_label, request_cwd},
 };
 use crate::{
     Error, HerdrWindow,
@@ -27,6 +27,7 @@ use crate::{
 };
 use gpui::{Context, Window};
 use herdr_client::Method;
+use std::path::Path;
 
 /// What the background check of a directory on this computer found.
 enum Checked {
@@ -36,19 +37,6 @@ enum Checked {
     Directory {
         proposal: Option<String>,
     },
-}
-
-impl NewWorkspaceForm {
-    /// Why `text`, already trimmed, cannot be sent. A folder on this computer
-    /// is checked afterwards, and a daemon checks its own.
-    fn refusal_before_check(&self, text: &str, snapshot_v2: bool) -> Option<DirectoryRefusal> {
-        if let Err(refusal) = check_form(text) {
-            return Some(refusal);
-        }
-        // Without the v2 codec the daemon neither expands `~` nor checks the
-        // folder, and only this computer's home is known here.
-        (!self.local && !snapshot_v2 && text.starts_with('~')).then_some(DirectoryRefusal::Tilde)
-    }
 }
 
 impl HerdrWindow {
@@ -92,22 +80,25 @@ impl HerdrWindow {
             return;
         }
         let text = input.text.trim().to_owned();
-        if let Some(refusal) = form.refusal_before_check(&text, self.live.snapshot_v2) {
+        if let Some(refusal) = form
+            .suggestions
+            .refusal_before_check(&text, self.live.snapshot_v2)
+        {
             form.refusal = Some(refusal);
             cx.notify();
             return;
         }
-        if !form.local {
+        if !form.suggestions.is_local() {
             self.directory_accepted(text, None, window, cx);
             return;
         }
-        let Some(path) = expand_tilde(&text, form.home.as_deref()) else {
+        let Some(path) = expand_tilde(&text, form.suggestions.home()) else {
             form.refusal = Some(DirectoryRefusal::Missing);
             cx.notify();
             return;
         };
         form.checking = Some(text.clone());
-        let home = form.home.clone();
+        let home = form.suggestions.home().map(Path::to_path_buf);
         let propose = self.prompts_for_name();
         let check = cx.background_executor().spawn(async move {
             if !path.is_dir() {
@@ -192,7 +183,7 @@ impl HerdrWindow {
         let Some(form) = self.menu.new_workspace.as_mut() else {
             return;
         };
-        form.clear_listing();
+        form.suggestions.clear_listing();
         form.refusal = None;
         form.send_error = None;
         form.step = Step::Name {
@@ -281,7 +272,7 @@ impl HerdrWindow {
         ) else {
             return;
         };
-        let Some(cwd) = request_cwd(text, self.live.snapshot_v2, form.home.as_deref()) else {
+        let Some(cwd) = request_cwd(text, self.live.snapshot_v2, form.suggestions.home()) else {
             // Only a home that is not UTF-8 gets here, and JSON cannot carry
             // the path it would expand to.
             form.refusal = Some(DirectoryRefusal::Missing);

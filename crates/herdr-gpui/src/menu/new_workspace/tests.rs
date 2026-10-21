@@ -106,7 +106,13 @@ fn text(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> String {
 
 fn matches(view: &Entity<HerdrWindow>, cx: &mut VisualTestContext) -> Vec<String> {
     view.read_with(cx, |view, _| {
-        view.menu.new_workspace.as_ref().unwrap().matches.clone()
+        view.menu
+            .new_workspace
+            .as_ref()
+            .unwrap()
+            .suggestions
+            .matches
+            .clone()
     })
 }
 

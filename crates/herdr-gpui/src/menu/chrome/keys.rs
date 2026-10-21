@@ -4,11 +4,38 @@
 
 use crate::{
     HerdrWindow, actions,
+    dialog_input::DialogInput,
     menu::{Page, WorkspaceAction},
 };
 use gpui::*;
 
 impl HerdrWindow {
+    /// Runs `edit` on the focused text field and, when it reports a change,
+    /// lets the open dialog react to the new text and redraws. Returns `None`
+    /// when no field is focused, else what `edit` returned. Every path that
+    /// edits the field goes through here, so no dialog misses an edit.
+    pub(crate) fn edit_menu_input(
+        &mut self,
+        cx: &mut Context<Self>,
+        edit: impl FnOnce(&mut DialogInput, &mut Context<Self>) -> bool,
+    ) -> Option<bool> {
+        // A dialog that waits for the daemon takes no edits, typed, pasted,
+        // or composed.
+        if self.new_session_locked() {
+            return self.menu.input.as_ref().map(|_| false);
+        }
+        let workspace_before = self.new_workspace_text();
+        let session_before = self.new_session_text();
+        let input = self.menu.input.as_mut()?;
+        if !edit(input, cx) {
+            return Some(false);
+        }
+        self.new_workspace_edited(workspace_before, cx);
+        self.new_session_edited(session_before, cx);
+        cx.notify();
+        Some(true)
+    }
+
     /// An Edit menu item while a menu page holds focus. Only the targets the
     /// overlay's key handler gives these shortcuts to are reached: a dialog's
     /// text draft, and the GitHub page's device code for Copy. Search fields
@@ -27,12 +54,10 @@ impl HerdrWindow {
         {
             return;
         }
-        let before = self.new_workspace_text();
-        if let Some(input) = self.menu.input.as_mut() {
-            if input.key(&event.keystroke, cx) {
-                self.new_workspace_edited(before, cx);
-                cx.notify();
-            }
+        if self
+            .edit_menu_input(cx, |input, cx| input.key(&event.keystroke, cx))
+            .is_some()
+        {
             return;
         }
         if self.menu.page == Some(Page::GitHub) {
@@ -95,15 +120,20 @@ impl HerdrWindow {
         if self.menu.page == Some(Page::NewWorkspace) && self.new_workspace_key(event, window, cx) {
             return;
         }
-        let before = self.new_workspace_text();
-        if let Some(input) = self.menu.input.as_mut().filter(|_| !listing && !naming) {
-            if input.key(&event.keystroke, cx) {
-                self.new_workspace_edited(before, cx);
-                cx.stop_propagation();
-                window.prevent_default();
-                cx.notify();
-                return;
-            }
+        if self.menu.page == Some(Page::NewSession) && self.new_session_key(event, window, cx) {
+            return;
+        }
+        let edited = if listing || naming {
+            None
+        } else {
+            self.edit_menu_input(cx, |input, cx| input.key(&event.keystroke, cx))
+        };
+        if edited == Some(true) {
+            cx.stop_propagation();
+            window.prevent_default();
+            return;
+        }
+        if let Some(input) = self.menu.input.as_ref().filter(|_| edited.is_some()) {
             // Let the platform deliver printable text and IME navigation/commit.
             if input.marked.is_some() || !matches!(event.keystroke.key.as_str(), "escape" | "enter")
             {

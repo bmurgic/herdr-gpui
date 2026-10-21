@@ -340,10 +340,18 @@ fn connected_window<'a>(
     (view, cx)
 }
 
+/// Agent new session 01 and 02: the footer's `new` opens the new-session
+/// dialog only while the tab bar shows the Agents tab.
 #[gpui::test]
 fn footer_controls_work_under_both_tabs(cx: &mut gpui::TestAppContext) {
-    // The page `new` opens needs a daemon that can create workspaces.
-    let peer = crate::window::MockPeer::advertising(&["workspace.create"]);
+    // The pages `new` opens need a daemon that can create workspaces, and the
+    // new-session dialog also needs worktrees and tab focus.
+    let peer = crate::window::MockPeer::advertising(&[
+        "workspace.create",
+        "worktree.list",
+        "worktree.create",
+        "tab.focus",
+    ]);
     let new_page = |view: &Entity<HerdrWindow>, cx: &mut gpui::VisualTestContext| {
         let new = cx.debug_bounds("new-workspace").unwrap().center();
         cx.simulate_click(new, Modifiers::default());
@@ -355,9 +363,35 @@ fn footer_controls_work_under_both_tabs(cx: &mut gpui::TestAppContext) {
     assert_eq!(expected, Some(crate::menu::Page::NewWorkspace));
 
     let (view, tab_cx) = connected_window(cx, &peer, |_| {});
-    assert_eq!(new_page(&view, tab_cx), expected, "agents");
+    assert_eq!(
+        new_page(&view, tab_cx),
+        Some(crate::menu::Page::NewSession),
+        "agents"
+    );
     let (view, tab_cx) = connected_window(cx, &peer, show_spaces_tab);
     assert_eq!(new_page(&view, tab_cx), expected, "spaces");
+
+    // Only the footer follows the tab: the New Workspace command and the
+    // rail's `+` keep New Workspace while Agents is the stored tab.
+    let (view, tab_cx) = connected_window(cx, &peer, |_| {});
+    tab_cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            view.command(crate::controls::Command::Workspace, window, cx)
+        })
+    });
+    assert_eq!(
+        view.read_with(tab_cx, |view, _| view.menu.page),
+        expected,
+        "new workspace command"
+    );
+    let (view, rail_cx) = connected_window(cx, &peer, |view| view.sidebar_visible = false);
+    let plus = rail_cx.debug_bounds("rail-new-workspace").unwrap().center();
+    rail_cx.simulate_click(plus, Modifiers::default());
+    assert_eq!(
+        view.read_with(rail_cx, |view, _| view.menu.page),
+        expected,
+        "rail plus"
+    );
 
     let (view, cx) = tabbed_window(cx, |_| {});
     let menu = cx.debug_bounds("sidebar-menu").unwrap().center();

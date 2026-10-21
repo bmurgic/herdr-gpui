@@ -121,6 +121,20 @@ fn endpoint_errors_keep_their_code_as_a_variant() {
 }
 
 #[test]
+fn worktree_and_unsupported_method_codes_are_variants() {
+    for (code, expected) in [
+        ("not_git_worktree", EndpointErrorCode::NotGitWorktree),
+        ("unsupported_method", EndpointErrorCode::UnsupportedMethod),
+        (
+            "unsupported_endpoint_command",
+            EndpointErrorCode::UnsupportedEndpointCommand,
+        ),
+    ] {
+        assert_eq!(EndpointErrorCode::from(code.to_owned()), expected, "{code}");
+    }
+}
+
+#[test]
 fn malformed_or_foreign_results_are_schema_errors() {
     assert!(matches!(
         decode_copy_search(&json!({"id": "x", "result": {"type": "pane_selection",

@@ -25,22 +25,7 @@ pub(crate) async fn verify_sessions(
     source: WindowHandle<HerdrWindow>,
     cx: &mut AsyncApp,
 ) -> Result<String> {
-    let settings = open_settings(source, cx).await?;
-    let config = sandboxed_config(settings, cx)?;
-    settings.update(cx, |_, window, _| window.resize(WINDOW_SIZE))?;
-    let deadline = Instant::now() + Duration::from_secs(2);
-    while settings.update(cx, |_, window, _| window.viewport_size())? != WINDOW_SIZE {
-        ensure!(Instant::now() < deadline, "Settings resize timed out");
-        cx.background_executor()
-            .timer(Duration::from_millis(10))
-            .await;
-    }
-    let general = Section::ALL
-        .iter()
-        .position(|section| *section == Section::General)
-        .context("General is not a Settings category")?;
-    click_category(settings, general, Section::General, cx).await?;
-    scroll_to_sessions(settings, cx)?;
+    let (settings, config) = open_general_sessions(source, cx).await?;
 
     click_control(settings, "settings-session-sidebar", cx).await?;
     wait_for_saved(settings, &config, "session sidebar off", cx, |file| {
@@ -68,6 +53,32 @@ pub(crate) async fn verify_sessions(
          agent = \"codex\" with the model cleared, each read back from {}",
         config.display()
     ))
+}
+
+/// Opens Settings from `source`, checks it writes only the fixture's config,
+/// sizes it to `WINDOW_SIZE`, and shows General scrolled to the Sessions card.
+/// Returns the Settings window and the config file it writes.
+pub(super) async fn open_general_sessions(
+    source: WindowHandle<HerdrWindow>,
+    cx: &mut AsyncApp,
+) -> Result<(WindowHandle<SettingsWindow>, PathBuf)> {
+    let settings = open_settings(source, cx).await?;
+    let config = sandboxed_config(settings, cx)?;
+    settings.update(cx, |_, window, _| window.resize(WINDOW_SIZE))?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while settings.update(cx, |_, window, _| window.viewport_size())? != WINDOW_SIZE {
+        ensure!(Instant::now() < deadline, "Settings resize timed out");
+        cx.background_executor()
+            .timer(Duration::from_millis(10))
+            .await;
+    }
+    let general = Section::ALL
+        .iter()
+        .position(|section| *section == Section::General)
+        .context("General is not a Settings category")?;
+    click_category(settings, general, Section::General, cx).await?;
+    scroll_to_sessions(settings, cx)?;
+    Ok((settings, config))
 }
 
 /// The file Settings writes shared settings to. Refuses to go on unless it

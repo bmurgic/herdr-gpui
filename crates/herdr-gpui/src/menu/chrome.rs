@@ -7,7 +7,11 @@ mod keys;
 use super::{MENU_MARGIN, Page, WorkspaceAction, devices::rail};
 use crate::{HerdrWindow, actions, fonts::StyledFont};
 use gpui::{prelude::*, *};
-use herdr_client::Method;
+use herdr_client::{Method, protocol::ClientShellSnapshotV2};
+
+/// The width of the New Workspace and New Session dialogs: room for a path and
+/// the folders under it.
+pub(super) const CREATION_DIALOG_WIDTH: f32 = 520.;
 
 /// How far past its panel a popover counts as covering, for the native pages
 /// that step aside for it.
@@ -71,12 +75,39 @@ impl HerdrWindow {
         }
     }
 
+    /// The `(selection_epoch, generation)` pair that names the selected host's
+    /// current connection.
+    pub(crate) fn current_endpoint_target(&self) -> (u64, u64) {
+        (
+            self.selection_epoch,
+            self.endpoints[self.selected_endpoint].generation,
+        )
+    }
+
     pub(crate) fn menu_target_current(&self) -> bool {
-        self.menu.endpoint_target
-            == (
-                self.selection_epoch,
-                self.endpoints[self.selected_endpoint].generation,
-            )
+        self.menu.endpoint_target == self.current_endpoint_target()
+    }
+
+    /// The snapshot a dialog that creates on the selected host opens against,
+    /// or `None` when it must not open: a menu page is already open, the host
+    /// is not connected or does not advertise every one of `methods`, an
+    /// activation is pending, the host's surface is not requested, or no
+    /// snapshot names the daemon boot to address.
+    pub(crate) fn creation_dialog_snapshot(
+        &self,
+        methods: &[Method],
+    ) -> Option<&ClientShellSnapshotV2> {
+        if self.menu.page.is_some()
+            || !self.live.status.is_connected()
+            || !methods
+                .iter()
+                .all(|method| method.advertised_in(&self.live.methods))
+            || self.activation_deadline.is_some()
+            || !self.endpoints[self.selected_endpoint].surface_requested()
+        {
+            return None;
+        }
+        self.live.snapshot.as_deref()
     }
 
     /// Asks the selected daemon to reread its config file.
@@ -298,14 +329,16 @@ impl HerdrWindow {
             .id("menu-panel")
             .debug_selector(|| "menu-panel".into())
             .when(
-                matches!(page, Page::Workspace | Page::Dialog(_) | Page::NewWorkspace),
+                matches!(
+                    page,
+                    Page::Workspace | Page::Dialog(_) | Page::NewWorkspace | Page::NewSession
+                ),
                 |panel| {
                     panel
                         .w(px(if page == Page::Workspace {
                             340.
-                        } else if page == Page::NewWorkspace {
-                            // Room for a path and the folders under it.
-                            520.
+                        } else if matches!(page, Page::NewWorkspace | Page::NewSession) {
+                            CREATION_DIALOG_WIDTH
                         } else if page == Page::Dialog(WorkspaceAction::DeleteWorktree) {
                             480.
                         } else if settled {
@@ -436,7 +469,10 @@ impl HerdrWindow {
                 !footer_anchored
                     && !matches!(page, Page::Usage(_))
                     && !pointer_anchored
-                    && !matches!(page, Page::Dialog(_) | Page::NewWorkspace),
+                    && !matches!(
+                        page,
+                        Page::Dialog(_) | Page::NewWorkspace | Page::NewSession
+                    ),
                 |panel| {
                     panel
                         .w((viewport.width - px(32.))
@@ -483,7 +519,10 @@ impl HerdrWindow {
                         .when(!settled && !lists, |panel| panel.overflow_y_scroll())
                         .when(lists, |panel| panel.overflow_hidden())
                         .when(
-                            !matches!(page, Page::Dialog(_) | Page::NewWorkspace),
+                            !matches!(
+                                page,
+                                Page::Dialog(_) | Page::NewWorkspace | Page::NewSession
+                            ),
                             |panel| panel.p(px(6.)),
                         )
                 },
@@ -620,6 +659,8 @@ impl HerdrWindow {
             ));
         } else if let Page::Dialog(action) = page {
             panel = panel.child(self.render_workspace_dialog(action, cx));
+        } else if page == Page::NewSession {
+            panel = panel.child(self.render_new_session(viewport.width, cx));
         } else if page == Page::NewWorkspace {
             panel = panel.child(self.render_new_workspace(cx));
         } else if page == Page::CarryPane {
@@ -780,6 +821,9 @@ impl HerdrWindow {
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, window, cx| {
                     cx.stop_propagation();
+                    if this.new_session_outside_click(window, cx) {
+                        return;
+                    }
                     // The picker shows Spaces over the selected tab, and the
                     // overlay occludes the tab bar, so a press on a tab picks
                     // that tab as the picker closes.
@@ -799,6 +843,10 @@ impl HerdrWindow {
                 MouseButton::Right,
                 cx.listener(|this, _, window, cx| {
                     if this.menu.opening_right_click {
+                        cx.stop_propagation();
+                        return;
+                    }
+                    if this.new_session_outside_click(window, cx) {
                         cx.stop_propagation();
                         return;
                     }

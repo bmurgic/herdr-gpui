@@ -858,6 +858,28 @@ the split between them and the sort label in the Agents header, set Herdr's
 shared `[ui] session_sidebar = false` or turn off **Session sidebar** in
 **Settings > General > Sessions**.
 
+The Agents tab's `new` control opens the New session dialog, which lists the
+workspaces and offers `Other folder…`. Press Enter on a known repository to
+reach the confirm page, which has a **create worktree** checkbox with a
+branch field, a **run command** checkbox with a command field, and
+**start** and **back** buttons. Both boxes start checked, and the branch is a
+fresh `worktree/<adjective>-<noun>-<hex>` name. Up and Down move between the
+rows that apply, Space or Enter flips a checkbox, and Escape or **back**
+returns to the list. A line under the rows says what start will do and
+shortens the folder to fit the dialog. The command field starts with the
+`[ui] new_session_command` setting, which is `claude` by default. When the
+connected server does not offer `pane.send_text`, the command rows are
+skipped and the dialog says so. `Other folder…` opens a path field with
+folder suggestions; the folder is checked before the confirm page opens, and a
+folder outside a git repository starts as a plain workspace. The same command
+is editable in **Settings > General > Sessions** as the `New session` row.
+
+**start** creates the worktree or the workspace and focuses the new tab, typing
+the command first when its box is checked. When the new worktree runs setup
+hooks, a checklist waits for them with **skip waiting**. If a hook fails, the
+buttons read **start anyway** and **close**: **start anyway** types the command
+and focuses the workspace, and **close** focuses it without typing.
+
 A search field at the top of the Spaces list finds devices, worktrees, and
 branches by name; while it holds text, results grouped by kind replace the
 spaces list. Up and Down move through them, Enter opens one, and Escape

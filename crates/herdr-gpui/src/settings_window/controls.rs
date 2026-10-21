@@ -5,6 +5,7 @@ mod fonts;
 mod indicators;
 #[cfg(all(feature = "integration-test", target_os = "macos"))]
 mod native_bounds;
+mod new_session_command;
 pub(super) mod plugins;
 mod preferences;
 mod session_titles;
@@ -52,6 +53,7 @@ pub(super) struct Controls {
     saving_sizes: Vec<(FontFace, f32)>,
     size_editor: Option<SizeEditor>,
     session_titles: session_titles::Card,
+    new_session_command: new_session_command::Card,
     local_path: String,
     ruler: backdrop::Ruler,
     _search_changed: Subscription,
@@ -114,6 +116,7 @@ impl Controls {
             saving_sizes: Vec::new(),
             size_editor: None,
             session_titles: Default::default(),
+            new_session_command: Default::default(),
             local_path: Config::local_path()
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|error| format!("Unavailable ({error})")),
@@ -359,11 +362,31 @@ impl SettingsWindow {
             .child(div().font_weight(FontWeight::SEMIBOLD).child(title))
     }
 
-    pub(super) fn control_note(&self, text: impl Into<SharedString>) -> Div {
+    pub(super) fn control_note(&self, text: impl IntoElement) -> Div {
         div()
             .min_w_0()
             .text_color(rgb(self.theme.muted))
-            .child(text.into())
+            .child(text)
+    }
+
+    /// A row's text field and its `Apply` need shared saves, which Windows
+    /// refuses, so anywhere else, and before the shared settings load, the row
+    /// shows its value as plain text.
+    fn shared_text_editable(&self) -> bool {
+        cfg!(unix) && self.shared.is_some()
+    }
+
+    /// A field that keeps the window's focus while its row is gone would take
+    /// it as a new focus when the row returns, and start an edit unasked.
+    fn release_hidden_field(
+        &self,
+        input: &Entity<SearchInput>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        if input.read(cx).focus.is_focused(window) {
+            cx.defer_in(window, |this, window, cx| window.focus(&this.focus, cx));
+        }
     }
 
     fn control_row(&self, label: &'static str, value: impl IntoElement) -> Div {
@@ -781,6 +804,36 @@ impl SettingsWindow {
         }
         card
     }
+}
+
+/// A click on a row's buttons must reach its field's state while it is still
+/// editing: left alone, GPUI moves focus to the window root on mouse-down.
+fn keep_focus(_: &MouseDownEvent, window: &mut Window, _: &mut App) {
+    window.prevent_default();
+}
+
+/// The keys `SearchInput` leaves to its owner, Up, Down, Tab, Enter, and Esc,
+/// when pressed without a modifier.
+fn field_key(event: &KeyDownEvent) -> Option<&str> {
+    let key = event.keystroke.key.as_str();
+    if event.keystroke.modifiers.modified()
+        || !matches!(key, "up" | "down" | "tab" | "enter" | "escape")
+    {
+        return None;
+    }
+    Some(key)
+}
+
+/// Keeps a field key from every other handler. Returns `false` while the input
+/// method composes, since it owns these keys then; otherwise the field acts on
+/// the key and nothing else does.
+fn claim_field_key(input: &Entity<SearchInput>, window: &mut Window, cx: &mut App) -> bool {
+    cx.stop_propagation();
+    if input.read(cx).is_composing() {
+        return false;
+    }
+    window.prevent_default();
+    true
 }
 
 #[cfg(test)]

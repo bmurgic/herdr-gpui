@@ -222,12 +222,18 @@ pub(crate) struct CreatedPane {
 #[derive(Debug, Deserialize)]
 pub(crate) struct CreatedWorktree {
     pub(crate) path: String,
+    #[serde(default)]
+    pub(crate) branch: Option<String>,
 }
 
 /// `workspace_created`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct WorkspaceCreated {
     pub(crate) workspace: CreatedWorkspace,
+    #[serde(default)]
+    pub(crate) tab: Option<CreatedTab>,
+    #[serde(default)]
+    pub(crate) root_pane: Option<CreatedPane>,
 }
 
 /// `tab_list`.

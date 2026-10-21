@@ -235,9 +235,21 @@ fn v1_with_scratch() -> ClientShellSnapshotV2 {
 fn refused_focus<'a>(
     cx: &'a mut gpui::TestAppContext,
     endpoint: Endpoint,
+    server: Server,
+    target: NavigationTarget<&str>,
+    method: &str,
+) -> (Entity<HerdrWindow>, &'a mut VisualTestContext, Server) {
+    refused_focus_with(cx, endpoint, server, target, method, workspace_not_found())
+}
+
+/// `refused_focus` with the daemon's refusal given.
+fn refused_focus_with<'a>(
+    cx: &'a mut gpui::TestAppContext,
+    endpoint: Endpoint,
     mut server: Server,
     target: NavigationTarget<&str>,
     method: &str,
+    refusal: serde_json::Value,
 ) -> (Entity<HerdrWindow>, &'a mut VisualTestContext, Server) {
     let (view, cx) = window_over(cx, endpoint);
     cx.update(|_, cx| {
@@ -248,7 +260,7 @@ fn refused_focus<'a>(
     });
     let request = next_request(&mut server);
     assert_eq!(request["method"], method);
-    server.reply(&request, workspace_not_found());
+    server.reply(&request, refusal);
     cx.update(|_, cx| {
         view.update(cx, |view, cx| {
             project_until(view, cx, "the refusal", |view| view.live.error.is_some());
@@ -397,26 +409,49 @@ fn assert_new_tab_goes_to(
     );
 }
 
-/// Only a workspace focus ends its wait: a refused tab focus keeps the fence.
+/// New session start 20: a refused tab focus ends its wait like a refused
+/// workspace focus does. The daemon's message stays on the status line, the
+/// window stops waiting for the tab's surface, and a poll past the old deadline
+/// neither reconnects nor switches host.
 #[gpui::test]
-fn a_refused_tab_focus_keeps_waiting_for_the_activation(cx: &mut gpui::TestAppContext) {
+fn a_refused_tab_focus_ends_the_wait_without_a_reconnect(cx: &mut gpui::TestAppContext) {
     let advertised = [SURFACE, Method::TabFocus];
     let (endpoint, server) =
         connected_endpoint_v2("empty-workspaces", &advertised, api_and("scratch"));
-    let (view, cx, _server) = refused_focus(
+    let refusal = serde_json::json!({"error": {
+        "code": "tab_not_found", "message": "tab w2:t1 not found"
+    }});
+    let (view, cx, _server) = refused_focus_with(
         cx,
         endpoint,
         server,
-        NavigationTarget::Tab("t1"),
+        NavigationTarget::Tab("w2:t1"),
         "tab.focus",
+        refusal,
     );
     view.read_with(cx, |view, _| {
-        assert_eq!(
-            view.live.error.as_deref(),
-            Some("workspace scratch not found")
-        );
-        assert!(view.live.activation.is_some());
-        assert!(view.activation_deadline.is_some());
+        assert_eq!(view.live.error.as_deref(), Some("tab w2:t1 not found"));
+        assert!(view.live.activation.is_none());
+        assert!(view.activation_deadline.is_none());
+    });
+    cx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            // A refusal that reaches the poll after the deadline passed wins:
+            // nothing reconnects or switches host.
+            view.live.focus_refused = true;
+            view.activation_deadline = Some(Instant::now() - Duration::from_secs(1));
+            view.poll_endpoints(cx);
+            assert!(view.activation_deadline.is_none());
+            assert!(view.live.status.is_connected(), "reconnected");
+            assert_eq!(view.selected_endpoint, 0, "switched host");
+            assert!(
+                view.local_error
+                    .as_deref()
+                    .is_none_or(|error| !error.contains("surface activation failed or timed out")),
+                "{:?}",
+                view.local_error
+            );
+        })
     });
 }
 

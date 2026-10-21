@@ -9,6 +9,8 @@ pub(crate) use shortcuts::platform_default;
 pub enum Command {
     NewWindow,
     Workspace,
+    /// The Agents tab's new-session dialog, opened on its project page.
+    NewSession,
     NewWorktree,
     /// The focused repository's "Open worktree..." dialog.
     OpenWorktree,
@@ -132,6 +134,11 @@ pub const COMMANDS: &[CommandInfo] = &[
         command: Command::Workspace,
         name: "new_workspace",
         label: "New Workspace",
+    },
+    CommandInfo {
+        command: Command::NewSession,
+        name: "new_session",
+        label: "New Session",
     },
     CommandInfo {
         command: Command::NewWorktree,
@@ -790,6 +797,7 @@ pub fn request(command: Command, snapshot: &ClientShellSnapshotV2) -> Option<(Me
         Command::NewWindow
         | Command::NewWorktree
         | Command::Workspace
+        | Command::NewSession
         | Command::OpenWorktree
         | Command::RemoveWorktree
         | Command::WorktreeNotes

@@ -5,9 +5,11 @@ use anyhow::{Context as _, Result, bail, ensure};
 use std::time::{Duration, Instant};
 
 mod fonts;
+mod new_session_command;
 mod sessions;
 mod themes;
 use fonts::verify_fonts;
+pub(crate) use new_session_command::open_new_session_row;
 pub(crate) use sessions::verify_sessions;
 use themes::verify_themes;
 
