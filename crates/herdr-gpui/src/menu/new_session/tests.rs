@@ -17,6 +17,7 @@ mod error_rows;
 mod opening;
 mod other_folder;
 mod outage;
+mod pick_clears_error;
 mod progress;
 mod project_entries;
 mod project_page;

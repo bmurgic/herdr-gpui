@@ -106,8 +106,12 @@ impl HerdrWindow {
     /// the confirm page for the repository root, with no request. A workspace
     /// without one asks the daemon about its folder, because a missing record
     /// can also mean the daemon does not know yet. `Other folder…` opens the
-    /// folder page.
+    /// folder page. Every pick drops the red line the project page showed, as
+    /// myherdr's does: a known repository sends nothing whose reply would.
     pub(super) fn pick_project(&mut self, entry: &ProjectEntry, cx: &mut Context<Self>) {
+        if let Some(dialog) = self.menu.new_session.as_mut() {
+            dialog.error = None;
+        }
         match entry {
             ProjectEntry::Workspace {
                 workspace_id,
